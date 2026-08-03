@@ -122,7 +122,7 @@ struct ProviderEditorWindow: View {
     }
 }
 
-private struct WindowCloseGuard: NSViewRepresentable {
+struct WindowCloseGuard: NSViewRepresentable {
     let shouldClose: () -> Bool
 
     func makeCoordinator() -> Coordinator {

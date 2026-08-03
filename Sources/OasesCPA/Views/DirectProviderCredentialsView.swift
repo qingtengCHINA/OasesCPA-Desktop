@@ -131,8 +131,8 @@ struct DirectProviderCredentialsCard: View {
             }
 
             InfoBanner(
-                title: "为日常配置保留简单入口",
-                message: "这里提供 API Key、Base URL、模型前缀、独立代理和流量权重。已有凭证编辑使用 PATCH，只提交实际改动；headers、模型映射等高级字段会被保留，可从完整配置继续调整。",
+                title: "日常与高级配置都在这里",
+                message: "支持 API Key、Base URL、模型前缀、代理、权重、优先级、Headers、冷却策略和模型映射。保存前会重新读取目标的最新凭证列表，再合并本次变更。",
                 systemImage: "lock.shield",
                 tint: .oasesBlue
             )
@@ -225,8 +225,17 @@ private struct DirectProviderCredentialRow: View {
                     if !credential.proxyURL.isEmpty {
                         Text("独立代理")
                     }
-                    if !credential.modelIDs.isEmpty {
-                        Text("映射 \(credential.modelIDs.count) 个模型")
+                    if let priority = credential.priority {
+                        Text("优先级 \(priority)")
+                    }
+                    if credential.disableCooling {
+                        Text("已禁用冷却")
+                    }
+                    if !credential.headers.isEmpty {
+                        Text("Headers \(credential.headers.count)")
+                    }
+                    if !credential.models.isEmpty {
+                        Text("模型映射 \(credential.models.count)")
                     }
                     if !credential.authIndex.isEmpty {
                         Text("认证索引 \(credential.authIndex)")
@@ -260,6 +269,52 @@ private struct DirectProviderCredentialRow: View {
     }
 }
 
+private struct DirectProviderEditorHeaderRow: Identifiable, Equatable {
+    let id: UUID
+    var name: String
+    var value: String
+
+    init(id: UUID = UUID(), name: String = "", value: String = "") {
+        self.id = id
+        self.name = name
+        self.value = value
+    }
+}
+
+private struct DirectProviderEditorModelRow: Identifiable, Equatable {
+    let id: UUID
+    var name: String
+    var alias: String
+    var values: [String: RuntimeJSONValue]
+
+    init(
+        id: UUID = UUID(),
+        name: String = "",
+        alias: String = "",
+        values: [String: RuntimeJSONValue] = [:]
+    ) {
+        self.id = id
+        self.name = name
+        self.alias = alias
+        self.values = values
+    }
+
+    init(draft: RuntimeDirectProviderModelDraft) {
+        id = UUID()
+        name = draft.name
+        alias = draft.alias
+        values = draft.values
+    }
+
+    func modelDraft() -> RuntimeDirectProviderModelDraft {
+        RuntimeDirectProviderModelDraft(
+            name: name,
+            alias: alias,
+            values: values
+        )
+    }
+}
+
 struct DirectProviderCredentialEditorView: View {
     @EnvironmentObject private var deploymentStore: DeploymentStore
     @EnvironmentObject private var runtimeDataStore: RuntimeDataStore
@@ -274,8 +329,15 @@ struct DirectProviderCredentialEditorView: View {
     @State private var proxyURL: String
     @State private var usesDefaultWeight: Bool
     @State private var weightText: String
+    @State private var usesDefaultPriority: Bool
+    @State private var priorityText: String
+    @State private var disableCooling: Bool
+    @State private var headerRows: [DirectProviderEditorHeaderRow]
+    @State private var modelRows: [DirectProviderEditorModelRow]
     @State private var showAPIKey = false
     @State private var showSaveConfirmation = false
+    @State private var showDiscardConfirmation = false
+    @State private var allowClose = false
     @State private var operationError: String?
 
     init(kind: RuntimeDirectProviderKind, credential: RuntimeDirectProviderCredential?) {
@@ -289,6 +351,13 @@ struct DirectProviderCredentialEditorView: View {
         _proxyURL = State(initialValue: draft.proxyURL)
         _usesDefaultWeight = State(initialValue: draft.weight == nil)
         _weightText = State(initialValue: draft.weight.map(String.init) ?? "")
+        _usesDefaultPriority = State(initialValue: draft.priority == nil)
+        _priorityText = State(initialValue: draft.priority.map(String.init) ?? "")
+        _disableCooling = State(initialValue: draft.disableCooling)
+        _headerRows = State(initialValue: draft.headers
+            .sorted { $0.key.localizedStandardCompare($1.key) == .orderedAscending }
+            .map { DirectProviderEditorHeaderRow(name: $0.key, value: $0.value) })
+        _modelRows = State(initialValue: draft.models.map(DirectProviderEditorModelRow.init(draft:)))
     }
 
     private var isNew: Bool { credential == nil }
@@ -299,7 +368,18 @@ struct DirectProviderCredentialEditorView: View {
             baseURL: baseURL,
             prefix: prefix,
             proxyURL: proxyURL,
-            weight: usesDefaultWeight ? nil : Int(weightText.trimmingCharacters(in: .whitespacesAndNewlines))
+            weight: usesDefaultWeight ? nil : Int(weightText.trimmingCharacters(in: .whitespacesAndNewlines)),
+            priority: usesDefaultPriority ? nil : Int(priorityText.trimmingCharacters(in: .whitespacesAndNewlines)),
+            disableCooling: disableCooling,
+            headers: Dictionary(
+                headerRows.map { ($0.name.trimmingCharacters(in: .whitespacesAndNewlines), $0.value) },
+                uniquingKeysWith: { _, latest in latest }
+            ),
+            preservedHeaderValues: credential?.headerValues.filter { item in
+                if case .string = item.value { return false }
+                return true
+            } ?? [:],
+            models: modelRows.map { $0.modelDraft() }
         )
     }
 
@@ -309,6 +389,21 @@ struct DirectProviderCredentialEditorView: View {
             return "请填写有效的整数流量权重，或使用默认权重。"
         }
         return draft.validationMessage(for: kind, isNew: isNew)
+    }
+
+    private var editorValidationMessage: String? {
+        if !usesDefaultPriority,
+           Int(priorityText.trimmingCharacters(in: .whitespacesAndNewlines)) == nil {
+            return "请填写有效的整数优先级，或使用默认优先级。"
+        }
+        if headerRows.contains(where: { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+            return "请求 Header 名称不能为空。"
+        }
+        let headerNames = headerRows.map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+        if Set(headerNames).count != headerNames.count {
+            return "请求 Header 名称不能重复。"
+        }
+        return validationMessage
     }
 
     private var hasChanges: Bool {
@@ -321,7 +416,8 @@ struct DirectProviderCredentialEditorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Form {
+            ScrollView {
+                Form {
                 Section {
                     LabeledContent("上游类型") {
                         Label(kind.title, systemImage: kind.systemImage)
@@ -363,20 +459,89 @@ struct DirectProviderCredentialEditorView: View {
                         .textFieldStyle(.roundedBorder)
                 }
 
-                Section("流量分配") {
+                Section("高级路由") {
                     Toggle("使用默认权重", isOn: $usesDefaultWeight)
                     if !usesDefaultWeight {
                         TextField("权重", text: $weightText, prompt: Text("1-1,000,000"))
                             .textFieldStyle(.roundedBorder)
                     }
-                    Text("多条凭证共存时，CLIProxyAPI 会按其路由策略使用权重。默认权重由服务端处理。")
+                    if kind.supportsPriority {
+                        Toggle("使用默认优先级", isOn: $usesDefaultPriority)
+                        if !usesDefaultPriority {
+                            TextField("优先级", text: $priorityText, prompt: Text("0-1,000,000"))
+                                .textFieldStyle(.roundedBorder)
+                        }
+                    }
+                    if kind.supportsDisableCooling {
+                        Toggle("禁用冷却", isOn: $disableCooling)
+                    }
+                    Text(kind.supportsPriority
+                         ? "权重和优先级会参与多凭证路由；冷却选项用于 xAI 特殊路由。"
+                         : "多条凭证共存时，CLIProxyAPI 会按当前路由策略使用权重。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
-                if let validationMessage {
+                Section("请求 Headers") {
+                    if headerRows.isEmpty {
+                        Text("未配置额外请求 Header。")
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach($headerRows) { $row in
+                        HStack(spacing: 8) {
+                            TextField("Header 名称", text: $row.name)
+                                .textFieldStyle(.roundedBorder)
+                            TextField("Header 值", text: $row.value)
+                                .textFieldStyle(.roundedBorder)
+                            Button("删除", systemImage: "trash", role: .destructive) {
+                                headerRows.removeAll { $0.id == row.id }
+                            }
+                            .labelStyle(.iconOnly)
+                            .buttonStyle(.borderless)
+                        }
+                    }
+                    Button("添加 Header", systemImage: "plus") {
+                        headerRows.append(DirectProviderEditorHeaderRow())
+                    }
+                    Text("Header 值仅在保存时提交；服务端返回的未知非文本 Header 值会继续保留。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if kind.supportsModelMappings {
+                    Section("模型映射") {
+                    if modelRows.isEmpty {
+                        Text("未配置模型映射，将使用上游返回的模型名称。")
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach($modelRows) { $row in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 8) {
+                                TextField("上游模型名称", text: $row.name)
+                                    .textFieldStyle(.roundedBorder)
+                                TextField("客户端别名（可选）", text: $row.alias)
+                                    .textFieldStyle(.roundedBorder)
+                                Button("删除", systemImage: "trash", role: .destructive) {
+                                    modelRows.removeAll { $0.id == row.id }
+                                }
+                                .labelStyle(.iconOnly)
+                                .buttonStyle(.borderless)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    Button("添加模型映射", systemImage: "plus") {
+                        modelRows.append(DirectProviderEditorModelRow())
+                    }
+                    Text("模型映射中的未知字段会保留，便于 CLIProxyAPI 新版本字段无损往返。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let editorValidationMessage {
                     Section {
-                        Label(validationMessage, systemImage: "exclamationmark.triangle.fill")
+                        Label(editorValidationMessage, systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(Color.oasesRed)
                     }
                 }
@@ -387,17 +552,19 @@ struct DirectProviderCredentialEditorView: View {
                             .foregroundStyle(Color.oasesRed)
                     }
                 }
+                }
+                .formStyle(.grouped)
+                .frame(maxWidth: .infinity)
             }
-            .formStyle(.grouped)
 
             Divider()
 
             HStack {
-                Text("高级 headers、模型映射和其它未展示字段会保留。")
+                Text("高级字段会保留；底部按钮始终可用。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("取消") { dismiss() }
+                Button("取消") { requestDismiss() }
                     .keyboardShortcut(.cancelAction)
                 Button(isNew ? "添加凭证" : "保存修改") {
                     showSaveConfirmation = true
@@ -405,14 +572,21 @@ struct DirectProviderCredentialEditorView: View {
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
                 .disabled(
-                    validationMessage != nil ||
+                    editorValidationMessage != nil ||
                     !hasChanges ||
                     runtimeDataStore.isSavingDirectProviders
                 )
             }
             .padding(18)
         }
-        .frame(minWidth: 560, idealWidth: 600, minHeight: 560)
+        .frame(minWidth: 640, idealWidth: 720, minHeight: 620, idealHeight: 760)
+        .background(
+            WindowCloseGuard {
+                guard !allowClose, hasChanges else { return true }
+                showDiscardConfirmation = true
+                return false
+            }
+        )
         .confirmationDialog(
             isNew ? "添加 \(kind.title) 凭证？" : "保存 \(kind.title) 凭证修改？",
             isPresented: $showSaveConfirmation,
@@ -425,6 +599,28 @@ struct DirectProviderCredentialEditorView: View {
         } message: {
             Text("操作会直接写入当前已连接目标的 CLIProxyAPI。密钥内容不会在确认提示中显示。")
         }
+        .confirmationDialog(
+            "舍弃未保存的 Provider 配置？",
+            isPresented: $showDiscardConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("舍弃更改并关闭", role: .destructive) {
+                allowClose = true
+                dismiss()
+            }
+            Button("继续编辑", role: .cancel) {}
+        } message: {
+            Text("关闭会丢失尚未保存的密钥、路由、Headers 和模型映射。")
+        }
+    }
+
+    private func requestDismiss() {
+        guard hasChanges else {
+            allowClose = true
+            dismiss()
+            return
+        }
+        showDiscardConfirmation = true
     }
 
     private func save() {
@@ -443,6 +639,7 @@ struct DirectProviderCredentialEditorView: View {
                         using: deploymentStore
                     )
                 }
+                allowClose = true
                 dismiss()
             } catch {
                 operationError = error.localizedDescription

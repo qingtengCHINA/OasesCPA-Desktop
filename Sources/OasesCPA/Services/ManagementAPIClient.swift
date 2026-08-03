@@ -330,19 +330,65 @@ struct ManagementAPIClient {
         try await performMutation(request)
     }
 
-    func patchDirectProviderCredential(
-        kind: RuntimeDirectProviderKind,
-        index: Int,
-        value: RuntimeProviderCredentialPayload,
+    /// Re-reads the authoritative collection before replacing one entry. Some
+    /// direct-provider PATCH handlers expose only a subset of the fields that
+    /// their PUT schema supports (for example priority or model mappings), so
+    /// a fresh merge + PUT is required for complete native editing.
+    func updateDirectProviderCredential(
+        _ credential: RuntimeDirectProviderCredential,
+        patch: RuntimeProviderCredentialPayload,
         baseURL: URL,
         managementKey: String
     ) async throws {
-        let url = try directProviderURL(baseURL: baseURL, kind: kind)
-        var request = managementRequest(url: url, method: "PATCH", managementKey: managementKey)
-        request.httpBody = try JSONEncoder().encode(
-            RuntimeDirectProviderCredentialPatchRequest(index: index, value: value)
+        var current = try await directProviderCredentials(
+            kind: credential.kind,
+            baseURL: baseURL,
+            managementKey: managementKey
         )
-        try await performMutation(request)
+
+        let targetIndex: Int? = {
+            let authIndex = credential.authIndex.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !authIndex.isEmpty,
+               let match = current.firstIndex(where: { $0.authIndex == authIndex }) {
+                return match
+            }
+            if current.indices.contains(credential.index),
+               current[credential.index].apiKey == credential.apiKey,
+               current[credential.index].baseURL == credential.baseURL {
+                return credential.index
+            }
+            return current.firstIndex {
+                $0.apiKey == credential.apiKey && $0.baseURL == credential.baseURL
+            }
+        }()
+
+        guard let targetIndex else {
+            throw ManagementAPIError.server(
+                status: 409,
+                message: OasesLocalization.localized("凭证列表已变化，请刷新后重试。")
+            )
+        }
+
+        var mergedValues = current[targetIndex].payload.values
+        for (key, value) in patch.values {
+            if value == .null {
+                mergedValues.removeValue(forKey: key)
+            } else {
+                mergedValues[key] = value
+            }
+        }
+        current[targetIndex] = RuntimeDirectProviderCredential(
+            kind: credential.kind,
+            index: targetIndex,
+            payload: RuntimeProviderCredentialPayload(values: mergedValues)
+        )
+
+        try await replaceDirectProviderCredentials(
+            current.map(\.payload),
+            kind: credential.kind,
+            baseURL: baseURL,
+            managementKey: managementKey
+        )
     }
 
     func deleteDirectProviderCredential(

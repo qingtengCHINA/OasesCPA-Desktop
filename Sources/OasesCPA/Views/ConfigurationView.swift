@@ -1,5 +1,21 @@
 import SwiftUI
 
+private enum ConfigurationWorkspaceMode: String, CaseIterable, Identifiable {
+    case quick
+    case source
+    case manager
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .quick: OasesLocalization.localized("可视化配置")
+        case .source: OasesLocalization.localized("完整 YAML")
+        case .manager: OasesLocalization.localized("CPAMP 设置")
+        }
+    }
+}
+
 struct ConfigurationEditState: Equatable {
     private(set) var revision = 0
     private(set) var savedRevision = 0
@@ -41,6 +57,11 @@ struct ConfigurationView: View {
     @State private var batchSizeText = ""
     @State private var queryLimitText = ""
     @State private var inspectionPolicyDraft: RuntimeCodexInspectionPolicyDraft?
+    @State private var selectedWorkspaceMode: ConfigurationWorkspaceMode = .quick
+    @State private var pendingWorkspaceMode: ConfigurationWorkspaceMode?
+    @State private var showDiscardWorkspaceChanges = false
+    @State private var quickConfigIsDirty = false
+    @State private var quickConfigIdentity = UUID()
 
     var body: some View {
         ScrollView {
@@ -55,13 +76,25 @@ struct ConfigurationView: View {
                         tint: .oasesOrange
                     )
                 } else {
-                    cpaConfigCard
-                    if runtimeDataStore.isLoadingManagerConfiguration && draft == nil {
-                        loadingCard
-                    } else if let draft {
-                        form(for: draft)
-                    } else {
-                        emptyCard
+                    workspaceModePicker
+
+                    switch selectedWorkspaceMode {
+                    case .quick:
+                        CPAQuickConfigurationView(
+                            embedded: true,
+                            onDirtyChange: { quickConfigIsDirty = $0 }
+                        )
+                        .id(quickConfigIdentity)
+                    case .source:
+                        cpaConfigCard
+                    case .manager:
+                        if runtimeDataStore.isLoadingManagerConfiguration && draft == nil {
+                            loadingCard
+                        } else if let draft {
+                            form(for: draft)
+                        } else {
+                            emptyCard
+                        }
                     }
                 }
             }
@@ -75,10 +108,12 @@ struct ConfigurationView: View {
                 draft = nil
                 inspectionPolicyDraft = nil
                 editState.reset()
+                quickConfigIsDirty = false
+                quickConfigIdentity = UUID()
             }
         }
         .onChange(of: runtimeDataStore.managerConfiguration) { _, response in
-            guard let response, !isDirty else { return }
+            guard let response, !editState.isDirty else { return }
             apply(response.config)
         }
         .onAppear {
@@ -112,7 +147,7 @@ struct ConfigurationView: View {
         ) {
             if let pendingSection = store.pendingSection {
                 Button("舍弃更改并前往 \(pendingSection.title)", role: .destructive) {
-                    editState.reset()
+                    discardAllDrafts()
                     store.discardConfigurationChangesAndContinue()
                 }
             }
@@ -120,7 +155,25 @@ struct ConfigurationView: View {
                 store.cancelPendingNavigation()
             }
         } message: {
-            Text("当前 CPAMP 配置还有未保存的修改。继续切换页面会丢弃这些草稿。")
+            Text("当前配置还有未保存的修改。继续切换页面会丢弃这些草稿。")
+        }
+        .confirmationDialog(
+            "切换配置模式并舍弃更改？",
+            isPresented: $showDiscardWorkspaceChanges,
+            titleVisibility: .visible
+        ) {
+            if let pendingWorkspaceMode {
+                Button("舍弃更改并前往 \(pendingWorkspaceMode.title)", role: .destructive) {
+                    discardAllDrafts()
+                    selectedWorkspaceMode = pendingWorkspaceMode
+                    self.pendingWorkspaceMode = nil
+                }
+            }
+            Button("留在当前模式", role: .cancel) {
+                pendingWorkspaceMode = nil
+            }
+        } message: {
+            Text("可视化配置或 CPAMP 设置中仍有未保存的修改。")
         }
         .sheet(isPresented: $showCPAConfigEditor) {
             CPAConfigEditorView()
@@ -133,26 +186,43 @@ struct ConfigurationView: View {
             Spacer()
 
             if deploymentStore.stage == .attached {
-                Button("编辑 CLIProxyAPI", systemImage: "doc.text") {
-                    showCPAConfigEditor = true
-                }
-                .buttonStyle(.bordered)
+                if selectedWorkspaceMode == .source {
+                    Button("编辑 config.yaml", systemImage: "pencil") {
+                        showCPAConfigEditor = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                } else if selectedWorkspaceMode == .manager {
+                    Button("刷新", systemImage: "arrow.clockwise") {
+                        editState.reset()
+                        runtimeDataStore.refreshManagerConfiguration(using: deploymentStore)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(runtimeDataStore.isLoadingManagerConfiguration || runtimeDataStore.isSavingManagerConfiguration)
 
-                Button("刷新", systemImage: "arrow.clockwise") {
-                    editState.reset()
-                    runtimeDataStore.refreshManagerConfiguration(using: deploymentStore)
-                    runtimeDataStore.refreshCPAConfig(using: deploymentStore)
+                    Button("保存配置", systemImage: "checkmark.circle") {
+                        showSaveConfirmation = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!editState.isDirty || runtimeDataStore.isSavingManagerConfiguration || !isValidDraft)
                 }
-                .buttonStyle(.bordered)
-                .disabled(runtimeDataStore.isLoadingManagerConfiguration || runtimeDataStore.isSavingManagerConfiguration)
-
-                Button("保存配置", systemImage: "checkmark.circle") {
-                    showSaveConfirmation = true
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!isDirty || runtimeDataStore.isSavingManagerConfiguration || !isValidDraft)
             }
         }
+    }
+
+    private var workspaceModePicker: some View {
+        Picker("配置模式", selection: Binding(
+            get: { selectedWorkspaceMode },
+            set: { requestWorkspaceMode($0) }
+        )) {
+            ForEach(ConfigurationWorkspaceMode.allCases) { mode in
+                Text(mode.title).tag(mode)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .frame(maxWidth: 680)
+        .padding(6)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private var cpaConfigCard: some View {
@@ -535,7 +605,23 @@ struct ConfigurationView: View {
     }
 
     private var isDirty: Bool {
-        editState.isDirty
+        editState.isDirty || quickConfigIsDirty
+    }
+
+    private func requestWorkspaceMode(_ mode: ConfigurationWorkspaceMode) {
+        guard mode != selectedWorkspaceMode else { return }
+        guard isDirty else {
+            selectedWorkspaceMode = mode
+            return
+        }
+        pendingWorkspaceMode = mode
+        showDiscardWorkspaceChanges = true
+    }
+
+    private func discardAllDrafts() {
+        editState.reset()
+        quickConfigIsDirty = false
+        quickConfigIdentity = UUID()
     }
 
     private var saveConfirmationTitle: String {

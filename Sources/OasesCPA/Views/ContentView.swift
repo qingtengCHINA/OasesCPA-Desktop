@@ -133,6 +133,7 @@ private struct AppUpdateToolbarButton: View {
 #endif
 
 struct DetailWorkspaceView: View {
+    @EnvironmentObject private var deploymentStore: DeploymentStore
     let section: AppSection
 
     @ViewBuilder
@@ -145,7 +146,7 @@ struct DetailWorkspaceView: View {
         case .dashboard:
             DashboardView()
         case .usageAnalytics:
-            UsageAnalyticsView()
+            UsageAnalyticsWorkbenchView(deploymentStore: deploymentStore)
         case .monitoring:
             MonitoringView()
         case .accountActions:
@@ -159,7 +160,7 @@ struct DetailWorkspaceView: View {
         case .aiProviders:
             ProvidersView()
         case .authFiles:
-            AuthFilesView()
+            AuthFilesWorkbenchView()
         case .quota:
             QuotaView()
         case .codexInspection:

@@ -14,7 +14,7 @@ Oases CPA 是一个原生 macOS 控制台，用来部署、连接并管理用户
 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 与
 [CPA Manager Plus](https://github.com/seakee/CPA-Manager-Plus)。默认可直接部署到当前 Mac，也可以通过 SSH 管理 Linux/macOS VPS；日常的 Provider、模型、API Key、用量、成本和运行状态都在一个 App 内完成。
 
-> 当前版本为 `0.1.2` 预发布版本，最低支持 macOS 14。发行构建同时支持 Apple Silicon 与 Intel Mac。
+> 当前版本为 `0.1.3` 预发布版本，最低支持 macOS 14。发行构建同时支持 Apple Silicon 与 Intel Mac。
 
 ## 它解决什么问题
 
@@ -27,7 +27,7 @@ CLIProxyAPI 能把多个 AI Provider 汇聚为统一的 OpenAI 兼容接口，�
 | 接入 AI 服务 | 原生管理 OpenAI-compatible、Gemini、Claude、Codex、xAI、Vertex 等凭证与路由配置 |
 | 找到可用模型 | 显式请求上游 `/models`，展示模型 ID，并提供不会自动改写配置的连通性检查 |
 | 交付调用凭据 | 创建、轮换、删除调用 API Key，直接给出带 `/v1` 的 Base URL |
-| 观察真实运行 | 实时仪表盘、用量分析、请求事件、配额、账号待办、日志与凭证健康巡检 |
+| 观察真实运行 | 实时仪表盘、六维用量分析、请求事件、配额、账号待办、日志与凭证健康巡检 |
 | 估算模型成本 | 从 models.dev、LiteLLM 与 OpenRouter 公开元数据同步价格，并结合真实用量估算成本 |
 
 ## 从部署到第一次调用
@@ -91,15 +91,28 @@ cd OasesCPA-Desktop
 ### Provider、模型与认证
 
 - 原生管理 OpenAI-compatible Provider 及内置 Provider 凭证池。
-- API Key 权重、独立代理、模型别名、输入/输出模态与高级字段保真。
+- API Key 权重、优先级、冷却策略、独立代理、Headers、模型别名/映射、输入/输出模态与未知高级字段保真。
 - Codex、Anthropic、Antigravity、Kimi、xAI 与 OpenRouter PKCE OAuth。
-- 认证文件导入、编辑、启停、下载和删除，以及 OAuth 模型隐藏和别名策略。
+- 认证文件可按 Provider、状态和搜索词筛选，支持排序、紧凑显示、模型清单、额度证据、字段编辑、批量启停与批量删除。
 - Provider 编辑窗口与配置页均提供未保存变更保护。
+
+### 原生 CPAMP 工作台
+
+这部分直接按 CPA Manager Plus 与 CLIProxyAPI 的当前管理 API 契约实现，不依赖网页套壳：
+
+| 工作台 | 原生能力 |
+| --- | --- |
+| 用量分析 | 总览、趋势、模型、客户端 Key、凭证和热力图六个视角；支持时间范围、粒度、模型、Key、Provider、状态与缓存筛选 |
+| 认证文件 | Provider 分组、搜索、排序、异常过滤、模型目录、额度信息、优先级/备注等字段编辑和批量操作 |
+| 配置面板 | 面向新手的可视化快捷配置、完整 YAML 源文件编辑和 CPAMP 设置三种模式；失败字段可直接重试 |
+| 系统信息 | CLIProxyAPI、CPA Manager Plus 与使用指南快捷入口，以及从当前网关 `/v1/models` 实时读取并按 Provider/模型族分组的模型目录 |
+
+高级网页面板仍保留为兼容入口，但常用管理流程不再要求用户在原生 App 与 WebUI 之间来回切换。
 
 ### 监控、配额与成本
 
 - 仪表盘每 5 秒读取当前目标状态，无需手动刷新。
-- 真实用量摘要、请求事件流、认证历史和脱敏错误证据。
+- 六维用量分析与高级筛选、真实请求事件流、认证历史和脱敏错误证据。
 - Codex、Claude、Kimi 与 xAI 配额窗口、冷却状态和显式重置。
 - 公开模型价格自动同步、手动价格覆盖和本地成本估算。
 - CPAMP 面板仍作为高级诊断和兼容性入口；SPA 子页面不会被周期刷新打回首页。
@@ -144,7 +157,7 @@ open "OasesCPA.xcodeproj"
 ./script/bump_patch_version.sh
 ```
 
-例如 `0.1.1 (37)` 会变为 `0.1.2 (38)`。然后生成发行包：
+例如 `0.1.2 (38)` 会变为 `0.1.3 (39)`。然后生成发行包：
 
 ```bash
 ./script/package_release.sh
@@ -154,7 +167,7 @@ open "OasesCPA.xcodeproj"
 
 ```bash
 CODESIGN_IDENTITY="Developer ID Application: Your Company (TEAMID)" \
-APP_VERSION="0.1.2" APP_BUILD="38" \
+APP_VERSION="0.1.3" APP_BUILD="39" \
 ./script/package_release.sh
 ```
 

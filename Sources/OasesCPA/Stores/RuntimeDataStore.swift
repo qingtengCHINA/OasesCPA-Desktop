@@ -2565,10 +2565,9 @@ final class RuntimeDataStore: ObservableObject {
         defer { isSavingDirectProviders = false }
 
         do {
-            try await ManagementAPIClient().patchDirectProviderCredential(
-                kind: credential.kind,
-                index: credential.index,
-                value: patch,
+            try await ManagementAPIClient().updateDirectProviderCredential(
+                credential,
+                patch: patch,
                 baseURL: baseURL,
                 managementKey: managementKey
             )

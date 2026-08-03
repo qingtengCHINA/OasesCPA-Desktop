@@ -13,9 +13,15 @@ final class RuntimeDirectProviderContractTests: XCTestCase {
                   "base-url": "https://generativelanguage.googleapis.com",
                   "prefix": "team/",
                   "weight": 7,
+                  "priority": 3,
+                  "disable-cooling": true,
+                  "headers": {
+                    "X-Region": "us",
+                    "X-Retry": "safe"
+                  },
                   "models": [
-                    {"name": "gemini-2.5-pro", "alias": "gemini-pro"},
-                    {"name": "gemini-2.5-flash", "alias": "gemini-flash"},
+                    {"name": "gemini-2.5-pro", "alias": "gemini-pro", "priority": 4, "future-model-field": {"tier": "pro"}},
+                    {"name": "gemini-2.5-flash", "alias": "gemini-flash", "priority": 2},
                     {"name": "gemini-2.5-flash", "alias": "gemini-flash"}
                   ],
                   "auth-index": "gemini-auth-0",
@@ -39,8 +45,15 @@ final class RuntimeDirectProviderContractTests: XCTestCase {
         XCTAssertEqual(credential.baseURL, "https://generativelanguage.googleapis.com")
         XCTAssertEqual(credential.prefix, "team/")
         XCTAssertEqual(credential.weight, 7)
+        XCTAssertEqual(credential.priority, 3)
+        XCTAssertTrue(credential.disableCooling)
+        XCTAssertEqual(credential.headers, ["X-Region": "us", "X-Retry": "safe"])
         XCTAssertEqual(credential.authIndex, "gemini-auth-0")
         XCTAssertEqual(credential.modelIDs, ["gemini-pro", "gemini-flash"])
+        XCTAssertEqual(
+            credential.models.first?.values["future-model-field"],
+            .object(["tier": .string("pro")])
+        )
 
         let masked = credential.maskedAPIKey
         XCTAssertTrue(masked.hasPrefix("gemi"))
@@ -67,38 +80,82 @@ final class RuntimeDirectProviderContractTests: XCTestCase {
             baseURL: "https://example.test/v1",
             prefix: "models/",
             proxyURL: "socks5://proxy.example.test:1080",
-            weight: 12
+            weight: 12,
+            priority: 5,
+            disableCooling: true,
+            headers: ["X-Region": "us"],
+            models: [
+                RuntimeDirectProviderModelDraft(
+                    name: "gemini-2.5-pro",
+                    alias: "pro",
+                    values: ["future-model-field": .boolean(true)]
+                )
+            ]
         )
 
-        let object = try jsonObject(draft.newPayload(for: .gemini))
+        let object = try jsonObject(draft.newPayload(for: .xai))
         XCTAssertEqual(
             Set(object.keys),
-            ["api-key", "base-url", "prefix", "proxy-url", "weight"]
+            ["api-key", "base-url", "prefix", "proxy-url", "weight", "priority", "disable-cooling", "headers", "models"]
         )
         XCTAssertEqual(object["api-key"] as? String, "new-gemini-secret")
         XCTAssertEqual(object["base-url"] as? String, "https://example.test/v1")
         XCTAssertEqual(object["prefix"] as? String, "models/")
         XCTAssertEqual(object["proxy-url"] as? String, "socks5://proxy.example.test:1080")
         XCTAssertEqual(object["weight"] as? NSNumber, 12)
+        XCTAssertEqual(object["priority"] as? NSNumber, 5)
+        XCTAssertEqual(object["disable-cooling"] as? Bool, true)
+        XCTAssertEqual((object["headers"] as? [String: Any])?["X-Region"] as? String, "us")
+        let models = try XCTUnwrap(object["models"] as? [[String: Any]])
+        XCTAssertEqual(models.first?["name"] as? String, "gemini-2.5-pro")
+        XCTAssertEqual(models.first?["alias"] as? String, "pro")
+        XCTAssertNil(models.first?["priority"])
+        XCTAssertEqual(models.first?["future-model-field"] as? Bool, true)
     }
 
     func testEditDraftDoesNotSendEmptyAPIKeyAndCanEncodeJSONNullWeight() throws {
         let existing = RuntimeDirectProviderCredential(
-            kind: .gemini,
+            kind: .xai,
             index: 2,
             payload: RuntimeProviderCredentialPayload(values: [
                 "api-key": .string("existing-secret-never-replaced"),
                 "base-url": .string("https://old.example.test"),
                 "prefix": .string("old/"),
                 "proxy-url": .string("http://old-proxy.example.test:8080"),
-                "weight": .number(10)
+                "weight": .number(10),
+                "priority": .number(8),
+                "disable-cooling": .boolean(true),
+                "headers": .object([
+                    "X-Keep": .string("same"),
+                    "X-Delete": .string("remove"),
+                    "X-Future": .number(3)
+                ]),
+                "models": .array([
+                    .object([
+                        "name": .string("old-model"),
+                        "alias": .string("old"),
+                        "priority": .number(1),
+                        "future": .object(["enabled": .boolean(true)])
+                    ])
+                ])
             ])
         )
         let draft = RuntimeDirectProviderCredentialDraft(
             baseURL: "https://new.example.test",
             prefix: "new/",
             proxyURL: "http://new-proxy.example.test:8080",
-            weight: nil
+            weight: nil,
+            priority: 9,
+            disableCooling: false,
+            headers: ["X-Keep": "changed", "X-Add": "new"],
+            preservedHeaderValues: ["X-Future": .number(3)],
+            models: [
+                RuntimeDirectProviderModelDraft(
+                    name: "new-model",
+                    alias: "new",
+                    values: ["future": .object(["enabled": .boolean(true)])]
+                )
+            ]
         )
 
         let patch = try XCTUnwrap(draft.patch(relativeTo: existing))
@@ -109,6 +166,36 @@ final class RuntimeDirectProviderContractTests: XCTestCase {
         XCTAssertEqual(object["proxy-url"] as? String, "http://new-proxy.example.test:8080")
         XCTAssertTrue(object.keys.contains("weight"))
         XCTAssertTrue(object["weight"] is NSNull)
+        XCTAssertEqual(object["priority"] as? NSNumber, 9)
+        XCTAssertEqual(object["disable-cooling"] as? Bool, false)
+        let headers = try XCTUnwrap(object["headers"] as? [String: Any])
+        XCTAssertEqual(headers["X-Keep"] as? String, "changed")
+        XCTAssertEqual(headers["X-Add"] as? String, "new")
+        XCTAssertEqual(headers["X-Delete"] as? String, nil)
+        XCTAssertEqual(headers["X-Future"] as? NSNumber, 3)
+        let models = try XCTUnwrap(object["models"] as? [[String: Any]])
+        XCTAssertEqual(models.first?["name"] as? String, "new-model")
+        let future = try XCTUnwrap(models.first?["future"] as? [String: Any])
+        XCTAssertEqual(future["enabled"] as? Bool, true)
+    }
+
+    func testPatchOmitsUnchangedAdvancedFields() throws {
+        let existing = RuntimeDirectProviderCredential(
+            kind: .xai,
+            index: 1,
+            payload: RuntimeProviderCredentialPayload(values: [
+                "api-key": .string("secret"),
+                "disable-cooling": .boolean(false),
+                "headers": .object(["X-Client": .string("oases")]),
+                "models": .array([.object(["name": .string("model"), "alias": .string("m")])])
+            ])
+        )
+        let draft = RuntimeDirectProviderCredentialDraft(
+            headers: ["X-Client": "oases"],
+            models: [RuntimeDirectProviderModelDraft(name: "model", alias: "m")]
+        )
+
+        XCTAssertNil(draft.patch(relativeTo: existing))
     }
 
     func testDraftValidationRejectsMissingRequiredFieldsAndInvalidValues() {
@@ -143,6 +230,24 @@ final class RuntimeDirectProviderContractTests: XCTestCase {
                 weight: 1_000_001
             ).validationMessage(for: .gemini, isNew: true)
         )
+        XCTAssertNotNil(
+            RuntimeDirectProviderCredentialDraft(
+                apiKey: "gemini-key",
+                priority: -1
+            ).validationMessage(for: .gemini, isNew: true)
+        )
+        XCTAssertNotNil(
+            RuntimeDirectProviderCredentialDraft(
+                apiKey: "gemini-key",
+                headers: ["X-Test": "line\nbreak"]
+            ).validationMessage(for: .gemini, isNew: true)
+        )
+        XCTAssertNotNil(
+            RuntimeDirectProviderCredentialDraft(
+                apiKey: "gemini-key",
+                models: [RuntimeDirectProviderModelDraft()]
+            ).validationMessage(for: .gemini, isNew: true)
+        )
     }
 
     func testValidGeminiDraftPassesValidation() {
@@ -155,35 +260,6 @@ final class RuntimeDirectProviderContractTests: XCTestCase {
         )
 
         XCTAssertNil(draft.validationMessage(for: .gemini, isNew: true))
-    }
-
-    func testPatchRequestEncodesIndexValueAndProtocolKeys() throws {
-        let request = RuntimeDirectProviderCredentialPatchRequest(
-            index: 4,
-            value: RuntimeProviderCredentialPayload(values: [
-                "api-key": .string("replacement-secret"),
-                "base-url": .string("https://api.example.test"),
-                "proxy-url": .string("http://proxy.example.test:8080"),
-                "auth-index": .string("auth-4"),
-                "weight": .null
-            ])
-        )
-
-        let root = try jsonObject(request)
-        XCTAssertEqual(root["index"] as? NSNumber, 4)
-        let value = try XCTUnwrap(root["value"] as? [String: Any])
-        XCTAssertEqual(
-            Set(value.keys),
-            ["api-key", "base-url", "proxy-url", "auth-index", "weight"]
-        )
-        XCTAssertEqual(value["api-key"] as? String, "replacement-secret")
-        XCTAssertEqual(value["base-url"] as? String, "https://api.example.test")
-        XCTAssertEqual(value["proxy-url"] as? String, "http://proxy.example.test:8080")
-        XCTAssertEqual(value["auth-index"] as? String, "auth-4")
-        XCTAssertTrue(value["weight"] is NSNull)
-        XCTAssertFalse(value.keys.contains("apiKey"))
-        XCTAssertFalse(value.keys.contains("baseUrl"))
-        XCTAssertFalse(value.keys.contains("authIndex"))
     }
 
     private func jsonObject<T: Encodable>(_ value: T) throws -> [String: Any] {

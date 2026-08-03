@@ -12,6 +12,7 @@ struct CPAConfigEditorView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var showSaveConfirmation = false
+    @State private var showDiscardConfirmation = false
     @State private var importingFile = false
     @State private var exportingFile = false
     @State private var exportDocument = RuntimeCPAConfigDocument()
@@ -72,7 +73,7 @@ struct CPAConfigEditorView: View {
             .navigationTitle("CLIProxyAPI config.yaml")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button("取消") { requestClose() }
                         .disabled(runtimeDataStore.isSavingCPAConfig)
                 }
                 ToolbarItemGroup(placement: .secondaryAction) {
@@ -96,6 +97,15 @@ struct CPAConfigEditorView: View {
             }
         }
         .frame(minWidth: 900, minHeight: 760)
+        .background(
+            WindowCloseGuard {
+                guard !isDirty else {
+                    showDiscardConfirmation = true
+                    return false
+                }
+                return true
+            }
+        )
         .task(id: deploymentStore.stage) {
             load()
         }
@@ -125,6 +135,19 @@ struct CPAConfigEditorView: View {
             Button("取消", role: .cancel) {}
         } message: {
             Text("这会直接替换当前目标的 config.yaml。错误配置可能导致 CLIProxyAPI 无法启动；建议先导出一份备份。")
+        }
+        .confirmationDialog(
+            "舍弃未保存的 YAML 修改？",
+            isPresented: $showDiscardConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("舍弃更改并关闭", role: .destructive) {
+                isDirty = false
+                dismiss()
+            }
+            Button("继续编辑", role: .cancel) {}
+        } message: {
+            Text("关闭编辑器会丢失尚未保存到当前 CLIProxyAPI 目标的配置。")
         }
         .fileImporter(
             isPresented: $importingFile,
@@ -188,6 +211,14 @@ struct CPAConfigEditorView: View {
                 errorMessage = "保存 config.yaml 失败：\(error.localizedDescription)"
             }
         }
+    }
+
+    private func requestClose() {
+        guard isDirty else {
+            dismiss()
+            return
+        }
+        showDiscardConfirmation = true
     }
 
     private func handleImport(_ result: Result<[URL], Error>) {
