@@ -33,6 +33,9 @@ struct AppVersionInfo {
 struct SettingsView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var deploymentStore: DeploymentStore
+    #if !APP_STORE
+    @EnvironmentObject private var appUpdateService: AppUpdateService
+    #endif
     @Environment(\.openWindow) private var openWindow
     @AppStorage(OasesAppearance.defaultsKey) private var preferredAppearanceRaw = OasesAppearance.system.rawValue
     @AppStorage(AppLanguage.defaultsKey) private var preferredLanguageRaw = AppLanguage.system.rawValue
@@ -157,6 +160,55 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            #if !APP_STORE
+            Section("软件更新") {
+                LabeledContent("当前版本") {
+                    Text(appVersion.marketingVersion)
+                        .monospacedDigit()
+                }
+
+                LabeledContent("最新版本") {
+                    Text(appUpdateService.latestTag ?? OasesLocalization.localized("尚未检查"))
+                        .monospacedDigit()
+                }
+
+                LabeledContent("更新状态") {
+                    Text(updateStatusTitle)
+                        .foregroundStyle(updateStatusColor)
+                }
+
+                HStack {
+                    Button("检查更新", systemImage: "arrow.clockwise") {
+                        Task { await appUpdateService.checkForUpdates() }
+                    }
+                    .disabled(appUpdateService.status == .checking || appUpdateService.status == .downloading)
+
+                    if appUpdateService.isUpdateAvailable {
+                        Button(updateActionTitle, systemImage: "arrow.down.circle") {
+                            if appUpdateService.status == .downloaded {
+                                appUpdateService.openDownloadedUpdate()
+                            } else {
+                                Task { await appUpdateService.downloadAvailableUpdate() }
+                            }
+                        }
+                        .disabled(appUpdateService.status == .downloading)
+                    }
+                }
+
+                if let errorMessage = appUpdateService.errorMessage {
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundStyle(Color.oasesRed)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Text("Oases CPA 会定期读取官方 GitHub Releases。发现新版本后，下载的 DMG 会保存到“下载”文件夹并自动打开。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            #endif
+
             Section("关于") {
                 LabeledContent("产品") { Text("Oases CPA for macOS") }
                 LabeledContent("服务基线") { Text("CLIProxyAPI + CPA Manager Plus") }
@@ -191,9 +243,41 @@ struct SettingsView: View {
                 .padding(.bottom, 12)
                 .accessibilityLabel("版本 \(appVersion.versionAndBuild)")
         }
-        .frame(minWidth: 560, idealWidth: 620, minHeight: 640, idealHeight: 760)
+        .frame(minWidth: 520, idealWidth: 620, minHeight: 520, idealHeight: 720)
         .onAppear {
             launchAtLogin.refresh()
         }
     }
+
+    #if !APP_STORE
+    private var updateStatusTitle: LocalizedStringKey {
+        switch appUpdateService.status {
+        case .idle: "尚未检查"
+        case .checking: "正在检查…"
+        case .upToDate: "已是最新版本"
+        case .updateAvailable: "发现新版本"
+        case .releaseWithoutDMG: "新版本暂无 DMG"
+        case .downloading: "正在下载…"
+        case .downloaded: "安装包已下载"
+        case .failed: "检查或下载失败"
+        }
+    }
+
+    private var updateStatusColor: Color {
+        switch appUpdateService.status {
+        case .updateAvailable, .downloading: .oasesOrange
+        case .upToDate, .downloaded: .oasesGreen
+        case .releaseWithoutDMG, .failed: .oasesRed
+        default: .secondary
+        }
+    }
+
+    private var updateActionTitle: LocalizedStringKey {
+        switch appUpdateService.status {
+        case .downloaded: "打开安装包"
+        case .failed: "重试下载"
+        default: "下载更新"
+        }
+    }
+    #endif
 }

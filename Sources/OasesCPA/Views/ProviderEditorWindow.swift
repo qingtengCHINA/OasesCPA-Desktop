@@ -72,7 +72,7 @@ struct ProviderEditorWindow: View {
                 )
             }
         }
-        .frame(minWidth: 760, minHeight: 600)
+        .frame(minWidth: 640, minHeight: 480)
         .background(
             WindowCloseGuard {
                 closeState.requestClose()

@@ -5,6 +5,9 @@ struct ContentView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var deploymentStore: DeploymentStore
     @EnvironmentObject private var runtimeDataStore: RuntimeDataStore
+    #if !APP_STORE
+    @EnvironmentObject private var appUpdateService: AppUpdateService
+    #endif
     var body: some View {
         NavigationSplitView {
             SidebarView()
@@ -14,6 +17,12 @@ struct ContentView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .toolbar {
+            #if !APP_STORE
+            ToolbarItem(placement: .navigation) {
+                AppUpdateToolbarButton()
+            }
+            #endif
+
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
                     store.refresh()
@@ -73,6 +82,55 @@ struct ContentView: View {
         }
     }
 }
+
+#if !APP_STORE
+private struct AppUpdateToolbarButton: View {
+    @EnvironmentObject private var appUpdateService: AppUpdateService
+
+    var body: some View {
+        if appUpdateService.isUpdateAvailable,
+           let version = appUpdateService.availableUpdateVersion {
+            Button {
+                if appUpdateService.status == .downloaded {
+                    appUpdateService.openDownloadedUpdate()
+                } else {
+                    Task { await appUpdateService.downloadAvailableUpdate() }
+                }
+            } label: {
+                switch appUpdateService.status {
+                case .downloading:
+                    HStack(spacing: 6) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("正在下载")
+                    }
+                case .downloaded:
+                    versionLabel("打开更新 v%@", version: version, systemImage: "arrow.down.circle.fill")
+                case .failed:
+                    versionLabel("重试更新 v%@", version: version, systemImage: "exclamationmark.arrow.circlepath")
+                default:
+                    versionLabel("更新 v%@", version: version, systemImage: "arrow.down.circle.fill")
+                }
+            }
+            .disabled(appUpdateService.status == .downloading)
+            .help("下载 GitHub Releases 中的最新 DMG 安装包")
+            .accessibilityLabel("发现新版本 v\(version.description)")
+        }
+    }
+
+    private func versionLabel(
+        _ format: String,
+        version: SemanticVersion,
+        systemImage: String
+    ) -> some View {
+        Label {
+            Text(OasesLocalization.localizedFormat(format, version.description))
+        } icon: {
+            Image(systemName: systemImage)
+        }
+    }
+}
+#endif
 
 struct DetailWorkspaceView: View {
     let section: AppSection

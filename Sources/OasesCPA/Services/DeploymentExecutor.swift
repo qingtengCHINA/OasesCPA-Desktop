@@ -208,6 +208,8 @@ struct DeploymentExecutor {
         }
         printf '%s\n' "$$" > "$LOCK_DIR/pid"
 
+        MANAGED_ROOT_MARKER="$INSTALL_ROOT/.oases-cpa-managed"
+
         if [ -e "$INSTALL_ROOT/.oases-cpa-installed" ]; then
           release_deployment_lock
           printf '%s\n' '检测到目标目录中已有成功部署，已阻止重复安装。请连接对应的已保存目标；如需新建，请选择空目录。' >&2
@@ -215,7 +217,13 @@ struct DeploymentExecutor {
         fi
 
         RECOVERY_NOTE=""
+        LEGACY_OWNERSHIP_MARKER_PRESENT=0
         if [ -e "$INSTALL_ROOT/.oases-cpa-installing" ] || [ -e "$INSTALL_ROOT/.oases-cpa-failed" ]; then
+          LEGACY_OWNERSHIP_MARKER_PRESENT=1
+        fi
+        if [ -e "$INSTALL_ROOT/.oases-cpa-installing" ] || \
+           [ -e "$INSTALL_ROOT/.oases-cpa-failed" ] || \
+           { [ -e "$MANAGED_ROOT_MARKER" ] && [ ! -e "$INSTALL_ROOT/.oases-cpa-installed" ]; }; then
           AUTO_BACKUP_NAME="auto-recovery-$(date -u '+%Y%m%dT%H%M%SZ')-$$"
           AUTO_BACKUP_ROOT="$INSTALL_ROOT/backups/$AUTO_BACKUP_NAME"
           recover_stale_attempt() {
@@ -269,21 +277,38 @@ struct DeploymentExecutor {
           RECOVERY_NOTE="已自动备份上次未完成部署到 backups/${AUTO_BACKUP_NAME}，现在重新开始。"
         fi
 
-        if [ -e "$INSTALL_ROOT/cli-proxy-api" ] || [ -e "$INSTALL_ROOT/cpamp" ]; then
-          release_deployment_lock
-          printf '%s\n' '目标目录包含非当前部署生成的 CLIProxyAPI 或 CPAMP 文件。为保护已有数据，请换用空目录。' >&2
-          exit 12
+        if [ ! -e "$MANAGED_ROOT_MARKER" ] && [ "$LEGACY_OWNERSHIP_MARKER_PRESENT" -ne 1 ]; then
+          FIRST_UNMANAGED_ENTRY="$(find "$INSTALL_ROOT" -mindepth 1 -maxdepth 1 \
+            ! -name '.oases-cpa-deployment-lock' \
+            ! -name 'backups' \
+            ! -name '.DS_Store' \
+            -print -quit)"
+          if [ -n "$FIRST_UNMANAGED_ENTRY" ]; then
+            release_deployment_lock
+            printf '%s\n' '目标目录并非空目录，且没有 Oases CPA 受管标记。为保护已有数据，请换用空目录。' >&2
+            exit 12
+          fi
+        fi
+        if [ ! -e "$MANAGED_ROOT_MARKER" ]; then
+          printf 'owned-by=oases-cpa\n' > "$MANAGED_ROOT_MARKER"
+          chmod 600 "$MANAGED_ROOT_MARKER"
         fi
 
         mkdir -p "$INSTALL_ROOT/logs" "$INSTALL_ROOT/secrets"
         DEPLOYMENT_LOG="$INSTALL_ROOT/logs/deployment.log"
         exec 3>&1 4>&2
         exec >> "$DEPLOYMENT_LOG" 2>&1
-        CURRENT_STAGE="prepare"
         ATTEMPT_MARKER="$INSTALL_ROOT/.oases-cpa-installing"
         FAILURE_MARKER="$INSTALL_ROOT/.oases-cpa-failed"
-        printf 'timestamp=%s\nmethod=native\nstage=%s\npid=%s\n' \
-          "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$CURRENT_STAGE" "$$" > "$ATTEMPT_MARKER"
+        CURRENT_STAGE="prepare"
+        set_stage() {
+          CURRENT_STAGE="$1"
+          local marker_part="${ATTEMPT_MARKER}.part.$$"
+          printf 'timestamp=%s\nmethod=native\nstage=%s\npid=%s\n' \
+            "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$CURRENT_STAGE" "$$" > "$marker_part"
+          mv "$marker_part" "$ATTEMPT_MARKER"
+          printf '[%s] 部署阶段：%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$CURRENT_STAGE"
+        }
         deployment_exit_status() {
           local status="$?"
           set +e
@@ -301,6 +326,7 @@ struct DeploymentExecutor {
           exit "$status"
         }
         trap deployment_exit_status EXIT
+        set_stage "prepare"
         printf '\n[%s] Oases CPA 原生部署开始。\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
         if [ -n "$RECOVERY_NOTE" ]; then
           printf '%s\n' "$RECOVERY_NOTE"
@@ -339,7 +365,7 @@ struct DeploymentExecutor {
         curl_retry() {
           local attempt
           for attempt in 1 2 3 4; do
-            if curl --connect-timeout 20 "$@"; then
+            if curl --connect-timeout 20 --speed-limit 1024 --speed-time 60 --max-time 1800 "$@"; then
               return 0
             fi
             [ "$attempt" -lt 4 ] || return 1
@@ -349,7 +375,7 @@ struct DeploymentExecutor {
 
         latest_tag() {
           local location
-          location="$(curl_retry -fsSLI -o /dev/null -w '%{url_effective}' "$1")" || return 1
+          location="$(curl_retry --max-time 60 -fsSLI -o /dev/null -w '%{url_effective}' "$1")" || return 1
           [ -n "$location" ] || return 1
           printf '%s\n' "${location##*/}"
         }
@@ -361,34 +387,48 @@ struct DeploymentExecutor {
           local archive_path="$4"
           local checksums expected actual
 
-          checksums="$(curl_retry -fsSL "https://github.com/$repository/releases/download/$version_tag/checksums.txt")"
+          checksums="$(curl_retry --max-time 120 -fsSL "https://github.com/$repository/releases/download/$version_tag/checksums.txt")"
           expected="$(printf '%s\n' "$checksums" | awk -v file="$archive_name" '{name=$NF; sub(/^\\.\\//, "", name); if (name == file) {print $1; exit}}')"
-          [ -n "$expected" ] || { printf 'checksums.txt 中没有找到 %s。\n' "$archive_name" >&2; exit 17; }
+          [ -n "$expected" ] || { printf 'checksums.txt 中没有找到 %s。\n' "$archive_name" >&2; return 17; }
           if [ "$SHA256_COMMAND" = "shasum" ]; then
             actual="$(shasum -a 256 "$archive_path" | awk '{print $1}')"
           else
             actual="$(sha256sum "$archive_path" | awk '{print $1}')"
           fi
-          [ "$actual" = "$expected" ] || { printf 'SHA-256 校验失败：%s。\n' "$archive_name" >&2; exit 17; }
+          [ "$actual" = "$expected" ] || { printf 'SHA-256 校验失败：%s。\n' "$archive_name" >&2; return 17; }
         }
 
         yaml_escape() {
           printf '%s' "$1" | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g'
         }
 
-        CURRENT_STAGE="resolve-cli-version"
+        set_stage "resolve-cli-version"
         CLI_VERSION_TAG="$(latest_tag 'https://github.com/router-for-me/CLIProxyAPI/releases/latest')"
         CLI_VERSION="${CLI_VERSION_TAG#v}"
         CLI_PACKAGE="CLIProxyAPI_${CLI_VERSION}_${RELEASE_OS}_${CLI_ARCH}"
         CLI_DIR="$INSTALL_ROOT/cli-proxy-api"
         CLI_RUNTIME="$CLI_DIR/runtime/$CLI_PACKAGE"
         CLI_ARCHIVE="$CLI_DIR/downloads/$CLI_PACKAGE.tar.gz"
+        CLI_ARCHIVE_PART="${CLI_ARCHIVE}.part"
         mkdir -p "$CLI_RUNTIME" "$CLI_DIR/downloads" "$CLI_DIR/auths" "$CLI_DIR/logs"
-        CURRENT_STAGE="download-cli"
-        curl_retry -fsSL "https://github.com/router-for-me/CLIProxyAPI/releases/download/$CLI_VERSION_TAG/$CLI_PACKAGE.tar.gz" -o "$CLI_ARCHIVE"
-        CURRENT_STAGE="verify-cli"
-        verify_archive "router-for-me/CLIProxyAPI" "$CLI_VERSION_TAG" "$CLI_PACKAGE.tar.gz" "$CLI_ARCHIVE"
-        CURRENT_STAGE="install-cli"
+        rm -f "$CLI_ARCHIVE_PART"
+        set_stage "download-cli"
+        if ! curl_retry -fsSL "https://github.com/router-for-me/CLIProxyAPI/releases/download/$CLI_VERSION_TAG/$CLI_PACKAGE.tar.gz" -o "$CLI_ARCHIVE_PART"; then
+          rm -f "$CLI_ARCHIVE_PART"
+          exit 18
+        fi
+        set_stage "verify-cli"
+        if ! verify_archive "router-for-me/CLIProxyAPI" "$CLI_VERSION_TAG" "$CLI_PACKAGE.tar.gz" "$CLI_ARCHIVE_PART"; then
+          rm -f "$CLI_ARCHIVE_PART"
+          exit 17
+        fi
+        if ! tar -tzf "$CLI_ARCHIVE_PART" >/dev/null; then
+          printf '%s\n' 'CLIProxyAPI 下载包不完整或不是有效的 tar.gz。' >&2
+          rm -f "$CLI_ARCHIVE_PART"
+          exit 17
+        fi
+        mv "$CLI_ARCHIVE_PART" "$CLI_ARCHIVE"
+        set_stage "install-cli"
         tar -xzf "$CLI_ARCHIVE" -C "$CLI_RUNTIME"
         CLI_BINARY="$CLI_RUNTIME/cli-proxy-api"
         [ -f "$CLI_BINARY" ] || { printf '%s\n' 'CLIProxyAPI 原生包中没有找到 cli-proxy-api。' >&2; exit 15; }
@@ -414,24 +454,39 @@ struct DeploymentExecutor {
         cat > "$CLI_DIR/run.sh" <<EOF
         #!/bin/bash
         set -euo pipefail
+        exec 3>&- 4>&-
         cd "$CLI_DIR"
         exec "$CLI_BINARY" -config "$CLI_DIR/config.yaml"
         EOF
         chmod 755 "$CLI_DIR/run.sh"
 
-        CURRENT_STAGE="resolve-cpamp-version"
+        set_stage "resolve-cpamp-version"
         CPAMP_VERSION_TAG="$(latest_tag 'https://github.com/seakee/CPA-Manager-Plus/releases/latest')"
         CPAMP_PACKAGE="cpa-manager-plus_${CPAMP_VERSION_TAG}_${RELEASE_OS}_${CPAMP_ARCH}"
         CPAMP_DIR="$INSTALL_ROOT/cpamp"
         CPAMP_RUNTIME="$CPAMP_DIR/runtime"
         CPAMP_BINARY_DIR="$CPAMP_RUNTIME/$CPAMP_PACKAGE"
         CPAMP_ARCHIVE="$CPAMP_DIR/downloads/$CPAMP_PACKAGE.tar.gz"
+        CPAMP_ARCHIVE_PART="${CPAMP_ARCHIVE}.part"
         mkdir -p "$CPAMP_RUNTIME" "$CPAMP_DIR/downloads" "$CPAMP_DIR/data"
-        CURRENT_STAGE="download-cpamp"
-        curl_retry -fsSL "https://github.com/seakee/CPA-Manager-Plus/releases/download/$CPAMP_VERSION_TAG/$CPAMP_PACKAGE.tar.gz" -o "$CPAMP_ARCHIVE"
-        CURRENT_STAGE="verify-cpamp"
-        verify_archive "seakee/CPA-Manager-Plus" "$CPAMP_VERSION_TAG" "$CPAMP_PACKAGE.tar.gz" "$CPAMP_ARCHIVE"
-        CURRENT_STAGE="install-cpamp"
+        rm -f "$CPAMP_ARCHIVE_PART"
+        set_stage "download-cpamp"
+        if ! curl_retry -fsSL "https://github.com/seakee/CPA-Manager-Plus/releases/download/$CPAMP_VERSION_TAG/$CPAMP_PACKAGE.tar.gz" -o "$CPAMP_ARCHIVE_PART"; then
+          rm -f "$CPAMP_ARCHIVE_PART"
+          exit 18
+        fi
+        set_stage "verify-cpamp"
+        if ! verify_archive "seakee/CPA-Manager-Plus" "$CPAMP_VERSION_TAG" "$CPAMP_PACKAGE.tar.gz" "$CPAMP_ARCHIVE_PART"; then
+          rm -f "$CPAMP_ARCHIVE_PART"
+          exit 17
+        fi
+        if ! tar -tzf "$CPAMP_ARCHIVE_PART" >/dev/null; then
+          printf '%s\n' 'CPA Manager Plus 下载包不完整或不是有效的 tar.gz。' >&2
+          rm -f "$CPAMP_ARCHIVE_PART"
+          exit 17
+        fi
+        mv "$CPAMP_ARCHIVE_PART" "$CPAMP_ARCHIVE"
+        set_stage "install-cpamp"
         tar -xzf "$CPAMP_ARCHIVE" -C "$CPAMP_RUNTIME"
         CPAMP_BINARY="$CPAMP_BINARY_DIR/cpa-manager-plus"
         [ -f "$CPAMP_BINARY" ] || { printf '%s\n' 'CPA Manager Plus 原生包中没有找到 cpa-manager-plus。' >&2; exit 16; }
@@ -457,16 +512,17 @@ struct DeploymentExecutor {
         cat > "$CPAMP_DIR/run.sh" <<EOF
         #!/bin/bash
         set -euo pipefail
+        exec 3>&- 4>&-
         cd "$CPAMP_BINARY_DIR"
         exec "$CPAMP_BINARY"
         EOF
         chmod 755 "$CPAMP_DIR/run.sh"
 
-        CURRENT_STAGE="start-cli"
+        set_stage "start-cli"
         nohup "$CLI_DIR/run.sh" >> "$INSTALL_ROOT/logs/cli-proxy-api.log" 2>&1 &
         printf '%s\n' "$!" > "$INSTALL_ROOT/cli-proxy-api.pid"
 
-        CURRENT_STAGE="wait-cli"
+        set_stage "wait-cli"
         for _ in $(seq 1 45); do
           if curl -fsS -H "Authorization: Bearer $MANAGEMENT_KEY" http://127.0.0.1:8317/v0/management/config >/dev/null 2>&1; then
             break
@@ -475,11 +531,11 @@ struct DeploymentExecutor {
         done
         curl -fsS -H "Authorization: Bearer $MANAGEMENT_KEY" http://127.0.0.1:8317/v0/management/config >/dev/null
 
-        CURRENT_STAGE="start-cpamp"
+        set_stage "start-cpamp"
         nohup "$CPAMP_DIR/run.sh" >> "$INSTALL_ROOT/logs/cpa-manager-plus.log" 2>&1 &
         printf '%s\n' "$!" > "$INSTALL_ROOT/cpa-manager-plus.pid"
 
-        CURRENT_STAGE="wait-cpamp"
+        set_stage "wait-cpamp"
         for _ in $(seq 1 45); do
           if curl -fsS http://127.0.0.1:18317/health >/dev/null 2>&1; then
             break
@@ -488,7 +544,7 @@ struct DeploymentExecutor {
         done
         curl -fsS http://127.0.0.1:18317/health >/dev/null
 
-        CURRENT_STAGE="finalize"
+        set_stage "finalize"
         touch "$INSTALL_ROOT/.oases-cpa-installed"
         printf '[%s] Oases CPA 原生部署完成。\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
         printf 'OASES_CPA_MANAGEMENT_KEY=%s\n' "$(cat "$INSTALL_ROOT/secrets/cpa-management-key")" >&3
@@ -531,6 +587,8 @@ struct DeploymentExecutor {
         }
         printf '%s\n' "$$" > "$LOCK_DIR/pid"
 
+        MANAGED_ROOT_MARKER="$INSTALL_ROOT/.oases-cpa-managed"
+
         if [ -e "$INSTALL_ROOT/.oases-cpa-installed" ]; then
           release_deployment_lock
           printf '%s\n' '检测到目标目录中已有成功部署，已阻止重复安装。请连接对应的已保存目标；如需新建，请选择空目录。' >&2
@@ -538,7 +596,13 @@ struct DeploymentExecutor {
         fi
 
         RECOVERY_NOTE=""
+        LEGACY_OWNERSHIP_MARKER_PRESENT=0
         if [ -e "$INSTALL_ROOT/.oases-cpa-installing" ] || [ -e "$INSTALL_ROOT/.oases-cpa-failed" ]; then
+          LEGACY_OWNERSHIP_MARKER_PRESENT=1
+        fi
+        if [ -e "$INSTALL_ROOT/.oases-cpa-installing" ] || \
+           [ -e "$INSTALL_ROOT/.oases-cpa-failed" ] || \
+           { [ -e "$MANAGED_ROOT_MARKER" ] && [ ! -e "$INSTALL_ROOT/.oases-cpa-installed" ]; }; then
           AUTO_BACKUP_NAME="auto-recovery-$(date -u '+%Y%m%dT%H%M%SZ')-$$"
           AUTO_BACKUP_ROOT="$INSTALL_ROOT/backups/$AUTO_BACKUP_NAME"
           recover_stale_attempt() {
@@ -573,21 +637,38 @@ struct DeploymentExecutor {
           RECOVERY_NOTE="已自动备份上次未完成的 Docker 部署到 backups/${AUTO_BACKUP_NAME}，现在重新开始。"
         fi
 
-        if [ -e "$INSTALL_ROOT/.env" ] || [ -e "$INSTALL_ROOT/compose.yaml" ] || [ -e "$INSTALL_ROOT/compose.yml" ]; then
-          release_deployment_lock
-          printf '%s\n' '目标目录包含非当前部署生成的 Compose 文件。为保护已有数据，请换用空目录。' >&2
-          exit 12
+        if [ ! -e "$MANAGED_ROOT_MARKER" ] && [ "$LEGACY_OWNERSHIP_MARKER_PRESENT" -ne 1 ]; then
+          FIRST_UNMANAGED_ENTRY="$(find "$INSTALL_ROOT" -mindepth 1 -maxdepth 1 \
+            ! -name '.oases-cpa-deployment-lock' \
+            ! -name 'backups' \
+            ! -name '.DS_Store' \
+            -print -quit)"
+          if [ -n "$FIRST_UNMANAGED_ENTRY" ]; then
+            release_deployment_lock
+            printf '%s\n' '目标目录并非空目录，且没有 Oases CPA 受管标记。为保护已有数据，请换用空目录。' >&2
+            exit 12
+          fi
+        fi
+        if [ ! -e "$MANAGED_ROOT_MARKER" ]; then
+          printf 'owned-by=oases-cpa\n' > "$MANAGED_ROOT_MARKER"
+          chmod 600 "$MANAGED_ROOT_MARKER"
         fi
 
         mkdir -p "$INSTALL_ROOT/logs"
         DEPLOYMENT_LOG="$INSTALL_ROOT/logs/deployment.log"
         exec 3>&1 4>&2
         exec >> "$DEPLOYMENT_LOG" 2>&1
-        CURRENT_STAGE="prepare"
         ATTEMPT_MARKER="$INSTALL_ROOT/.oases-cpa-installing"
         FAILURE_MARKER="$INSTALL_ROOT/.oases-cpa-failed"
-        printf 'timestamp=%s\nmethod=docker\nstage=%s\npid=%s\n' \
-          "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$CURRENT_STAGE" "$$" > "$ATTEMPT_MARKER"
+        CURRENT_STAGE="prepare"
+        set_stage() {
+          CURRENT_STAGE="$1"
+          local marker_part="${ATTEMPT_MARKER}.part.$$"
+          printf 'timestamp=%s\nmethod=docker\nstage=%s\npid=%s\n' \
+            "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$CURRENT_STAGE" "$$" > "$marker_part"
+          mv "$marker_part" "$ATTEMPT_MARKER"
+          printf '[%s] Docker 部署阶段：%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$CURRENT_STAGE"
+        }
         deployment_exit_status() {
           local status="$?"
           set +e
@@ -606,6 +687,7 @@ struct DeploymentExecutor {
           exit "$status"
         }
         trap deployment_exit_status EXIT
+        set_stage "prepare"
         printf '\n[%s] Oases CPA Docker 部署开始。\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
         if [ -n "$RECOVERY_NOTE" ]; then
           printf '%s\n' "$RECOVERY_NOTE"
@@ -619,7 +701,7 @@ struct DeploymentExecutor {
         curl_retry() {
           local attempt
           for attempt in 1 2 3 4; do
-            if curl --connect-timeout 20 "$@"; then
+            if curl --connect-timeout 20 --speed-limit 1024 --speed-time 60 --max-time 1800 "$@"; then
               return 0
             fi
             [ "$attempt" -lt 4 ] || return 1
@@ -627,12 +709,12 @@ struct DeploymentExecutor {
           done
         }
 
-        CURRENT_STAGE="download-installer"
+        set_stage "download-installer"
         INSTALLER="$(mktemp -t oases-cpa-installer.XXXXXX)"
         curl_retry -fsSL "\(Self.cpampInstallerURL)" -o "$INSTALLER"
         chmod 755 "$INSTALLER"
 
-        CURRENT_STAGE="run-installer"
+        set_stage "run-installer"
         if ! CPAMP_NON_INTERACTIVE=1 \
           CPAMP_CONFIRM=1 \
           CPAMP_LANG=en-US \
@@ -648,25 +730,25 @@ struct DeploymentExecutor {
           exit 15
         fi
 
-        CURRENT_STAGE="secure-loopback-ports"
+        set_stage "secure-loopback-ports"
         sed -i.bak \
           -e 's|- "${CPAMP_PORT}:18317"|- "127.0.0.1:${CPAMP_PORT}:18317"|' \
           -e 's|- "${CPAMP_CPA_PORT}:8317"|- "127.0.0.1:${CPAMP_CPA_PORT}:8317"|' \
           "$INSTALL_ROOT/compose.yaml"
         rm -f "$INSTALL_ROOT/compose.yaml.bak"
 
-        CURRENT_STAGE="pull-containers"
+        set_stage "pull-containers"
         if ! (cd "$INSTALL_ROOT" && docker compose pull > "$INSTALL_ROOT/logs/docker-pull.log" 2>&1); then
           tail -n 120 "$INSTALL_ROOT/logs/docker-pull.log" || true
           exit 16
         fi
-        CURRENT_STAGE="start-containers"
+        set_stage "start-containers"
         if ! (cd "$INSTALL_ROOT" && docker compose up -d > "$INSTALL_ROOT/logs/docker-up.log" 2>&1); then
           tail -n 120 "$INSTALL_ROOT/logs/docker-up.log" || true
           exit 16
         fi
 
-        CURRENT_STAGE="wait-cpamp"
+        set_stage "wait-cpamp"
         for _ in $(seq 1 60); do
           if curl -fsS http://127.0.0.1:18317/health >/dev/null 2>&1; then
             break
@@ -675,11 +757,11 @@ struct DeploymentExecutor {
         done
         curl -fsS http://127.0.0.1:18317/health >/dev/null
 
-        CURRENT_STAGE="verify-cli"
+        set_stage "verify-cli"
         CPA_KEY="$(cat "$INSTALL_ROOT/secrets/cpa-management-key")"
         curl -fsS -H "Authorization: Bearer $CPA_KEY" http://127.0.0.1:8317/v0/management/config >/dev/null
 
-        CURRENT_STAGE="finalize"
+        set_stage "finalize"
         touch "$INSTALL_ROOT/.oases-cpa-installed"
         printf '[%s] Oases CPA Docker 部署完成。\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
         printf 'OASES_CPA_MANAGEMENT_KEY=%s\n' "$CPA_KEY" >&3

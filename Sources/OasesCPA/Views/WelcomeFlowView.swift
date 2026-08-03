@@ -61,7 +61,7 @@ struct WelcomeFlowView: View {
             .padding(.horizontal, 36)
             .padding(.bottom, 28)
         }
-        .frame(minWidth: 780, minHeight: 560)
+        .frame(minWidth: 640, minHeight: 480)
     }
 
     private func moveToPreviousPage() {

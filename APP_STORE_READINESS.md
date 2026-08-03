@@ -21,16 +21,18 @@ needs an App Store-specific product change before submission.
 ## Recommended App Store variant
 
 1. Remove local binary and Docker deployment from the App Store target.
-2. Keep remote SSH control only for a user-owned, already provisioned target,
+2. Remove or compile out the GitHub Releases DMG updater; Mac App Store builds
+   must receive application updates through the store.
+3. Keep remote SSH control only for a user-owned, already provisioned target,
    or provide read-only monitoring/configuration for a target the user
    connects to.
-3. Replace text-entered local installation directories with an NSOpenPanel
+4. Replace text-entered local installation directories with an NSOpenPanel
    selection and persisted security-scoped bookmark where file access is
    required.
-4. Test every retained workflow under the AppStore configuration with a real
+5. Test every retained workflow under the AppStore configuration with a real
    Apple Development or Apple Distribution signing identity, then archive from
    the Oases CPA scheme.
-5. Complete App Store Connect privacy nutrition labels, the privacy policy,
+6. Complete App Store Connect privacy nutrition labels, the privacy policy,
    screenshots, and review notes before upload.
 
 Until that variant is implemented and reviewed, use the existing Developer ID

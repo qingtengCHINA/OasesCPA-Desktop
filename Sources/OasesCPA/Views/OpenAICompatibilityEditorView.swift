@@ -218,7 +218,7 @@ struct OpenAICompatibilityEditorView: View {
                 }
             }
         }
-        .frame(minWidth: 760, minHeight: 620)
+        .frame(minWidth: 640, minHeight: 480)
         .onAppear {
             onDirtyChange(false)
         }

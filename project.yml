@@ -14,10 +14,10 @@ configs:
   AppStore: release
 settings:
   base:
-    CURRENT_PROJECT_VERSION: "36"
+    CURRENT_PROJECT_VERSION: "37"
     DEVELOPMENT_LANGUAGE: zh-Hans
     MACOSX_DEPLOYMENT_TARGET: "14.0"
-    MARKETING_VERSION: "0.1.0"
+    MARKETING_VERSION: "0.1.1"
     PRODUCT_NAME: Oases CPA
     SWIFT_VERSION: "6.0"
     VERSIONING_SYSTEM: apple-generic
@@ -39,6 +39,7 @@ targets:
       configs:
         AppStore:
           CODE_SIGN_ENTITLEMENTS: OasesCPA-AppStore.entitlements
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) APP_STORE"
   OasesCPATests:
     type: bundle.unit-test
     platform: macOS

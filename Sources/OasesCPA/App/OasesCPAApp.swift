@@ -7,6 +7,9 @@ struct OasesCPAApp: App {
     @StateObject private var store = AppStore()
     @StateObject private var deploymentStore = DeploymentStore()
     @StateObject private var runtimeDataStore = RuntimeDataStore()
+    #if !APP_STORE
+    @StateObject private var appUpdateService = AppUpdateService()
+    #endif
     @AppStorage(OasesAppearance.defaultsKey) private var appearanceRaw = OasesAppearance.system.rawValue
     @AppStorage(AppLanguage.defaultsKey) private var languageRaw = AppLanguage.system.rawValue
     @AppStorage(OnboardingState.completionVersionKey) private var completedOnboardingVersion = 0
@@ -34,16 +37,23 @@ struct OasesCPAApp: App {
                 .environmentObject(store)
                 .environmentObject(deploymentStore)
                 .environmentObject(runtimeDataStore)
+                #if !APP_STORE
+                .environmentObject(appUpdateService)
+                #endif
                 .environment(\.locale, preferredLocale)
                 .preferredColorScheme(preferredColorScheme)
-                .frame(minWidth: 1_080, minHeight: 700)
+                .frame(minWidth: 720, minHeight: 520)
+                .background(AdaptiveWindowConfigurator())
                 .onAppear {
+                    #if !APP_STORE
+                    appUpdateService.startMonitoring()
+                    #endif
                     appDelegate.installTerminationHandler { [weak deploymentStore] in
                         deploymentStore?.prepareForApplicationTermination()
                     }
                 }
         }
-        .defaultSize(width: 1_420, height: 900)
+        .defaultSize(width: 1_280, height: 800)
         .commands {
             OasesCommands(
                 store: store,
@@ -58,8 +68,16 @@ struct OasesCPAApp: App {
                 .environmentObject(store)
                 .environmentObject(deploymentStore)
                 .environmentObject(runtimeDataStore)
+                #if !APP_STORE
+                .environmentObject(appUpdateService)
+                #endif
                 .environment(\.locale, preferredLocale)
                 .preferredColorScheme(preferredColorScheme)
+                .background(
+                    AdaptiveWindowConfigurator(
+                        minimumContentSize: NSSize(width: 520, height: 520)
+                    )
+                )
         }
 
         MenuBarExtra {
@@ -67,6 +85,9 @@ struct OasesCPAApp: App {
                 .environmentObject(store)
                 .environmentObject(deploymentStore)
                 .environmentObject(runtimeDataStore)
+                #if !APP_STORE
+                .environmentObject(appUpdateService)
+                #endif
                 .environment(\.locale, preferredLocale)
         } label: {
             MenuBarStatusLabel()
@@ -77,6 +98,11 @@ struct OasesCPAApp: App {
             OpenSourceNoticesView()
                 .environment(\.locale, preferredLocale)
                 .preferredColorScheme(preferredColorScheme)
+                .background(
+                    AdaptiveWindowConfigurator(
+                        minimumContentSize: NSSize(width: 600, height: 480)
+                    )
+                )
         }
 
         Window("编辑 AI 服务", id: ProviderEditorWindowScene.id) {
@@ -86,8 +112,13 @@ struct OasesCPAApp: App {
                 .environmentObject(runtimeDataStore)
                 .environment(\.locale, preferredLocale)
                 .preferredColorScheme(preferredColorScheme)
+                .background(
+                    AdaptiveWindowConfigurator(
+                        minimumContentSize: NSSize(width: 640, height: 480)
+                    )
+                )
         }
-        .defaultSize(width: 980, height: 760)
+        .defaultSize(width: 900, height: 700)
     }
 }
 

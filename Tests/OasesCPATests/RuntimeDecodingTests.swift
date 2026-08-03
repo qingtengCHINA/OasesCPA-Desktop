@@ -688,12 +688,62 @@ final class RuntimeDecodingTests: XCTestCase {
         )
 
         XCTAssertTrue(script.contains("CPAMP_PACKAGE=\"cpa-manager-plus_${CPAMP_VERSION_TAG}_${RELEASE_OS}_${CPAMP_ARCH}\""))
-        XCTAssertTrue(script.contains("verify_archive \"seakee/CPA-Manager-Plus\" \"$CPAMP_VERSION_TAG\" \"$CPAMP_PACKAGE.tar.gz\" \"$CPAMP_ARCHIVE\""))
+        XCTAssertTrue(script.contains("verify_archive \"seakee/CPA-Manager-Plus\" \"$CPAMP_VERSION_TAG\" \"$CPAMP_PACKAGE.tar.gz\" \"$CPAMP_ARCHIVE_PART\""))
         XCTAssertTrue(script.contains("sub(/^"))
         XCTAssertTrue(script.contains("name == file"))
         XCTAssertTrue(script.contains("\"adminKeyFile\": \"../../../secrets/cpamp-admin-key\""))
         XCTAssertTrue(script.contains("\"managementKeyFile\": \"../../../secrets/cpa-management-key\""))
         XCTAssertFalse(script.contains("cpa-manager-plus_${CPAMP_VERSION}_${RELEASE_OS}_${CPAMP_ARCH}"))
+    }
+
+    func testNativeDeploymentClosesCredentialPipesBeforeStartingLongRunningServices() {
+        let script = DeploymentExecutor().scriptForVerification(
+            method: .native,
+            installDirectory: "~/.oases-cpa"
+        )
+
+        XCTAssertTrue(
+            script.contains("exec 3>&- 4>&-"),
+            "后台服务必须关闭部署进程的凭据/诊断描述符，否则 Swift Process 永远等不到 EOF"
+        )
+        XCTAssertTrue(script.contains("nohup \"$CLI_DIR/run.sh\""))
+        XCTAssertTrue(script.contains("nohup \"$CPAMP_DIR/run.sh\""))
+    }
+
+    func testNativeDeploymentPersistsEveryStageAndPublishesOnlyVerifiedArchives() {
+        let script = DeploymentExecutor().scriptForVerification(
+            method: .native,
+            installDirectory: "~/.oases-cpa"
+        )
+
+        XCTAssertTrue(script.contains("set_stage()"))
+        XCTAssertTrue(script.contains("set_stage \"resolve-cli-version\""))
+        XCTAssertTrue(script.contains("set_stage \"download-cli\""))
+        XCTAssertTrue(script.contains("set_stage \"wait-cpamp\""))
+        XCTAssertTrue(script.contains("stage=%s"))
+        XCTAssertTrue(script.contains("pid=%s"))
+
+        XCTAssertTrue(script.contains("CLI_ARCHIVE_PART=\"${CLI_ARCHIVE}.part\""))
+        XCTAssertTrue(script.contains("CPAMP_ARCHIVE_PART=\"${CPAMP_ARCHIVE}.part\""))
+        XCTAssertTrue(script.contains("tar -tzf \"$CLI_ARCHIVE_PART\""))
+        XCTAssertTrue(script.contains("tar -tzf \"$CPAMP_ARCHIVE_PART\""))
+        XCTAssertTrue(script.contains("mv \"$CLI_ARCHIVE_PART\" \"$CLI_ARCHIVE\""))
+        XCTAssertTrue(script.contains("mv \"$CPAMP_ARCHIVE_PART\" \"$CPAMP_ARCHIVE\""))
+        XCTAssertFalse(script.contains("-o \"$CLI_ARCHIVE\""))
+        XCTAssertFalse(script.contains("-o \"$CPAMP_ARCHIVE\""))
+    }
+
+    func testDockerDeploymentPersistsStagesAndMarksOwnedPartialInstalls() {
+        let script = DeploymentExecutor().scriptForVerification(
+            method: .docker,
+            installDirectory: "~/.oases-cpa"
+        )
+
+        XCTAssertTrue(script.contains("MANAGED_ROOT_MARKER=\"$INSTALL_ROOT/.oases-cpa-managed\""))
+        XCTAssertTrue(script.contains("set_stage()"))
+        XCTAssertTrue(script.contains("set_stage \"download-installer\""))
+        XCTAssertTrue(script.contains("set_stage \"pull-containers\""))
+        XCTAssertTrue(script.contains("set_stage \"finalize\""))
     }
 
     func testDeploymentProfileCanBeClearedForTargetRebinding() {
@@ -1731,6 +1781,112 @@ final class RuntimeDecodingTests: XCTestCase {
         let recoveredRoot = backups.appendingPathComponent(recoveryName)
         XCTAssertTrue(FileManager.default.fileExists(atPath: recoveredRoot.appendingPathComponent(".oases-cpa-failed").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: recoveredRoot.appendingPathComponent("logs/deployment.log").path))
+    }
+
+    func testNativeDeploymentRecoversAnOwnedPartialInstallEvenWhenAttemptMarkerWasLost() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Oases CPA Managed Retry \(UUID().uuidString)")
+        let staleRuntime = root.appendingPathComponent("cli-proxy-api")
+        let fakeBin = root.appendingPathComponent("fake-bin")
+        try FileManager.default.createDirectory(at: staleRuntime, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: fakeBin, withIntermediateDirectories: true)
+        try Data("owned-by=oases-cpa\n".utf8)
+            .write(to: root.appendingPathComponent(".oases-cpa-managed"))
+        try Data("partial archive\n".utf8)
+            .write(to: staleRuntime.appendingPathComponent("leftover.txt"))
+
+        let fakeCurl = fakeBin.appendingPathComponent("curl")
+        try Data("#!/bin/bash\nprintf '%s\\n' 'simulated managed retry failure' >&2\nexit 22\n".utf8)
+            .write(to: fakeCurl)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeCurl.path)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var script = DeploymentExecutor().scriptForVerification(
+            method: .native,
+            installDirectory: root.path
+        )
+        script = "PATH='\(fakeBin.path)':$PATH\n" + script
+        script = script.replacingOccurrences(of: "for attempt in 1 2 3 4; do", with: "for attempt in 1; do")
+        script = script.replacingOccurrences(of: "[ \"$attempt\" -lt 4 ] || return 1", with: "[ \"$attempt\" -lt 1 ] || return 1")
+        let result = try runShellScript(script)
+
+        XCTAssertNotEqual(result.status, 12, result.standardError)
+        XCTAssertTrue(result.standardError.contains("simulated managed retry failure"), result.standardError)
+        let backupRoot = root.appendingPathComponent("backups")
+        let backupNames = try FileManager.default.contentsOfDirectory(atPath: backupRoot.path)
+        let recoveryName = try XCTUnwrap(backupNames.first(where: { $0.hasPrefix("auto-recovery-") }))
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: backupRoot
+                    .appendingPathComponent(recoveryName)
+                    .appendingPathComponent("cli-proxy-api/leftover.txt")
+                    .path
+            )
+        )
+    }
+
+    func testNativeDeploymentStillProtectsAnUnownedPreexistingRuntime() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Oases CPA Unowned Runtime \(UUID().uuidString)")
+        let runtime = root.appendingPathComponent("cli-proxy-api")
+        try FileManager.default.createDirectory(at: runtime, withIntermediateDirectories: true)
+        try Data("user data\n".utf8).write(to: runtime.appendingPathComponent("keep.txt"))
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let result = try runShellScript(
+            DeploymentExecutor().scriptForVerification(
+                method: .native,
+                installDirectory: root.path
+            )
+        )
+
+        XCTAssertEqual(result.status, 12, result.standardError)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: runtime.appendingPathComponent("keep.txt").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("backups").path))
+    }
+
+    func testNativeDeploymentDoesNotClaimAUserDirectoryContainingLogsOrSecrets() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Oases CPA Unowned User Directory \(UUID().uuidString)")
+        let logs = root.appendingPathComponent("logs")
+        let secrets = root.appendingPathComponent("secrets")
+        try FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: secrets, withIntermediateDirectories: true)
+        try Data("keep me\n".utf8).write(to: logs.appendingPathComponent("user.log"))
+        try Data("private\n".utf8).write(to: secrets.appendingPathComponent("user-secret"))
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let result = try runShellScript(
+            DeploymentExecutor().scriptForVerification(
+                method: .native,
+                installDirectory: root.path
+            )
+        )
+
+        XCTAssertEqual(result.status, 12, result.standardError)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: logs.appendingPathComponent("user.log").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: secrets.appendingPathComponent("user-secret").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(".oases-cpa-managed").path))
+    }
+
+    func testDockerDeploymentDoesNotClaimAUserDirectoryContainingOrdinaryFiles() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Oases CPA Docker Unowned Directory \(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let userFile = root.appendingPathComponent("notes.txt")
+        try Data("keep me\n".utf8).write(to: userFile)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let result = try runShellScript(
+            DeploymentExecutor().scriptForVerification(
+                method: .docker,
+                installDirectory: root.path
+            )
+        )
+
+        XCTAssertEqual(result.status, 12, result.standardError)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: userFile.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(".oases-cpa-managed").path))
     }
 
     func testNativeDeploymentLogIncludesAttemptLogAndFailureMarker() throws {

@@ -8,11 +8,7 @@ struct DashboardView: View {
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(AppLanguage.defaultsKey) private var languageRawValue = AppLanguage.system.rawValue
 
-    private let columns = [
-        GridItem(.flexible(minimum: 180), spacing: 12),
-        GridItem(.flexible(minimum: 180), spacing: 12),
-        GridItem(.flexible(minimum: 180), spacing: 12)
-    ]
+    private let columns = [GridItem(.adaptive(minimum: 180), spacing: 12)]
 
     var body: some View {
         ScrollView {
@@ -45,13 +41,13 @@ struct DashboardView: View {
 
                 GatewayAccessSummaryCard()
 
-                HStack(alignment: .top, spacing: 14) {
+                AdaptiveDashboardRow {
                     TrafficChartCard(points: runtimeTraffic)
                     HealthTimelineCard(dashboard: runtimeDataStore.dashboard)
                 }
                 .frame(minHeight: 300)
 
-                HStack(alignment: .top, spacing: 14) {
+                AdaptiveDashboardRow {
                     TokenBreakdownCard(dashboard: runtimeDataStore.dashboard)
                         .frame(minWidth: 250, maxWidth: 310)
                     ModelCostCard(dashboard: runtimeDataStore.dashboard)
@@ -59,7 +55,7 @@ struct DashboardView: View {
                         .frame(minWidth: 250, maxWidth: 310)
                 }
 
-                HStack(alignment: .top, spacing: 14) {
+                AdaptiveDashboardRow {
                     RecentFailuresCard(dashboard: runtimeDataStore.dashboard)
                     CollectorStatusCard(dashboard: runtimeDataStore.dashboard)
                         .frame(minWidth: 250, maxWidth: 320)
@@ -228,6 +224,17 @@ struct DashboardView: View {
             Date.FormatStyle(date: .omitted, time: .shortened)
                 .locale(interfaceLanguage.locale)
         )
+    }
+}
+
+private struct AdaptiveDashboardRow<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 14, content: content)
+            VStack(alignment: .leading, spacing: 14, content: content)
+        }
     }
 }
 
