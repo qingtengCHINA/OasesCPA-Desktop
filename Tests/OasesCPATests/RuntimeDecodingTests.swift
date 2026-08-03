@@ -713,7 +713,8 @@ final class RuntimeDecodingTests: XCTestCase {
     func testNativeDeploymentPersistsEveryStageAndPublishesOnlyVerifiedArchives() {
         let script = DeploymentExecutor().scriptForVerification(
             method: .native,
-            installDirectory: "~/.oases-cpa"
+            installDirectory: "~/.oases-cpa",
+            controlToken: "test-control-token"
         )
 
         XCTAssertTrue(script.contains("set_stage()"))
@@ -722,6 +723,9 @@ final class RuntimeDecodingTests: XCTestCase {
         XCTAssertTrue(script.contains("set_stage \"wait-cpamp\""))
         XCTAssertTrue(script.contains("stage=%s"))
         XCTAssertTrue(script.contains("pid=%s"))
+        XCTAssertTrue(script.contains("control_token=%s"))
+        XCTAssertTrue(script.contains("CONTROL_TOKEN='test-control-token'"))
+        XCTAssertTrue(script.contains("trap deployment_cancelled TERM INT"))
 
         XCTAssertTrue(script.contains("CLI_ARCHIVE_PART=\"${CLI_ARCHIVE}.part\""))
         XCTAssertTrue(script.contains("CPAMP_ARCHIVE_PART=\"${CPAMP_ARCHIVE}.part\""))
@@ -736,7 +740,8 @@ final class RuntimeDecodingTests: XCTestCase {
     func testDockerDeploymentPersistsStagesAndMarksOwnedPartialInstalls() {
         let script = DeploymentExecutor().scriptForVerification(
             method: .docker,
-            installDirectory: "~/.oases-cpa"
+            installDirectory: "~/.oases-cpa",
+            controlToken: "test-control-token"
         )
 
         XCTAssertTrue(script.contains("MANAGED_ROOT_MARKER=\"$INSTALL_ROOT/.oases-cpa-managed\""))
@@ -744,6 +749,9 @@ final class RuntimeDecodingTests: XCTestCase {
         XCTAssertTrue(script.contains("set_stage \"download-installer\""))
         XCTAssertTrue(script.contains("set_stage \"pull-containers\""))
         XCTAssertTrue(script.contains("set_stage \"finalize\""))
+        XCTAssertTrue(script.contains("control_token=%s"))
+        XCTAssertTrue(script.contains("CONTROL_TOKEN='test-control-token'"))
+        XCTAssertTrue(script.contains("trap deployment_cancelled TERM INT"))
     }
 
     func testDeploymentProfileCanBeClearedForTargetRebinding() {
@@ -1537,6 +1545,7 @@ final class RuntimeDecodingTests: XCTestCase {
             docker_compose=no
             docker_daemon=no
             install_writable=yes
+            managed_root=yes
             managed_install=yes
             managed_credentials=yes
             managed_native_runtime=yes
@@ -1545,6 +1554,7 @@ final class RuntimeDecodingTests: XCTestCase {
             installDirectory: "~/.oases-cpa"
         )
 
+        XCTAssertTrue(probe.hasManagedRoot)
         XCTAssertTrue(probe.hasManagedInstallation)
         XCTAssertTrue(probe.hasRecoverableCredentials)
         XCTAssertTrue(probe.canAdopt(method: .native))

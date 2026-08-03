@@ -55,6 +55,7 @@ enum DeploymentStage: String {
     case connecting
     case installing
     case attached
+    case cancelled
     case failed
 
     var title: String {
@@ -64,6 +65,7 @@ enum DeploymentStage: String {
         case .connecting: OasesLocalization.localized("连接中")
         case .installing: OasesLocalization.localized("部署中")
         case .attached: OasesLocalization.localized("已接入")
+        case .cancelled: OasesLocalization.localized("已取消")
         case .failed: OasesLocalization.localized("需要处理")
         }
     }

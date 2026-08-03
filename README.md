@@ -14,7 +14,7 @@ Oases CPA 是一个原生 macOS 控制台，用来部署、连接并管理用户
 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 与
 [CPA Manager Plus](https://github.com/seakee/CPA-Manager-Plus)。默认可直接部署到当前 Mac，也可以通过 SSH 管理 Linux/macOS VPS；日常的 Provider、模型、API Key、用量、成本和运行状态都在一个 App 内完成。
 
-> 当前版本为 `0.1.1` 预发布版本，最低支持 macOS 14。发行构建同时支持 Apple Silicon 与 Intel Mac。
+> 当前版本为 `0.1.2` 预发布版本，最低支持 macOS 14。发行构建同时支持 Apple Silicon 与 Intel Mac。
 
 ## 它解决什么问题
 
@@ -108,6 +108,7 @@ cd OasesCPA-Desktop
 
 - SwiftUI 原生界面，支持中文、英文、浅色、深色和跟随系统。
 - 首次使用欢迎引导、可滚动且可缩放的独立编辑窗口、菜单栏运行状态。
+- 部署过程支持安全暂停、继续和取消；取消时可选择保留现场，或彻底移除受管部署目录、服务与凭据。
 - 启动后定期检查官方 GitHub Release Tag；发现新版本时在标题栏提示，并可直接下载、打开最新 DMG。
 - 设置页底部实时读取 App Bundle，显示实际版本号与构建号。
 - 完整 AppIcon、Xcode 工程、Privacy Manifest、Developer ID/App Store 两套 Entitlements。
@@ -143,7 +144,7 @@ open "OasesCPA.xcodeproj"
 ./script/bump_patch_version.sh
 ```
 
-例如 `0.1.0 (36)` 会变为 `0.1.1 (37)`。然后生成发行包：
+例如 `0.1.1 (37)` 会变为 `0.1.2 (38)`。然后生成发行包：
 
 ```bash
 ./script/package_release.sh
@@ -153,7 +154,7 @@ open "OasesCPA.xcodeproj"
 
 ```bash
 CODESIGN_IDENTITY="Developer ID Application: Your Company (TEAMID)" \
-APP_VERSION="0.1.1" APP_BUILD="37" \
+APP_VERSION="0.1.2" APP_BUILD="38" \
 ./script/package_release.sh
 ```
 

@@ -13,6 +13,7 @@ struct DeploymentProbe: Sendable {
     let dockerDaemonAvailable: Bool
     let installWritable: Bool
     let testedInstallDirectory: String
+    let hasManagedRoot: Bool
     let hasManagedInstallation: Bool
     let hasRecoverableCredentials: Bool
     let hasNativeRuntime: Bool
@@ -224,6 +225,12 @@ struct DeploymentProbeService {
         else
           printf 'managed_install=no\\n'
         fi
+        if [ -f "$INSTALL_DIR/.oases-cpa-managed" ] && [ ! -L "$INSTALL_DIR/.oases-cpa-managed" ] && \
+           grep -qx 'owned-by=oases-cpa' "$INSTALL_DIR/.oases-cpa-managed" 2>/dev/null; then
+          printf 'managed_root=yes\\n'
+        else
+          printf 'managed_root=no\\n'
+        fi
         if [ -s "$INSTALL_DIR/secrets/cpa-management-key" ] && [ ! -L "$INSTALL_DIR/secrets/cpa-management-key" ] && \
            [ -s "$INSTALL_DIR/secrets/cpamp-admin-key" ] && [ ! -L "$INSTALL_DIR/secrets/cpamp-admin-key" ]; then
           printf 'managed_credentials=yes\\n'
@@ -295,6 +302,7 @@ struct DeploymentProbeService {
             dockerDaemonAvailable: Self.parseBoolean(values["docker_daemon"]),
             installWritable: Self.parseBoolean(values["install_writable"]),
             testedInstallDirectory: installDirectory,
+            hasManagedRoot: Self.parseBoolean(values["managed_root"]),
             hasManagedInstallation: Self.parseBoolean(values["managed_install"]),
             hasRecoverableCredentials: Self.parseBoolean(values["managed_credentials"]),
             hasNativeRuntime: Self.parseBoolean(values["managed_native_runtime"]),

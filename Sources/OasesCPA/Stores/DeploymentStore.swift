@@ -52,6 +52,11 @@ final class DeploymentStore: ObservableObject {
     @Published private(set) var probeError: String?
     @Published private(set) var isProbing = false
     @Published private(set) var isDeploying = false
+    @Published private(set) var isDeploymentPaused = false
+    @Published private(set) var isControllingDeployment = false
+    @Published private(set) var isCancellingDeployment = false
+    @Published private(set) var isRemovingDeployment = false
+    @Published private(set) var removalError: String?
     @Published private(set) var managementKey = ""
     @Published private(set) var cpampAdminKey = ""
     @Published private(set) var hasLoadedSavedCredentials = false
@@ -83,9 +88,13 @@ final class DeploymentStore: ObservableObject {
     private var maintenanceRequestID = UUID()
     private var healthIssueNotificationSent = false
     private var isApplyingProfileConfiguration = false
+    private var deploymentTask: Task<Void, Never>?
+    private var deploymentOperationID = UUID()
+    private var deploymentControlToken: String?
 
     deinit {
         healthMonitorTask?.cancel()
+        deploymentTask?.cancel()
         tunnelProcessOwner.stop()
     }
 
@@ -124,6 +133,7 @@ final class DeploymentStore: ObservableObject {
 
     func prepareForApplicationTermination() {
         stopHealthMonitor()
+        deploymentTask?.cancel()
         stopTunnel()
     }
 
@@ -449,6 +459,10 @@ final class DeploymentStore: ObservableObject {
 
         planPresented = false
         isDeploying = true
+        isDeploymentPaused = false
+        isControllingDeployment = false
+        isCancellingDeployment = false
+        removalError = nil
         deploymentError = nil
         invalidateDeploymentLog()
         stage = .installing
@@ -459,50 +473,331 @@ final class DeploymentStore: ObservableObject {
             return updated
         }
 
-        Task { [weak self] in
+        let operationID = UUID()
+        let controlToken = UUID().uuidString.lowercased()
+        deploymentOperationID = operationID
+        deploymentControlToken = controlToken
+        deploymentTask?.cancel()
+        deploymentTask = Task { [weak self] in
             do {
-                let result = try await DeploymentExecutor().execute(request: request)
+                let result = try await DeploymentExecutor().execute(
+                    request: request,
+                    controlToken: controlToken
+                )
+                guard let self,
+                      self.deploymentOperationID == operationID,
+                      !self.isCancellingDeployment,
+                      !Task.isCancelled
+                else { return }
+
+                if self.activeProfileID == nil {
+                    self.activeProfileID = UUID()
+                }
+                self.saveActiveCredentials(
+                    managementKey: result.cpaManagementKey,
+                    adminKey: result.cpampAdminKey
+                )
+                self.profileIsInstalled = true
+                self.wantsRunning = true
+                self.setWantsRunningPreference(true)
+                self.stage = .connecting
+                self.statusMessage = OasesLocalization.localized("安装完成，正在验证服务连接…")
+                self.saveProfile()
+
                 if request.target == .ssh {
-                    try await self?.startTunnel()
+                    try await self.startTunnel()
                 }
                 try await RuntimeLifecycleService().waitForConnectionHealth(
                     cpaManagementKey: result.cpaManagementKey
                 )
 
-                if self?.activeProfileID == nil {
-                    self?.activeProfileID = UUID()
-                }
-                self?.saveActiveCredentials(
-                    managementKey: result.cpaManagementKey,
-                    adminKey: result.cpampAdminKey
-                )
-                self?.profileIsInstalled = true
-                self?.wantsRunning = true
-                self?.setWantsRunningPreference(true)
-                self?.isDeploying = false
-                self?.stage = .attached
-                self?.setHealthState(.healthy)
-                self?.lastHealthCheckAt = Date()
-                self?.statusMessage = request.target == .local
+                guard self.deploymentOperationID == operationID,
+                      !self.isCancellingDeployment,
+                      !Task.isCancelled
+                else { return }
+                self.isDeploying = false
+                self.isDeploymentPaused = false
+                self.deploymentControlToken = nil
+                self.deploymentTask = nil
+                self.stage = .attached
+                self.setHealthState(.healthy)
+                self.lastHealthCheckAt = Date()
+                self.statusMessage = request.target == .local
                     ? OasesLocalization.localized("部署完成，服务已绑定到本机回环地址")
                     : OasesLocalization.localized("部署完成，SSH 隧道已建立并连接到 App")
-                self?.steps = self?.steps.map { step in
+                self.steps = self.steps.map { step in
                     var updated = step
                     updated.status = .complete
                     return updated
-                } ?? []
-                self?.saveProfile()
-                self?.startHealthMonitor()
+                }
+                self.saveProfile()
+                self.startHealthMonitor()
             } catch {
-                self?.stopTunnel()
-                self?.stopHealthMonitor()
-                self?.resetHealthState()
-                self?.isDeploying = false
-                self?.stage = .failed
-                self?.deploymentError = error.localizedDescription
-                self?.statusMessage = OasesLocalization.localized("部署失败，请查看目标目录中的日志")
-                self?.refreshDeploymentLog()
+                guard let self,
+                      self.deploymentOperationID == operationID,
+                      !self.isCancellingDeployment,
+                      !Task.isCancelled
+                else { return }
+                self.stopTunnel()
+                self.stopHealthMonitor()
+                self.resetHealthState()
+                self.isDeploying = false
+                self.isDeploymentPaused = false
+                self.deploymentControlToken = nil
+                self.deploymentTask = nil
+                self.stage = .failed
+                self.deploymentError = error.localizedDescription
+                self.statusMessage = OasesLocalization.localized("部署失败，请查看目标目录中的日志")
+                self.refreshDeploymentLog()
             }
+        }
+    }
+
+    var canPauseDeployment: Bool {
+        isDeploying &&
+        stage == .installing &&
+        deploymentControlToken != nil &&
+        !isDeploymentPaused &&
+        !isControllingDeployment &&
+        !isCancellingDeployment
+    }
+
+    var canResumeDeployment: Bool {
+        isDeploying &&
+        stage == .installing &&
+        deploymentControlToken != nil &&
+        isDeploymentPaused &&
+        !isControllingDeployment &&
+        !isCancellingDeployment
+    }
+
+    var canCancelDeployment: Bool {
+        isDeploying &&
+        (deploymentControlToken != nil || profileIsInstalled) &&
+        !isCancellingDeployment
+    }
+
+    var canRemoveDeployment: Bool {
+        !isDeploying &&
+        !isMaintaining &&
+        !isRemovingDeployment &&
+        (profileIsInstalled || probe?.hasManagedRoot == true || stage == .cancelled || stage == .failed)
+    }
+
+    func pauseDeployment() {
+        performDeploymentControl(.pause)
+    }
+
+    func resumeDeployment() {
+        performDeploymentControl(.resume)
+    }
+
+    private func performDeploymentControl(_ action: DeploymentControlAction) {
+        let canPerformAction = action == .pause ? canPauseDeployment : canResumeDeployment
+        guard canPerformAction, let controlToken = deploymentControlToken else { return }
+
+        let request = currentExecutionRequest
+        let operationID = deploymentOperationID
+        isControllingDeployment = true
+        deploymentError = nil
+
+        Task { [weak self] in
+            do {
+                try await DeploymentControlService().perform(
+                    action: action,
+                    request: request,
+                    controlToken: controlToken
+                )
+                guard let self,
+                      self.deploymentOperationID == operationID,
+                      self.isDeploying,
+                      !self.isCancellingDeployment
+                else { return }
+                self.isControllingDeployment = false
+                self.isDeploymentPaused = action == .pause
+                self.statusMessage = action == .pause
+                    ? OasesLocalization.localized("部署已暂停；可随时继续或取消")
+                    : OasesLocalization.localized("部署已继续")
+            } catch {
+                guard let self, self.deploymentOperationID == operationID else { return }
+                self.isControllingDeployment = false
+                self.deploymentError = error.localizedDescription
+                self.statusMessage = action == .pause
+                    ? OasesLocalization.localized("暂停部署失败，部署仍在继续")
+                    : OasesLocalization.localized("继续部署失败，请重试或取消部署")
+            }
+        }
+    }
+
+    func cancelDeployment(removeFilesAfterCancellation: Bool = false) {
+        guard canCancelDeployment else { return }
+        if targetKind == .ssh, !ensureSSHKeyMaterial() {
+            deploymentError = OasesLocalization.localized("SSH 私钥无法读取，无法安全取消远程部署")
+            return
+        }
+
+        let request = currentExecutionRequest
+        let controlToken = deploymentControlToken
+        let operationID = deploymentOperationID
+        isCancellingDeployment = true
+        isControllingDeployment = true
+        deploymentError = nil
+        statusMessage = removeFilesAfterCancellation
+            ? OasesLocalization.localized("正在取消部署并删除全部部署文件…")
+            : OasesLocalization.localized("正在安全取消部署…")
+
+        Task { [weak self] in
+            guard let self else { return }
+            var cancellationCompleted = false
+            do {
+                if let controlToken, self.stage == .installing {
+                    do {
+                        try await DeploymentControlService().perform(
+                            action: .cancel,
+                            request: request,
+                            controlToken: controlToken
+                        )
+                        cancellationCompleted = true
+                    } catch {
+                        // The installer can finish between the click and the
+                        // control request. If it already became an installed
+                        // target, fall through to the normal runtime stop.
+                        guard self.profileIsInstalled else { throw error }
+                    }
+                }
+
+                if !cancellationCompleted, self.profileIsInstalled {
+                    try await RuntimeLifecycleService().stop(
+                        target: request.target,
+                        method: request.method,
+                        host: request.host,
+                        user: request.user,
+                        port: request.port,
+                        privateKeyPath: request.privateKeyPath,
+                        installDirectory: request.installDirectory
+                    )
+                    cancellationCompleted = true
+                }
+
+                guard cancellationCompleted else {
+                    throw DeploymentExecutionError.commandFailed(
+                        OasesLocalization.localized("未找到可验证的活动部署进程，未执行取消操作。")
+                    )
+                }
+
+                self.deploymentTask?.cancel()
+                self.deploymentTask = nil
+                self.deploymentOperationID = UUID()
+                self.deploymentControlToken = nil
+                self.stopTunnel()
+                self.stopHealthMonitor()
+
+                if removeFilesAfterCancellation {
+                    do {
+                        try await DeploymentRemovalService().uninstall(request: request)
+                        self.finishFullRemoval()
+                    } catch {
+                        self.finishCancelledDeployment()
+                        self.removalError = error.localizedDescription
+                        self.deploymentError = error.localizedDescription
+                        self.statusMessage = OasesLocalization.localized("部署已取消，但彻底删除未完成；文件保持原状")
+                    }
+                } else {
+                    self.finishCancelledDeployment()
+                }
+            } catch {
+                guard self.deploymentOperationID == operationID else { return }
+                self.isCancellingDeployment = false
+                self.isControllingDeployment = false
+                self.deploymentError = error.localizedDescription
+                self.statusMessage = OasesLocalization.localized("取消部署失败；部署进程未被静默终止")
+            }
+        }
+    }
+
+    func removeDeployment() {
+        guard canRemoveDeployment else { return }
+        if targetKind == .ssh, !ensureSSHKeyMaterial() {
+            removalError = OasesLocalization.localized("SSH 私钥无法读取，无法安全删除远程部署")
+            return
+        }
+
+        let request = currentExecutionRequest
+        stopHealthMonitor()
+        wantsRunning = false
+        setWantsRunningPreference(false)
+        isRemovingDeployment = true
+        removalError = nil
+        deploymentError = nil
+        statusMessage = OasesLocalization.localized("正在停止服务并彻底删除部署目录…")
+
+        Task { [weak self] in
+            do {
+                try await DeploymentRemovalService().uninstall(request: request)
+                self?.finishFullRemoval()
+            } catch {
+                guard let self else { return }
+                self.isRemovingDeployment = false
+                self.stage = .failed
+                self.removalError = error.localizedDescription
+                self.deploymentError = error.localizedDescription
+                self.statusMessage = OasesLocalization.localized("彻底删除未完成；未通过安全校验的目录不会被删除")
+            }
+        }
+    }
+
+    private func finishCancelledDeployment() {
+        isDeploying = false
+        isDeploymentPaused = false
+        isControllingDeployment = false
+        isCancellingDeployment = false
+        wantsRunning = false
+        setWantsRunningPreference(false)
+        stage = .cancelled
+        resetHealthState()
+        statusMessage = profileIsInstalled
+            ? OasesLocalization.localized("部署连接已取消；服务已停止，部署文件和凭据已保留")
+            : OasesLocalization.localized("部署已取消；已生成的文件保留，可重试或彻底删除")
+        saveProfile()
+        refreshDeploymentLog()
+    }
+
+    private func finishFullRemoval() {
+        let removedProfileID = activeProfileID
+        stopTunnel()
+        stopHealthMonitor()
+        deleteActiveCredentials()
+        if let removedProfileID {
+            DeploymentProfileStore.remove(removedProfileID)
+        }
+
+        deploymentTask?.cancel()
+        deploymentTask = nil
+        deploymentOperationID = UUID()
+        deploymentControlToken = nil
+        profileIsInstalled = false
+        isDeploying = false
+        isDeploymentPaused = false
+        isControllingDeployment = false
+        isCancellingDeployment = false
+        isRemovingDeployment = false
+        wantsRunning = false
+        stage = .idle
+        planPresented = false
+        removalError = nil
+        deploymentError = nil
+        resetHealthState()
+        invalidateProbe()
+        invalidateDeploymentLog()
+        savedProfiles = DeploymentProfileStore.loadAll()
+        activeProfileID = nil
+
+        if let nextProfileID = savedProfiles.first?.id {
+            selectSavedProfile(nextProfileID)
+            statusMessage = OasesLocalization.localized("部署目录、服务、凭据与目标记录已彻底删除")
+        } else {
+            beginNewTarget()
+            statusMessage = OasesLocalization.localized("部署目录、服务、凭据与目标记录已彻底删除；可以重新开始")
         }
     }
 

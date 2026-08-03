@@ -44,12 +44,16 @@ enum DeploymentExecutionError: LocalizedError {
 struct DeploymentExecutor {
     private static let cpampInstallerURL = "https://raw.githubusercontent.com/seakee/CPA-Manager-Plus/main/bin/install-cpamp.sh"
 
-    func execute(request: DeploymentExecutionRequest) async throws -> DeploymentExecutionResult {
+    func execute(
+        request: DeploymentExecutionRequest,
+        controlToken: String = UUID().uuidString.lowercased()
+    ) async throws -> DeploymentExecutionResult {
         try validate(request)
+        try validateControlToken(controlToken)
 
         let script = request.method == .docker
-            ? dockerScript(installDirectory: request.installDirectory)
-            : nativeScript(installDirectory: request.installDirectory)
+            ? dockerScript(installDirectory: request.installDirectory, controlToken: controlToken)
+            : nativeScript(installDirectory: request.installDirectory, controlToken: controlToken)
 
         let output: String
         switch request.target {
@@ -77,10 +81,30 @@ struct DeploymentExecutor {
         return try parseResult(output)
     }
 
-    func scriptForVerification(method: DeploymentMethod, installDirectory: String) -> String {
+    func scriptForVerification(
+        method: DeploymentMethod,
+        installDirectory: String,
+        controlToken: String = "verification-token"
+    ) -> String {
         method == .docker
-            ? dockerScript(installDirectory: installDirectory)
-            : nativeScript(installDirectory: installDirectory)
+            ? dockerScript(installDirectory: installDirectory, controlToken: controlToken)
+            : nativeScript(installDirectory: installDirectory, controlToken: controlToken)
+    }
+
+    private func validateControlToken(_ token: String) throws {
+        guard !token.isEmpty,
+              token.count <= 128,
+              token.unicodeScalars.allSatisfy({ scalar in
+                  (scalar.value >= 48 && scalar.value <= 57) ||
+                  (scalar.value >= 65 && scalar.value <= 90) ||
+                  (scalar.value >= 97 && scalar.value <= 122) ||
+                  scalar.value == 45
+              })
+        else {
+            throw DeploymentExecutionError.commandFailed(
+                OasesLocalization.localized("部署控制令牌无效，已停止执行。")
+            )
+        }
     }
 
     private func validate(_ request: DeploymentExecutionRequest) throws {
@@ -173,13 +197,15 @@ struct DeploymentExecutor {
         }.value
     }
 
-    private func nativeScript(installDirectory: String) -> String {
+    private func nativeScript(installDirectory: String, controlToken: String) -> String {
         let root = shellQuote(installDirectory)
+        let token = shellQuote(controlToken)
 
         return """
         set -euo pipefail
 
         INSTALL_ROOT=\(root)
+        CONTROL_TOKEN=\(token)
         case "$INSTALL_ROOT" in
           "~") INSTALL_ROOT="$HOME" ;;
           "~/"*) INSTALL_ROOT="$HOME/${INSTALL_ROOT#\\~/}" ;;
@@ -300,12 +326,13 @@ struct DeploymentExecutor {
         exec >> "$DEPLOYMENT_LOG" 2>&1
         ATTEMPT_MARKER="$INSTALL_ROOT/.oases-cpa-installing"
         FAILURE_MARKER="$INSTALL_ROOT/.oases-cpa-failed"
+        PAUSE_MARKER="$INSTALL_ROOT/.oases-cpa-paused"
         CURRENT_STAGE="prepare"
         set_stage() {
           CURRENT_STAGE="$1"
           local marker_part="${ATTEMPT_MARKER}.part.$$"
-          printf 'timestamp=%s\nmethod=native\nstage=%s\npid=%s\n' \
-            "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$CURRENT_STAGE" "$$" > "$marker_part"
+          printf 'timestamp=%s\nmethod=native\nstage=%s\npid=%s\ncontrol_token=%s\n' \
+            "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$CURRENT_STAGE" "$$" "$CONTROL_TOKEN" > "$marker_part"
           mv "$marker_part" "$ATTEMPT_MARKER"
           printf '[%s] 部署阶段：%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$CURRENT_STAGE"
         }
@@ -313,7 +340,7 @@ struct DeploymentExecutor {
           local status="$?"
           set +e
           if [ "$status" -eq 0 ]; then
-            rm -f "$ATTEMPT_MARKER" "$FAILURE_MARKER"
+            rm -f "$ATTEMPT_MARKER" "$FAILURE_MARKER" "$PAUSE_MARKER"
           else
             printf 'timestamp=%s\nmethod=native\nstage=%s\nexit_status=%s\n' \
               "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$CURRENT_STAGE" "$status" > "$FAILURE_MARKER"
@@ -325,7 +352,12 @@ struct DeploymentExecutor {
           trap - EXIT
           exit "$status"
         }
+        deployment_cancelled() {
+          CURRENT_STAGE="cancelled"
+          exit 130
+        }
         trap deployment_exit_status EXIT
+        trap deployment_cancelled TERM INT
         set_stage "prepare"
         printf '\n[%s] Oases CPA 原生部署开始。\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
         if [ -n "$RECOVERY_NOTE" ]; then
@@ -552,13 +584,15 @@ struct DeploymentExecutor {
         """
     }
 
-    private func dockerScript(installDirectory: String) -> String {
+    private func dockerScript(installDirectory: String, controlToken: String) -> String {
         let root = shellQuote(installDirectory)
+        let token = shellQuote(controlToken)
 
         return """
         set -euo pipefail
 
         INSTALL_ROOT=\(root)
+        CONTROL_TOKEN=\(token)
         case "$INSTALL_ROOT" in
           "~") INSTALL_ROOT="$HOME" ;;
           "~/"*) INSTALL_ROOT="$HOME/${INSTALL_ROOT#\\~/}" ;;
@@ -660,12 +694,13 @@ struct DeploymentExecutor {
         exec >> "$DEPLOYMENT_LOG" 2>&1
         ATTEMPT_MARKER="$INSTALL_ROOT/.oases-cpa-installing"
         FAILURE_MARKER="$INSTALL_ROOT/.oases-cpa-failed"
+        PAUSE_MARKER="$INSTALL_ROOT/.oases-cpa-paused"
         CURRENT_STAGE="prepare"
         set_stage() {
           CURRENT_STAGE="$1"
           local marker_part="${ATTEMPT_MARKER}.part.$$"
-          printf 'timestamp=%s\nmethod=docker\nstage=%s\npid=%s\n' \
-            "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$CURRENT_STAGE" "$$" > "$marker_part"
+          printf 'timestamp=%s\nmethod=docker\nstage=%s\npid=%s\ncontrol_token=%s\n' \
+            "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$CURRENT_STAGE" "$$" "$CONTROL_TOKEN" > "$marker_part"
           mv "$marker_part" "$ATTEMPT_MARKER"
           printf '[%s] Docker 部署阶段：%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$CURRENT_STAGE"
         }
@@ -674,7 +709,7 @@ struct DeploymentExecutor {
           set +e
           rm -f "${INSTALLER:-}" || true
           if [ "$status" -eq 0 ]; then
-            rm -f "$ATTEMPT_MARKER" "$FAILURE_MARKER"
+            rm -f "$ATTEMPT_MARKER" "$FAILURE_MARKER" "$PAUSE_MARKER"
           else
             printf 'timestamp=%s\nmethod=docker\nstage=%s\nexit_status=%s\n' \
               "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$CURRENT_STAGE" "$status" > "$FAILURE_MARKER"
@@ -686,7 +721,12 @@ struct DeploymentExecutor {
           trap - EXIT
           exit "$status"
         }
+        deployment_cancelled() {
+          CURRENT_STAGE="cancelled"
+          exit 130
+        }
         trap deployment_exit_status EXIT
+        trap deployment_cancelled TERM INT
         set_stage "prepare"
         printf '\n[%s] Oases CPA Docker 部署开始。\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
         if [ -n "$RECOVERY_NOTE" ]; then

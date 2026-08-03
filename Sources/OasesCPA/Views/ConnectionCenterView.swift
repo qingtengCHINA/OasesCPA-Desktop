@@ -8,6 +8,8 @@ struct ConnectionCenterView: View {
     @State private var isImportingKey = false
     @State private var confirmPlan = false
     @State private var confirmStop = false
+    @State private var confirmCancelDeployment = false
+    @State private var confirmRemoveDeployment = false
     @State private var confirmCleanup = false
     @State private var confirmForget = false
     @State private var confirmUpgrade = false
@@ -96,6 +98,33 @@ struct ConnectionCenterView: View {
             Button("取消", role: .cancel) {}
         } message: {
             Text("只停止 CLIProxyAPI 与 CPAMP，不删除安装目录、认证文件或 Keychain 凭据。")
+        }
+        .confirmationDialog(
+            "取消当前部署？",
+            isPresented: $confirmCancelDeployment,
+            titleVisibility: .visible
+        ) {
+            Button("取消部署并保留文件", role: .destructive) {
+                deploymentStore.cancelDeployment()
+            }
+            Button("取消并彻底删除全部文件", role: .destructive) {
+                deploymentStore.cancelDeployment(removeFilesAfterCancellation: true)
+            }
+            Button("继续部署", role: .cancel) {}
+        } message: {
+            Text("取消会先验证本次部署的控制令牌，再停止目标机上的安装进程。保留文件可用于诊断或重试；彻底删除会同时移除整个安装目录、服务、凭据和目标记录。")
+        }
+        .confirmationDialog(
+            "彻底删除当前部署？",
+            isPresented: $confirmRemoveDeployment,
+            titleVisibility: .visible
+        ) {
+            Button("删除整个部署目录", role: .destructive) {
+                deploymentStore.removeDeployment()
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("将停止 CLIProxyAPI 与 CPAMP，并删除 \(deploymentStore.installDirectory) 中的全部文件、备份和日志，同时清除该目标的 Keychain 凭据与保存记录。此操作不可撤销。")
         }
         .confirmationDialog(
             "清理失败部署并重试？",
@@ -286,7 +315,7 @@ struct ConnectionCenterView: View {
                 )
             }
 
-            if deploymentStore.isProbing || deploymentStore.isDeploying {
+            if deploymentStore.isProbing || deploymentStore.isDeploying || deploymentStore.isRemovingDeployment {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(LocalizedStringKey(progressTitle))
                         .font(.subheadline.weight(.semibold))
@@ -328,6 +357,41 @@ struct ConnectionCenterView: View {
                 .controlSize(.large)
                 .disabled(primaryActionDisabled)
 
+                if deploymentStore.canPauseDeployment {
+                    Button("暂停", systemImage: "pause.fill") {
+                        deploymentStore.pauseDeployment()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                } else if deploymentStore.canResumeDeployment {
+                    Button("继续", systemImage: "play.fill") {
+                        deploymentStore.resumeDeployment()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                }
+
+                if deploymentStore.canCancelDeployment {
+                    Button("取消部署", systemImage: "xmark.circle", role: .destructive) {
+                        confirmCancelDeployment = true
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .disabled(deploymentStore.isControllingDeployment)
+                } else if deploymentStore.canRemoveDeployment {
+                    Button("彻底删除部署", systemImage: "trash", role: .destructive) {
+                        confirmRemoveDeployment = true
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                }
+            }
+
+            if let removalError = deploymentStore.removalError {
+                Label(removalError, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(Color.oasesRed)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(22)
@@ -338,7 +402,16 @@ struct ConnectionCenterView: View {
         if deploymentStore.isProbing {
             return OasesLocalization.localized("正在检查环境")
         }
+        if deploymentStore.isRemovingDeployment {
+            return OasesLocalization.localized("正在彻底删除部署")
+        }
         if deploymentStore.isDeploying {
+            if deploymentStore.isCancellingDeployment {
+                return OasesLocalization.localized("正在取消部署")
+            }
+            if deploymentStore.isDeploymentPaused {
+                return OasesLocalization.localized("部署已暂停")
+            }
             return deploymentStore.stage == .installing
                 ? OasesLocalization.localized("正在部署")
                 : OasesLocalization.localized("正在连接")
@@ -391,7 +464,7 @@ struct ConnectionCenterView: View {
     }
 
     private var primaryActionDisabled: Bool {
-        deploymentStore.isProbing || deploymentStore.isDeploying || deploymentStore.isMaintaining
+        deploymentStore.isProbing || deploymentStore.isDeploying || deploymentStore.isMaintaining || deploymentStore.isRemovingDeployment
     }
 
     private func primaryDeploymentAction() {
