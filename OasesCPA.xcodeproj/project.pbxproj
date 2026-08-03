@@ -1,0 +1,1044 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0410218F6AD9D0F5F0679F6D /* OpenAICompatibilityEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF64ED65361A7023E6A5BA1 /* OpenAICompatibilityEditorView.swift */; };
+		04F6736A328117BAF615657A /* OpenSourceNoticesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96C4DE28BFCD7A9DCC3F3AE9 /* OpenSourceNoticesView.swift */; };
+		0767A8087C1B18D288357BE6 /* DeploymentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0017A03565B9CFF2B187219 /* DeploymentModels.swift */; };
+		07F6F4D17855F3CA0DA4025B /* PluginConfigEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1790CAA37B95A163F0356FB5 /* PluginConfigEditorView.swift */; };
+		097540B1024C96E319114743 /* PluginStoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF468337BDBC84C3D7A70DD4 /* PluginStoreView.swift */; };
+		0CAC623618A0C83A15C96B16 /* PageHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 435819142CFF57BC0AE87707 /* PageHeader.swift */; };
+		0E2D05ADEF4F92905DAEB934 /* OasesCPAApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D343FA919CA3BB80C5A84EC0 /* OasesCPAApp.swift */; };
+		110E8C70356FC02AD40C28A4 /* AppSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B5B0A9432979EAE37842435 /* AppSection.swift */; };
+		11F7B5096A49BBC7EE6A4639 /* AuthFileEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF20A710B98A849EA1F8CC34 /* AuthFileEditorView.swift */; };
+		138ACFAF5AB015105C174F20 /* RuntimeOAuthModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD8550D03C0E724AA091BF54 /* RuntimeOAuthModels.swift */; };
+		1511901B9FC79692EF955AAD /* RuntimeProviderDraftDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 065A9EBB584FB69F2015E80F /* RuntimeProviderDraftDiagnostics.swift */; };
+		18377835026BB7D5EFC0024A /* RuntimeAuthFileModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 342F29054C8C443FD338DD83 /* RuntimeAuthFileModels.swift */; };
+		19EAAF4D591C2CC8F73BD684 /* OasesMenuBarIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 989AAC7F0DA5DA583C25DA57 /* OasesMenuBarIcon.png */; };
+		1A7D12DB099FBCAD13F5623E /* ConfigurationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41E4129ABF950D88449784AF /* ConfigurationView.swift */; };
+		1B2C505E6DE2D0B1D5B1C12E /* CodexInspectionPolicyEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B293208B06F2E8A3CE78AE /* CodexInspectionPolicyEditor.swift */; };
+		1DD2723DF1AEE5C978448FED /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 355CF7BEA5EF9F44712D905E /* ContentView.swift */; };
+		239AB79D91A6599E3EC77C63 /* DeploymentRecoveryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D6F8F87AC1428651625292C /* DeploymentRecoveryService.swift */; };
+		24117114E0696D2F6FE759AB /* CredentialHealthInspectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFBC9BB20EA1E5E0618EB8A4 /* CredentialHealthInspectionView.swift */; };
+		270BDBBC83A06F4BFA97A5EF /* RuntimeLogModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DB6D6EC97D882F1031902F4 /* RuntimeLogModels.swift */; };
+		2F503A118377F949CE3A95CC /* HealthNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9437EB8CB28FF989C00D2A47 /* HealthNotificationService.swift */; };
+		308770041AB29182F20CE423 /* RuntimeDirectProviderModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9E2618C787484A509F70688 /* RuntimeDirectProviderModels.swift */; };
+		380CCE45D1AFE1E6CC219050 /* CPA-Manager-Plus-MIT.txt in Resources */ = {isa = PBXBuildFile; fileRef = DFD5192E6EAC97171DD3646C /* CPA-Manager-Plus-MIT.txt */; };
+		395DC6ADC914850517054E16 /* RuntimeDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEE0F1301F1A40B2E03C9CFB /* RuntimeDataStore.swift */; };
+		3A539F70570AE6339B7FB61C /* OasesAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 335E3CC42F7A7277B29061A8 /* OasesAppearance.swift */; };
+		3CE052C84A59EE02C48DD9D7 /* RuntimePluginStoreContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6745A70A7AB963310176A92A /* RuntimePluginStoreContractTests.swift */; };
+		4029456F89FCD00AD62B46A3 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36A46B875E6365F132C9B69B /* AppStore.swift */; };
+		4542A746287172FD4A3450B6 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = B449A4709469035427350F58 /* Localizable.strings */; };
+		455EAEBDAFC2F71D9DDF8CBB /* RuntimeMonitoringAccountHistoryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62D283B7AAF82A3621ED06FA /* RuntimeMonitoringAccountHistoryModels.swift */; };
+		480843CEE2D4359B16054343 /* RuntimePluginContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92632863E5E3111503F61D7C /* RuntimePluginContractTests.swift */; };
+		4A250C5A1B5BED8BCD8F12E4 /* RuntimeOAuthModelPolicyContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE7B472720C8C5D4D50A3C65 /* RuntimeOAuthModelPolicyContractTests.swift */; };
+		4A3F22BF404E9F4607F7CF59 /* OasesAppearanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79E24EBF7DA4561E3B9E169C /* OasesAppearanceTests.swift */; };
+		4E8AA78862436698BE50EC63 /* SystemInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DBEB3B098880EE23ED742DC /* SystemInfoView.swift */; };
+		4F5DEE03B63A61953F1EED73 /* RuntimeModelPriceContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC2894D05170993E4E872410 /* RuntimeModelPriceContractTests.swift */; };
+		4FA1C9F17747E1389E5BDAED /* RuntimeAuthJSONDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D4DDFF34FB4EDE555E021F8 /* RuntimeAuthJSONDocument.swift */; };
+		53F9C8088B94C434BC6E2988 /* RuntimeModelPriceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02B865320B5E56CDCE39BE56 /* RuntimeModelPriceModels.swift */; };
+		556B86FE8E04327AD42B9D25 /* RuntimeDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23E00106516EC51FE20816DC /* RuntimeDecodingTests.swift */; };
+		5583C82F6CF3BE635AA2AFDE /* MenuBarStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B51FFBA60F9C5E37F0D7420B /* MenuBarStatusView.swift */; };
+		559B9FC37418DA0F4C58E6B6 /* RuntimeDashboardModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 087E671A443F12B7CF3FB2DF /* RuntimeDashboardModels.swift */; };
+		56462317AACBCA4D15D0B609 /* DashboardModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AD9272FA8D618140A1349D4 /* DashboardModels.swift */; };
+		583DED82F207D5A9A39B6B46 /* RuntimeMonitoringEventsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E6FCB505D148CAB0061357B /* RuntimeMonitoringEventsModels.swift */; };
+		612C74693820852CDE056975 /* OpenRouterOAuthLoopbackListener.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03256C786DF08DE589BD800C /* OpenRouterOAuthLoopbackListener.swift */; };
+		6242AF81DA381E95536A413C /* DeploymentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1D5A52C4F38274371D0D121 /* DeploymentStore.swift */; };
+		6911849EA065279F794E490C /* RuntimeProviderDraftDiagnosticsContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80C6000AD9FC58BCB173A402 /* RuntimeProviderDraftDiagnosticsContractTests.swift */; };
+		6B017C1904127BC4BAA41BD8 /* OasesCPA.icns in Resources */ = {isa = PBXBuildFile; fileRef = B390BECFAC33611234C4164F /* OasesCPA.icns */; };
+		6B285E4C7F4BCDF44028ADFA /* OnboardingStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D71CF28144C36877997E7F4F /* OnboardingStateTests.swift */; };
+		74AD6F9F1B58003594ABBB6C /* SSHConnectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFC7F942E2BBEE339097DB7B /* SSHConnectionService.swift */; };
+		7560D4E092861D4135CB95CD /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9C24ED7E4E6915EF383CC39 /* DashboardView.swift */; };
+		756C726F48B61A545429CD7D /* ProviderEditorWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A6FB20C748487C8265DE941 /* ProviderEditorWindow.swift */; };
+		76D917B4B44B131100AF6B18 /* RuntimeProviderModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09AC6FC97E017C4367503D88 /* RuntimeProviderModels.swift */; };
+		786966F5ADA710C8A4A6F20B /* LaunchAtLoginService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFE83C899C626CE00D19B7EA /* LaunchAtLoginService.swift */; };
+		7B8DA5FF93D9E61608BFAE15 /* DeploymentLogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F88AABC854BD8A2855DAE0 /* DeploymentLogService.swift */; };
+		7BBCBB18C6C8BEB7F1FE66BB /* RuntimePluginModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91B7FC7D28072493CABE5FD6 /* RuntimePluginModels.swift */; };
+		7EA65D7C42B59E67C961E616 /* RuntimeOAuthModelPolicyModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97043FB0E9A8BD83814BD981 /* RuntimeOAuthModelPolicyModels.swift */; };
+		8200104FB23A2B731223A5A8 /* RuntimeCodexInspectionPolicyContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F28B945413C5BCC09DF3E37F /* RuntimeCodexInspectionPolicyContractTests.swift */; };
+		82214473DF8E8880A26730F7 /* ManagementAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B6C1D4B3823F0C9ECE7E066 /* ManagementAPIClient.swift */; };
+		847661619B4FAFE2D596564A /* RuntimeDirectProviderContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56E355E65C98BB3AE55CCEF9 /* RuntimeDirectProviderContractTests.swift */; };
+		856B4A7320473C7E116A5DE2 /* LogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2895163A583DA362E7B3E86A /* LogsView.swift */; };
+		88FC3FA97E4B1292153F80FA /* OnboardingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEC2CBD024038FFC6C016085 /* OnboardingState.swift */; };
+		89D2585581BB6E2FE7ACFDBD /* RuntimeQuotaModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E567BCDCB556E1F634D895C3 /* RuntimeQuotaModels.swift */; };
+		8B7CCB05423DF3BAC32E8895 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AC44BC2E10C12464F9E8030 /* SidebarView.swift */; };
+		8C3B7E1FF161625AAB7DDD9D /* SparklineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD7060B31717B15B14A52F2 /* SparklineView.swift */; };
+		98138557908DEBBDFB9D2A52 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 042EAC68E099F9D326AFE146 /* SettingsView.swift */; };
+		9BBC3358E1BF2BAAB2A5949F /* AccountActionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB63E755A5614E0F6B50E611 /* AccountActionsView.swift */; };
+		9CF5AF212790CEB757B853A8 /* RuntimeMonitoringHeaderSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8BF90CF22F60DBD921ACED5 /* RuntimeMonitoringHeaderSnapshotModels.swift */; };
+		9DB58ADE5E96B7ED22BB3A8E /* DeploymentExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B81A322BC0F34D7ACDE11BA7 /* DeploymentExecutor.swift */; };
+		A0893B418E3E185783BF9CF1 /* AppExperienceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A08962309C315022E2D5588 /* AppExperienceTests.swift */; };
+		A9F0A17326F07C6287E2C331 /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F83EDFD8161AD114DC4B8248 /* AppLanguage.swift */; };
+		A9FDF890001EBF877AE9C032 /* PanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7C258B0B5C1A30B845C406F /* PanelView.swift */; };
+		ACE1B8C3ABD2279F334EE436 /* RuntimeSystemStatusModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F368A4FBC3439126FF23FC60 /* RuntimeSystemStatusModels.swift */; };
+		ACEA9D0E30909CD3442C3934 /* OasesMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00D7CF43176922D4849BF5B4 /* OasesMark.swift */; };
+		AE179C0380BE288BA3AE1830 /* RuntimeManagerConfigModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E351E1FC4AF5DDC855E47964 /* RuntimeManagerConfigModels.swift */; };
+		AEF1069B920171EFBA8A00C9 /* RuntimeAccountActionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EE173ADB3D34159BD7BD61C /* RuntimeAccountActionModels.swift */; };
+		AF2ECA4AA2FC899619C2BC91 /* RuntimeAccountActionContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8AE364A2E03BBDAE59507A6 /* RuntimeAccountActionContractTests.swift */; };
+		B6C1357D3897211FE5D83AD6 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F87D4FC3968ACD620E72376 /* DesignTokens.swift */; };
+		B859A5789AF89B11760B662F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1E75C1119AFD0C1E1A603FC /* Assets.xcassets */; };
+		BAFC42275C25E96BEE6077F8 /* RuntimeProviderConnectivityModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB6DC80408688F7932F78C36 /* RuntimeProviderConnectivityModels.swift */; };
+		BB414CC6200FD705114CC51C /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 5DF80D7534B783CB6C58D1B5 /* PrivacyInfo.xcprivacy */; };
+		BC1992E50841A47F1FCBA08E /* StatusPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC15A57CE6C8174C1C25EDDF /* StatusPill.swift */; };
+		BF0AA7A796AAEAC3651001B5 /* RuntimeCPAConfigDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32097B6ACA91DBEB2CF65AC1 /* RuntimeCPAConfigDocument.swift */; };
+		C3E0250F5EC0A60CF48A38D5 /* RuntimeMonitoringEventsContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7B7E5A270BB6F778F048E5C /* RuntimeMonitoringEventsContractTests.swift */; };
+		C55687B26C51109A5F7ECCF4 /* DirectProviderCredentialsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0FA0BCDABD7E2C11EB6517 /* DirectProviderCredentialsView.swift */; };
+		C910E8016DDC9F60B7EB18B9 /* RuntimeOpenRouterOAuthModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73AAD8624932669F77997D23 /* RuntimeOpenRouterOAuthModels.swift */; };
+		C9742E0C3C62AE63349ABE25 /* OAuthModelPoliciesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0202FAB8A2C3CC5B8BB95113 /* OAuthModelPoliciesView.swift */; };
+		C993B96E23A793C934A4820B /* RuntimeCodexInspectionPolicyModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3576D363D51FD184D001E8A4 /* RuntimeCodexInspectionPolicyModels.swift */; };
+		CA07B8BD7196E5057C1E3C59 /* PluginOAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD307BA3FD7E9E3687E13DFC /* PluginOAuthView.swift */; };
+		CADAEB45975836EC9A7B5FAD /* OasesBrandIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 569387330C4103211781E8D4 /* OasesBrandIcon.png */; };
+		CDFD4DB0F3BEAC2BCAB53959 /* RuntimeOpenRouterOAuthContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DBC66530FAAE817835A21C /* RuntimeOpenRouterOAuthContractTests.swift */; };
+		D035C1540F2809CC6856203F /* ConfigurationStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66A79A9BA41BD5DA3BAB4F50 /* ConfigurationStateTests.swift */; };
+		D0FB3FB1C3DCF61BF5B39F4E /* RuntimeCodexInspectionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D116EE409E9DE218C795A4B2 /* RuntimeCodexInspectionModels.swift */; };
+		D113449438BB2611FA200F07 /* DeploymentProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD629568267BE1D1905EE36A /* DeploymentProfile.swift */; };
+		D1A01541B6A9812528E3448F /* ModelPricesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FA7767A48FFF26462E335AE /* ModelPricesView.swift */; };
+		D45F00C3B749B5BBD5CBCB0D /* RuntimeGatewayAccessModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16226ED1625ACA82FCCCA905 /* RuntimeGatewayAccessModels.swift */; };
+		D5F047125AF017C349F3AD12 /* ProviderConnectivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE0E12FC1F4DE45B8BE4D70C /* ProviderConnectivityView.swift */; };
+		D7E1EBF66950102CCAB596F1 /* ConnectionCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4DC9EB0282FF80DBA7D2166 /* ConnectionCenterView.swift */; };
+		DA1C53312F54686E8127E442 /* DeploymentMaintenanceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 553C818C94BD4C836715013C /* DeploymentMaintenanceService.swift */; };
+		DDD536C9E4B5175CA4AEE697 /* PanelAndQuotaStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 574ADEA79E28A10743D248C4 /* PanelAndQuotaStateTests.swift */; };
+		DFEEA867BE0EBFD819045085 /* RuntimeLifecycleService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6BC53E6B6EC7E1464FF5F6B /* RuntimeLifecycleService.swift */; };
+		E0C9D5A6CBEBF6041422410E /* CPAConfigEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 604AB8C56438C8EF9E1C8CD9 /* CPAConfigEditorView.swift */; };
+		E2500F29B14E04B384CABC6C /* RuntimeMonitoringHeaderSnapshotContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49A4DD0CE914332CEAC1C469 /* RuntimeMonitoringHeaderSnapshotContractTests.swift */; };
+		E2838A50B11235F206781220 /* OAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E4A236D4E335EDDE45DBB30 /* OAuthView.swift */; };
+		E31A0ABF1AC4EC60B3B0A5FD /* RuntimeProviderConnectivityContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82FB39834AAFC71C09B23AE1 /* RuntimeProviderConnectivityContractTests.swift */; };
+		E44F9E238E9F7AF2B2AA05AB /* PluginsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CFA6EDC2F75C3EA74A91181 /* PluginsView.swift */; };
+		E87ED5845EA6E6593F6671E4 /* RuntimeMonitoringAccountHistoryContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFEFB4462B7CCE56B39AAD65 /* RuntimeMonitoringAccountHistoryContractTests.swift */; };
+		E8ABA8E8C2A6204E645B7524 /* ExistingDeploymentAdoptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 365B0A6530F2F9C83786595D /* ExistingDeploymentAdoptionService.swift */; };
+		EA36856F6B0F5D835132D12F /* RuntimeCodexInspectionContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E4DB17E2E9370B2FA386010 /* RuntimeCodexInspectionContractTests.swift */; };
+		EC4ACABE9AA5368D850BA55A /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70168752BA6AE6F2D4804B0C /* KeychainStore.swift */; };
+		F48D29B3E9A413F8089D3E90 /* MetricCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 437DB3F8504078C6F87B8A89 /* MetricCard.swift */; };
+		F612549D7F3CDA4A94AFE285 /* WorkspaceViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4945ABADBF93201C54783260 /* WorkspaceViews.swift */; };
+		F623EB40B3E94D75291D389D /* DeploymentProbeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDE01E866F493A2E13E61537 /* DeploymentProbeService.swift */; };
+		F6590136258EA4B4E971F1A8 /* AccessKeysView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE171ABADDE86992E1A61F3B /* AccessKeysView.swift */; };
+		F9FE7DC3E00212541182610F /* WelcomeFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15F47DF73FAFAC4A313CA13F /* WelcomeFlowView.swift */; };
+		FB9EB1DD3F14F5AD0514840C /* CLIProxyAPI-MIT.txt in Resources */ = {isa = PBXBuildFile; fileRef = CA80448BE2BFEE5DCFA741EE /* CLIProxyAPI-MIT.txt */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C2239259727D9974C06CD793 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 67A3E4C2E228FBEF45302EE6 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A6AC49B3B4FBA35B0AE53E2F;
+			remoteInfo = OasesCPA;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		00D7CF43176922D4849BF5B4 /* OasesMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OasesMark.swift; sourceTree = "<group>"; };
+		0202FAB8A2C3CC5B8BB95113 /* OAuthModelPoliciesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthModelPoliciesView.swift; sourceTree = "<group>"; };
+		02B865320B5E56CDCE39BE56 /* RuntimeModelPriceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeModelPriceModels.swift; sourceTree = "<group>"; };
+		03256C786DF08DE589BD800C /* OpenRouterOAuthLoopbackListener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterOAuthLoopbackListener.swift; sourceTree = "<group>"; };
+		042EAC68E099F9D326AFE146 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		065A9EBB584FB69F2015E80F /* RuntimeProviderDraftDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeProviderDraftDiagnostics.swift; sourceTree = "<group>"; };
+		087E671A443F12B7CF3FB2DF /* RuntimeDashboardModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeDashboardModels.swift; sourceTree = "<group>"; };
+		09AC6FC97E017C4367503D88 /* RuntimeProviderModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeProviderModels.swift; sourceTree = "<group>"; };
+		0A6FB20C748487C8265DE941 /* ProviderEditorWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderEditorWindow.swift; sourceTree = "<group>"; };
+		0C0FA0BCDABD7E2C11EB6517 /* DirectProviderCredentialsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectProviderCredentialsView.swift; sourceTree = "<group>"; };
+		15F47DF73FAFAC4A313CA13F /* WelcomeFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeFlowView.swift; sourceTree = "<group>"; };
+		16226ED1625ACA82FCCCA905 /* RuntimeGatewayAccessModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeGatewayAccessModels.swift; sourceTree = "<group>"; };
+		1790CAA37B95A163F0356FB5 /* PluginConfigEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginConfigEditorView.swift; sourceTree = "<group>"; };
+		1B6C1D4B3823F0C9ECE7E066 /* ManagementAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagementAPIClient.swift; sourceTree = "<group>"; };
+		1DC413FDBB1A1D8F6D0372F0 /* OasesCPATests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OasesCPATests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		1DF64ED65361A7023E6A5BA1 /* OpenAICompatibilityEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAICompatibilityEditorView.swift; sourceTree = "<group>"; };
+		23E00106516EC51FE20816DC /* RuntimeDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeDecodingTests.swift; sourceTree = "<group>"; };
+		2895163A583DA362E7B3E86A /* LogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogsView.swift; sourceTree = "<group>"; };
+		2A08962309C315022E2D5588 /* AppExperienceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppExperienceTests.swift; sourceTree = "<group>"; };
+		2B5B0A9432979EAE37842435 /* AppSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSection.swift; sourceTree = "<group>"; };
+		2CFA6EDC2F75C3EA74A91181 /* PluginsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginsView.swift; sourceTree = "<group>"; };
+		32097B6ACA91DBEB2CF65AC1 /* RuntimeCPAConfigDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeCPAConfigDocument.swift; sourceTree = "<group>"; };
+		335E3CC42F7A7277B29061A8 /* OasesAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OasesAppearance.swift; sourceTree = "<group>"; };
+		342F29054C8C443FD338DD83 /* RuntimeAuthFileModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeAuthFileModels.swift; sourceTree = "<group>"; };
+		355CF7BEA5EF9F44712D905E /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		3576D363D51FD184D001E8A4 /* RuntimeCodexInspectionPolicyModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeCodexInspectionPolicyModels.swift; sourceTree = "<group>"; };
+		365B0A6530F2F9C83786595D /* ExistingDeploymentAdoptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExistingDeploymentAdoptionService.swift; sourceTree = "<group>"; };
+		36A46B875E6365F132C9B69B /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
+		3EE173ADB3D34159BD7BD61C /* RuntimeAccountActionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeAccountActionModels.swift; sourceTree = "<group>"; };
+		3F87D4FC3968ACD620E72376 /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
+		41E4129ABF950D88449784AF /* ConfigurationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigurationView.swift; sourceTree = "<group>"; };
+		435819142CFF57BC0AE87707 /* PageHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageHeader.swift; sourceTree = "<group>"; };
+		437DB3F8504078C6F87B8A89 /* MetricCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricCard.swift; sourceTree = "<group>"; };
+		4945ABADBF93201C54783260 /* WorkspaceViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceViews.swift; sourceTree = "<group>"; };
+		49A4DD0CE914332CEAC1C469 /* RuntimeMonitoringHeaderSnapshotContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeMonitoringHeaderSnapshotContractTests.swift; sourceTree = "<group>"; };
+		4AC44BC2E10C12464F9E8030 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		4AD9272FA8D618140A1349D4 /* DashboardModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardModels.swift; sourceTree = "<group>"; };
+		4D4DDFF34FB4EDE555E021F8 /* RuntimeAuthJSONDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeAuthJSONDocument.swift; sourceTree = "<group>"; };
+		553C818C94BD4C836715013C /* DeploymentMaintenanceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentMaintenanceService.swift; sourceTree = "<group>"; };
+		569387330C4103211781E8D4 /* OasesBrandIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = OasesBrandIcon.png; sourceTree = "<group>"; };
+		56E355E65C98BB3AE55CCEF9 /* RuntimeDirectProviderContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeDirectProviderContractTests.swift; sourceTree = "<group>"; };
+		574ADEA79E28A10743D248C4 /* PanelAndQuotaStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelAndQuotaStateTests.swift; sourceTree = "<group>"; };
+		5BD7060B31717B15B14A52F2 /* SparklineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparklineView.swift; sourceTree = "<group>"; };
+		5C3826CAC6F33123A3DAAE51 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		5DF80D7534B783CB6C58D1B5 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		5E4A236D4E335EDDE45DBB30 /* OAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthView.swift; sourceTree = "<group>"; };
+		604AB8C56438C8EF9E1C8CD9 /* CPAConfigEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPAConfigEditorView.swift; sourceTree = "<group>"; };
+		62D283B7AAF82A3621ED06FA /* RuntimeMonitoringAccountHistoryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeMonitoringAccountHistoryModels.swift; sourceTree = "<group>"; };
+		66A79A9BA41BD5DA3BAB4F50 /* ConfigurationStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigurationStateTests.swift; sourceTree = "<group>"; };
+		6745A70A7AB963310176A92A /* RuntimePluginStoreContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimePluginStoreContractTests.swift; sourceTree = "<group>"; };
+		6DBEB3B098880EE23ED742DC /* SystemInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemInfoView.swift; sourceTree = "<group>"; };
+		70168752BA6AE6F2D4804B0C /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
+		73AAD8624932669F77997D23 /* RuntimeOpenRouterOAuthModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeOpenRouterOAuthModels.swift; sourceTree = "<group>"; };
+		791EFC6BD3F76C71DFC4EC3A /* OasesCPA.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OasesCPA.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		79E24EBF7DA4561E3B9E169C /* OasesAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OasesAppearanceTests.swift; sourceTree = "<group>"; };
+		7E6FCB505D148CAB0061357B /* RuntimeMonitoringEventsModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeMonitoringEventsModels.swift; sourceTree = "<group>"; };
+		80C6000AD9FC58BCB173A402 /* RuntimeProviderDraftDiagnosticsContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeProviderDraftDiagnosticsContractTests.swift; sourceTree = "<group>"; };
+		82FB39834AAFC71C09B23AE1 /* RuntimeProviderConnectivityContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeProviderConnectivityContractTests.swift; sourceTree = "<group>"; };
+		8DB6D6EC97D882F1031902F4 /* RuntimeLogModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeLogModels.swift; sourceTree = "<group>"; };
+		91B7FC7D28072493CABE5FD6 /* RuntimePluginModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimePluginModels.swift; sourceTree = "<group>"; };
+		92632863E5E3111503F61D7C /* RuntimePluginContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimePluginContractTests.swift; sourceTree = "<group>"; };
+		9437EB8CB28FF989C00D2A47 /* HealthNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthNotificationService.swift; sourceTree = "<group>"; };
+		96C4DE28BFCD7A9DCC3F3AE9 /* OpenSourceNoticesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenSourceNoticesView.swift; sourceTree = "<group>"; };
+		97043FB0E9A8BD83814BD981 /* RuntimeOAuthModelPolicyModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeOAuthModelPolicyModels.swift; sourceTree = "<group>"; };
+		989AAC7F0DA5DA583C25DA57 /* OasesMenuBarIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = OasesMenuBarIcon.png; sourceTree = "<group>"; };
+		9D6F8F87AC1428651625292C /* DeploymentRecoveryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentRecoveryService.swift; sourceTree = "<group>"; };
+		9E4DB17E2E9370B2FA386010 /* RuntimeCodexInspectionContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeCodexInspectionContractTests.swift; sourceTree = "<group>"; };
+		9FA7767A48FFF26462E335AE /* ModelPricesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPricesView.swift; sourceTree = "<group>"; };
+		A1E75C1119AFD0C1E1A603FC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AFC7F942E2BBEE339097DB7B /* SSHConnectionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHConnectionService.swift; sourceTree = "<group>"; };
+		B390BECFAC33611234C4164F /* OasesCPA.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = OasesCPA.icns; sourceTree = "<group>"; };
+		B51FFBA60F9C5E37F0D7420B /* MenuBarStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarStatusView.swift; sourceTree = "<group>"; };
+		B81A322BC0F34D7ACDE11BA7 /* DeploymentExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentExecutor.swift; sourceTree = "<group>"; };
+		B8AE364A2E03BBDAE59507A6 /* RuntimeAccountActionContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeAccountActionContractTests.swift; sourceTree = "<group>"; };
+		BC15A57CE6C8174C1C25EDDF /* StatusPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusPill.swift; sourceTree = "<group>"; };
+		BC2894D05170993E4E872410 /* RuntimeModelPriceContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeModelPriceContractTests.swift; sourceTree = "<group>"; };
+		BEE0F1301F1A40B2E03C9CFB /* RuntimeDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeDataStore.swift; sourceTree = "<group>"; };
+		BFE83C899C626CE00D19B7EA /* LaunchAtLoginService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginService.swift; sourceTree = "<group>"; };
+		C0017A03565B9CFF2B187219 /* DeploymentModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentModels.swift; sourceTree = "<group>"; };
+		C7B7E5A270BB6F778F048E5C /* RuntimeMonitoringEventsContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeMonitoringEventsContractTests.swift; sourceTree = "<group>"; };
+		CA80448BE2BFEE5DCFA741EE /* CLIProxyAPI-MIT.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "CLIProxyAPI-MIT.txt"; sourceTree = "<group>"; };
+		CB63E755A5614E0F6B50E611 /* AccountActionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountActionsView.swift; sourceTree = "<group>"; };
+		CE171ABADDE86992E1A61F3B /* AccessKeysView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessKeysView.swift; sourceTree = "<group>"; };
+		CEC2CBD024038FFC6C016085 /* OnboardingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingState.swift; sourceTree = "<group>"; };
+		D0DBC66530FAAE817835A21C /* RuntimeOpenRouterOAuthContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeOpenRouterOAuthContractTests.swift; sourceTree = "<group>"; };
+		D116EE409E9DE218C795A4B2 /* RuntimeCodexInspectionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeCodexInspectionModels.swift; sourceTree = "<group>"; };
+		D1D5A52C4F38274371D0D121 /* DeploymentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentStore.swift; sourceTree = "<group>"; };
+		D343FA919CA3BB80C5A84EC0 /* OasesCPAApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OasesCPAApp.swift; sourceTree = "<group>"; };
+		D71CF28144C36877997E7F4F /* OnboardingStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingStateTests.swift; sourceTree = "<group>"; };
+		D7B293208B06F2E8A3CE78AE /* CodexInspectionPolicyEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexInspectionPolicyEditor.swift; sourceTree = "<group>"; };
+		D7C258B0B5C1A30B845C406F /* PanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelView.swift; sourceTree = "<group>"; };
+		D9C24ED7E4E6915EF383CC39 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		D9E2618C787484A509F70688 /* RuntimeDirectProviderModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeDirectProviderModels.swift; sourceTree = "<group>"; };
+		D9F88AABC854BD8A2855DAE0 /* DeploymentLogService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentLogService.swift; sourceTree = "<group>"; };
+		DD307BA3FD7E9E3687E13DFC /* PluginOAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginOAuthView.swift; sourceTree = "<group>"; };
+		DD8550D03C0E724AA091BF54 /* RuntimeOAuthModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeOAuthModels.swift; sourceTree = "<group>"; };
+		DE0E12FC1F4DE45B8BE4D70C /* ProviderConnectivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderConnectivityView.swift; sourceTree = "<group>"; };
+		DFD5192E6EAC97171DD3646C /* CPA-Manager-Plus-MIT.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "CPA-Manager-Plus-MIT.txt"; sourceTree = "<group>"; };
+		E351E1FC4AF5DDC855E47964 /* RuntimeManagerConfigModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeManagerConfigModels.swift; sourceTree = "<group>"; };
+		E567BCDCB556E1F634D895C3 /* RuntimeQuotaModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeQuotaModels.swift; sourceTree = "<group>"; };
+		E6563B04F362EAF3B5D7C155 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		E8BF90CF22F60DBD921ACED5 /* RuntimeMonitoringHeaderSnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeMonitoringHeaderSnapshotModels.swift; sourceTree = "<group>"; };
+		EFBC9BB20EA1E5E0618EB8A4 /* CredentialHealthInspectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialHealthInspectionView.swift; sourceTree = "<group>"; };
+		EFEFB4462B7CCE56B39AAD65 /* RuntimeMonitoringAccountHistoryContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeMonitoringAccountHistoryContractTests.swift; sourceTree = "<group>"; };
+		F28B945413C5BCC09DF3E37F /* RuntimeCodexInspectionPolicyContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeCodexInspectionPolicyContractTests.swift; sourceTree = "<group>"; };
+		F368A4FBC3439126FF23FC60 /* RuntimeSystemStatusModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeSystemStatusModels.swift; sourceTree = "<group>"; };
+		F4DC9EB0282FF80DBA7D2166 /* ConnectionCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionCenterView.swift; sourceTree = "<group>"; };
+		F615D068D4D20305340E278E /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		F6BC53E6B6EC7E1464FF5F6B /* RuntimeLifecycleService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeLifecycleService.swift; sourceTree = "<group>"; };
+		F83EDFD8161AD114DC4B8248 /* AppLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLanguage.swift; sourceTree = "<group>"; };
+		FB6DC80408688F7932F78C36 /* RuntimeProviderConnectivityModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeProviderConnectivityModels.swift; sourceTree = "<group>"; };
+		FD629568267BE1D1905EE36A /* DeploymentProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentProfile.swift; sourceTree = "<group>"; };
+		FDE01E866F493A2E13E61537 /* DeploymentProbeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentProbeService.swift; sourceTree = "<group>"; };
+		FE7B472720C8C5D4D50A3C65 /* RuntimeOAuthModelPolicyContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeOAuthModelPolicyContractTests.swift; sourceTree = "<group>"; };
+		FF20A710B98A849EA1F8CC34 /* AuthFileEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthFileEditorView.swift; sourceTree = "<group>"; };
+		FF468337BDBC84C3D7A70DD4 /* PluginStoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginStoreView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		08E190116FB1C6DFAC5CBDD3 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A1E75C1119AFD0C1E1A603FC /* Assets.xcassets */,
+				E6563B04F362EAF3B5D7C155 /* Info.plist */,
+				B449A4709469035427350F58 /* Localizable.strings */,
+				569387330C4103211781E8D4 /* OasesBrandIcon.png */,
+				B390BECFAC33611234C4164F /* OasesCPA.icns */,
+				989AAC7F0DA5DA583C25DA57 /* OasesMenuBarIcon.png */,
+				5DF80D7534B783CB6C58D1B5 /* PrivacyInfo.xcprivacy */,
+				77B1654829C65E7B90301DA2 /* Notices */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		0CDA7BF1DBBDB4E953455A94 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				2B5B0A9432979EAE37842435 /* AppSection.swift */,
+				4AD9272FA8D618140A1349D4 /* DashboardModels.swift */,
+				C0017A03565B9CFF2B187219 /* DeploymentModels.swift */,
+				FD629568267BE1D1905EE36A /* DeploymentProfile.swift */,
+				3EE173ADB3D34159BD7BD61C /* RuntimeAccountActionModels.swift */,
+				342F29054C8C443FD338DD83 /* RuntimeAuthFileModels.swift */,
+				4D4DDFF34FB4EDE555E021F8 /* RuntimeAuthJSONDocument.swift */,
+				D116EE409E9DE218C795A4B2 /* RuntimeCodexInspectionModels.swift */,
+				3576D363D51FD184D001E8A4 /* RuntimeCodexInspectionPolicyModels.swift */,
+				32097B6ACA91DBEB2CF65AC1 /* RuntimeCPAConfigDocument.swift */,
+				087E671A443F12B7CF3FB2DF /* RuntimeDashboardModels.swift */,
+				D9E2618C787484A509F70688 /* RuntimeDirectProviderModels.swift */,
+				16226ED1625ACA82FCCCA905 /* RuntimeGatewayAccessModels.swift */,
+				8DB6D6EC97D882F1031902F4 /* RuntimeLogModels.swift */,
+				E351E1FC4AF5DDC855E47964 /* RuntimeManagerConfigModels.swift */,
+				02B865320B5E56CDCE39BE56 /* RuntimeModelPriceModels.swift */,
+				62D283B7AAF82A3621ED06FA /* RuntimeMonitoringAccountHistoryModels.swift */,
+				7E6FCB505D148CAB0061357B /* RuntimeMonitoringEventsModels.swift */,
+				E8BF90CF22F60DBD921ACED5 /* RuntimeMonitoringHeaderSnapshotModels.swift */,
+				97043FB0E9A8BD83814BD981 /* RuntimeOAuthModelPolicyModels.swift */,
+				DD8550D03C0E724AA091BF54 /* RuntimeOAuthModels.swift */,
+				73AAD8624932669F77997D23 /* RuntimeOpenRouterOAuthModels.swift */,
+				91B7FC7D28072493CABE5FD6 /* RuntimePluginModels.swift */,
+				FB6DC80408688F7932F78C36 /* RuntimeProviderConnectivityModels.swift */,
+				065A9EBB584FB69F2015E80F /* RuntimeProviderDraftDiagnostics.swift */,
+				09AC6FC97E017C4367503D88 /* RuntimeProviderModels.swift */,
+				E567BCDCB556E1F634D895C3 /* RuntimeQuotaModels.swift */,
+				F368A4FBC3439126FF23FC60 /* RuntimeSystemStatusModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		161E9FE91AE4E575F0438A18 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				791EFC6BD3F76C71DFC4EC3A /* OasesCPA.app */,
+				1DC413FDBB1A1D8F6D0372F0 /* OasesCPATests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		190E0C04BF61A33C9786A01E /* OasesCPATests */ = {
+			isa = PBXGroup;
+			children = (
+				2A08962309C315022E2D5588 /* AppExperienceTests.swift */,
+				66A79A9BA41BD5DA3BAB4F50 /* ConfigurationStateTests.swift */,
+				79E24EBF7DA4561E3B9E169C /* OasesAppearanceTests.swift */,
+				D71CF28144C36877997E7F4F /* OnboardingStateTests.swift */,
+				574ADEA79E28A10743D248C4 /* PanelAndQuotaStateTests.swift */,
+				B8AE364A2E03BBDAE59507A6 /* RuntimeAccountActionContractTests.swift */,
+				9E4DB17E2E9370B2FA386010 /* RuntimeCodexInspectionContractTests.swift */,
+				F28B945413C5BCC09DF3E37F /* RuntimeCodexInspectionPolicyContractTests.swift */,
+				23E00106516EC51FE20816DC /* RuntimeDecodingTests.swift */,
+				56E355E65C98BB3AE55CCEF9 /* RuntimeDirectProviderContractTests.swift */,
+				BC2894D05170993E4E872410 /* RuntimeModelPriceContractTests.swift */,
+				EFEFB4462B7CCE56B39AAD65 /* RuntimeMonitoringAccountHistoryContractTests.swift */,
+				C7B7E5A270BB6F778F048E5C /* RuntimeMonitoringEventsContractTests.swift */,
+				49A4DD0CE914332CEAC1C469 /* RuntimeMonitoringHeaderSnapshotContractTests.swift */,
+				FE7B472720C8C5D4D50A3C65 /* RuntimeOAuthModelPolicyContractTests.swift */,
+				D0DBC66530FAAE817835A21C /* RuntimeOpenRouterOAuthContractTests.swift */,
+				92632863E5E3111503F61D7C /* RuntimePluginContractTests.swift */,
+				6745A70A7AB963310176A92A /* RuntimePluginStoreContractTests.swift */,
+				82FB39834AAFC71C09B23AE1 /* RuntimeProviderConnectivityContractTests.swift */,
+				80C6000AD9FC58BCB173A402 /* RuntimeProviderDraftDiagnosticsContractTests.swift */,
+			);
+			name = OasesCPATests;
+			path = Tests/OasesCPATests;
+			sourceTree = "<group>";
+		};
+		3303A7B58647F9747FEC4107 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				CE171ABADDE86992E1A61F3B /* AccessKeysView.swift */,
+				CB63E755A5614E0F6B50E611 /* AccountActionsView.swift */,
+				FF20A710B98A849EA1F8CC34 /* AuthFileEditorView.swift */,
+				D7B293208B06F2E8A3CE78AE /* CodexInspectionPolicyEditor.swift */,
+				41E4129ABF950D88449784AF /* ConfigurationView.swift */,
+				F4DC9EB0282FF80DBA7D2166 /* ConnectionCenterView.swift */,
+				355CF7BEA5EF9F44712D905E /* ContentView.swift */,
+				604AB8C56438C8EF9E1C8CD9 /* CPAConfigEditorView.swift */,
+				EFBC9BB20EA1E5E0618EB8A4 /* CredentialHealthInspectionView.swift */,
+				D9C24ED7E4E6915EF383CC39 /* DashboardView.swift */,
+				0C0FA0BCDABD7E2C11EB6517 /* DirectProviderCredentialsView.swift */,
+				2895163A583DA362E7B3E86A /* LogsView.swift */,
+				B51FFBA60F9C5E37F0D7420B /* MenuBarStatusView.swift */,
+				9FA7767A48FFF26462E335AE /* ModelPricesView.swift */,
+				0202FAB8A2C3CC5B8BB95113 /* OAuthModelPoliciesView.swift */,
+				5E4A236D4E335EDDE45DBB30 /* OAuthView.swift */,
+				1DF64ED65361A7023E6A5BA1 /* OpenAICompatibilityEditorView.swift */,
+				96C4DE28BFCD7A9DCC3F3AE9 /* OpenSourceNoticesView.swift */,
+				D7C258B0B5C1A30B845C406F /* PanelView.swift */,
+				1790CAA37B95A163F0356FB5 /* PluginConfigEditorView.swift */,
+				DD307BA3FD7E9E3687E13DFC /* PluginOAuthView.swift */,
+				FF468337BDBC84C3D7A70DD4 /* PluginStoreView.swift */,
+				2CFA6EDC2F75C3EA74A91181 /* PluginsView.swift */,
+				DE0E12FC1F4DE45B8BE4D70C /* ProviderConnectivityView.swift */,
+				0A6FB20C748487C8265DE941 /* ProviderEditorWindow.swift */,
+				042EAC68E099F9D326AFE146 /* SettingsView.swift */,
+				4AC44BC2E10C12464F9E8030 /* SidebarView.swift */,
+				6DBEB3B098880EE23ED742DC /* SystemInfoView.swift */,
+				15F47DF73FAFAC4A313CA13F /* WelcomeFlowView.swift */,
+				4945ABADBF93201C54783260 /* WorkspaceViews.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		49C34279A3BE42BE17AAF778 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				437DB3F8504078C6F87B8A89 /* MetricCard.swift */,
+				00D7CF43176922D4849BF5B4 /* OasesMark.swift */,
+				435819142CFF57BC0AE87707 /* PageHeader.swift */,
+				5BD7060B31717B15B14A52F2 /* SparklineView.swift */,
+				BC15A57CE6C8174C1C25EDDF /* StatusPill.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		532054A4471FBBBC33ABC21D /* Stores */ = {
+			isa = PBXGroup;
+			children = (
+				36A46B875E6365F132C9B69B /* AppStore.swift */,
+				D1D5A52C4F38274371D0D121 /* DeploymentStore.swift */,
+				BEE0F1301F1A40B2E03C9CFB /* RuntimeDataStore.swift */,
+			);
+			path = Stores;
+			sourceTree = "<group>";
+		};
+		77B1654829C65E7B90301DA2 /* Notices */ = {
+			isa = PBXGroup;
+			children = (
+				CA80448BE2BFEE5DCFA741EE /* CLIProxyAPI-MIT.txt */,
+				DFD5192E6EAC97171DD3646C /* CPA-Manager-Plus-MIT.txt */,
+			);
+			path = Notices;
+			sourceTree = "<group>";
+		};
+		AAB97FA534858B9AC6FB5E95 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				B81A322BC0F34D7ACDE11BA7 /* DeploymentExecutor.swift */,
+				D9F88AABC854BD8A2855DAE0 /* DeploymentLogService.swift */,
+				553C818C94BD4C836715013C /* DeploymentMaintenanceService.swift */,
+				FDE01E866F493A2E13E61537 /* DeploymentProbeService.swift */,
+				9D6F8F87AC1428651625292C /* DeploymentRecoveryService.swift */,
+				365B0A6530F2F9C83786595D /* ExistingDeploymentAdoptionService.swift */,
+				9437EB8CB28FF989C00D2A47 /* HealthNotificationService.swift */,
+				70168752BA6AE6F2D4804B0C /* KeychainStore.swift */,
+				BFE83C899C626CE00D19B7EA /* LaunchAtLoginService.swift */,
+				1B6C1D4B3823F0C9ECE7E066 /* ManagementAPIClient.swift */,
+				03256C786DF08DE589BD800C /* OpenRouterOAuthLoopbackListener.swift */,
+				F6BC53E6B6EC7E1464FF5F6B /* RuntimeLifecycleService.swift */,
+				AFC7F942E2BBEE339097DB7B /* SSHConnectionService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		B051CEA510A7D1803BCC6810 = {
+			isa = PBXGroup;
+			children = (
+				B455DD39A784209756417F5F /* OasesCPA */,
+				190E0C04BF61A33C9786A01E /* OasesCPATests */,
+				161E9FE91AE4E575F0438A18 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		B455DD39A784209756417F5F /* OasesCPA */ = {
+			isa = PBXGroup;
+			children = (
+				E2FE27963F1F56280C2FE9B3 /* App */,
+				49C34279A3BE42BE17AAF778 /* Components */,
+				0CDA7BF1DBBDB4E953455A94 /* Models */,
+				08E190116FB1C6DFAC5CBDD3 /* Resources */,
+				AAB97FA534858B9AC6FB5E95 /* Services */,
+				532054A4471FBBBC33ABC21D /* Stores */,
+				FF3E1A8630C3DFD4456B9CD3 /* Support */,
+				3303A7B58647F9747FEC4107 /* Views */,
+			);
+			name = OasesCPA;
+			path = Sources/OasesCPA;
+			sourceTree = "<group>";
+		};
+		E2FE27963F1F56280C2FE9B3 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				D343FA919CA3BB80C5A84EC0 /* OasesCPAApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		FF3E1A8630C3DFD4456B9CD3 /* Support */ = {
+			isa = PBXGroup;
+			children = (
+				F83EDFD8161AD114DC4B8248 /* AppLanguage.swift */,
+				3F87D4FC3968ACD620E72376 /* DesignTokens.swift */,
+				335E3CC42F7A7277B29061A8 /* OasesAppearance.swift */,
+				CEC2CBD024038FFC6C016085 /* OnboardingState.swift */,
+			);
+			path = Support;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A6AC49B3B4FBA35B0AE53E2F /* OasesCPA */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6E87B74DEF7E1CBE336F6D40 /* Build configuration list for PBXNativeTarget "OasesCPA" */;
+			buildPhases = (
+				6C2389770DC7EF2999672843 /* Sources */,
+				ACD2E568E08C90A664706F31 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = OasesCPA;
+			packageProductDependencies = (
+			);
+			productName = OasesCPA;
+			productReference = 791EFC6BD3F76C71DFC4EC3A /* OasesCPA.app */;
+			productType = "com.apple.product-type.application";
+		};
+		E672E1B2A0BE1ED1C79E27EA /* OasesCPATests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E50D4FB21C472EDC1C392E49 /* Build configuration list for PBXNativeTarget "OasesCPATests" */;
+			buildPhases = (
+				9708A47445239D5FEFD86ED4 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E4D1E19677494346CA23385C /* PBXTargetDependency */,
+			);
+			name = OasesCPATests;
+			packageProductDependencies = (
+			);
+			productName = OasesCPATests;
+			productReference = 1DC413FDBB1A1D8F6D0372F0 /* OasesCPATests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		67A3E4C2E228FBEF45302EE6 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					A6AC49B3B4FBA35B0AE53E2F = {
+						ProvisioningStyle = Automatic;
+					};
+					E672E1B2A0BE1ED1C79E27EA = {
+						TestTargetID = A6AC49B3B4FBA35B0AE53E2F;
+					};
+				};
+			};
+			buildConfigurationList = 401628C348AE70398AEBAFB9 /* Build configuration list for PBXProject "OasesCPA" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = "zh-Hans";
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+				"zh-Hans",
+			);
+			mainGroup = B051CEA510A7D1803BCC6810;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A6AC49B3B4FBA35B0AE53E2F /* OasesCPA */,
+				E672E1B2A0BE1ED1C79E27EA /* OasesCPATests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		ACD2E568E08C90A664706F31 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B859A5789AF89B11760B662F /* Assets.xcassets in Resources */,
+				FB9EB1DD3F14F5AD0514840C /* CLIProxyAPI-MIT.txt in Resources */,
+				380CCE45D1AFE1E6CC219050 /* CPA-Manager-Plus-MIT.txt in Resources */,
+				4542A746287172FD4A3450B6 /* Localizable.strings in Resources */,
+				CADAEB45975836EC9A7B5FAD /* OasesBrandIcon.png in Resources */,
+				6B017C1904127BC4BAA41BD8 /* OasesCPA.icns in Resources */,
+				19EAAF4D591C2CC8F73BD684 /* OasesMenuBarIcon.png in Resources */,
+				BB414CC6200FD705114CC51C /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		6C2389770DC7EF2999672843 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F6590136258EA4B4E971F1A8 /* AccessKeysView.swift in Sources */,
+				9BBC3358E1BF2BAAB2A5949F /* AccountActionsView.swift in Sources */,
+				A9F0A17326F07C6287E2C331 /* AppLanguage.swift in Sources */,
+				110E8C70356FC02AD40C28A4 /* AppSection.swift in Sources */,
+				4029456F89FCD00AD62B46A3 /* AppStore.swift in Sources */,
+				11F7B5096A49BBC7EE6A4639 /* AuthFileEditorView.swift in Sources */,
+				E0C9D5A6CBEBF6041422410E /* CPAConfigEditorView.swift in Sources */,
+				1B2C505E6DE2D0B1D5B1C12E /* CodexInspectionPolicyEditor.swift in Sources */,
+				1A7D12DB099FBCAD13F5623E /* ConfigurationView.swift in Sources */,
+				D7E1EBF66950102CCAB596F1 /* ConnectionCenterView.swift in Sources */,
+				1DD2723DF1AEE5C978448FED /* ContentView.swift in Sources */,
+				24117114E0696D2F6FE759AB /* CredentialHealthInspectionView.swift in Sources */,
+				56462317AACBCA4D15D0B609 /* DashboardModels.swift in Sources */,
+				7560D4E092861D4135CB95CD /* DashboardView.swift in Sources */,
+				9DB58ADE5E96B7ED22BB3A8E /* DeploymentExecutor.swift in Sources */,
+				7B8DA5FF93D9E61608BFAE15 /* DeploymentLogService.swift in Sources */,
+				DA1C53312F54686E8127E442 /* DeploymentMaintenanceService.swift in Sources */,
+				0767A8087C1B18D288357BE6 /* DeploymentModels.swift in Sources */,
+				F623EB40B3E94D75291D389D /* DeploymentProbeService.swift in Sources */,
+				D113449438BB2611FA200F07 /* DeploymentProfile.swift in Sources */,
+				239AB79D91A6599E3EC77C63 /* DeploymentRecoveryService.swift in Sources */,
+				6242AF81DA381E95536A413C /* DeploymentStore.swift in Sources */,
+				B6C1357D3897211FE5D83AD6 /* DesignTokens.swift in Sources */,
+				C55687B26C51109A5F7ECCF4 /* DirectProviderCredentialsView.swift in Sources */,
+				E8ABA8E8C2A6204E645B7524 /* ExistingDeploymentAdoptionService.swift in Sources */,
+				2F503A118377F949CE3A95CC /* HealthNotificationService.swift in Sources */,
+				EC4ACABE9AA5368D850BA55A /* KeychainStore.swift in Sources */,
+				786966F5ADA710C8A4A6F20B /* LaunchAtLoginService.swift in Sources */,
+				856B4A7320473C7E116A5DE2 /* LogsView.swift in Sources */,
+				82214473DF8E8880A26730F7 /* ManagementAPIClient.swift in Sources */,
+				5583C82F6CF3BE635AA2AFDE /* MenuBarStatusView.swift in Sources */,
+				F48D29B3E9A413F8089D3E90 /* MetricCard.swift in Sources */,
+				D1A01541B6A9812528E3448F /* ModelPricesView.swift in Sources */,
+				C9742E0C3C62AE63349ABE25 /* OAuthModelPoliciesView.swift in Sources */,
+				E2838A50B11235F206781220 /* OAuthView.swift in Sources */,
+				3A539F70570AE6339B7FB61C /* OasesAppearance.swift in Sources */,
+				0E2D05ADEF4F92905DAEB934 /* OasesCPAApp.swift in Sources */,
+				ACEA9D0E30909CD3442C3934 /* OasesMark.swift in Sources */,
+				88FC3FA97E4B1292153F80FA /* OnboardingState.swift in Sources */,
+				0410218F6AD9D0F5F0679F6D /* OpenAICompatibilityEditorView.swift in Sources */,
+				612C74693820852CDE056975 /* OpenRouterOAuthLoopbackListener.swift in Sources */,
+				04F6736A328117BAF615657A /* OpenSourceNoticesView.swift in Sources */,
+				0CAC623618A0C83A15C96B16 /* PageHeader.swift in Sources */,
+				A9FDF890001EBF877AE9C032 /* PanelView.swift in Sources */,
+				07F6F4D17855F3CA0DA4025B /* PluginConfigEditorView.swift in Sources */,
+				CA07B8BD7196E5057C1E3C59 /* PluginOAuthView.swift in Sources */,
+				097540B1024C96E319114743 /* PluginStoreView.swift in Sources */,
+				E44F9E238E9F7AF2B2AA05AB /* PluginsView.swift in Sources */,
+				D5F047125AF017C349F3AD12 /* ProviderConnectivityView.swift in Sources */,
+				756C726F48B61A545429CD7D /* ProviderEditorWindow.swift in Sources */,
+				AEF1069B920171EFBA8A00C9 /* RuntimeAccountActionModels.swift in Sources */,
+				18377835026BB7D5EFC0024A /* RuntimeAuthFileModels.swift in Sources */,
+				4FA1C9F17747E1389E5BDAED /* RuntimeAuthJSONDocument.swift in Sources */,
+				BF0AA7A796AAEAC3651001B5 /* RuntimeCPAConfigDocument.swift in Sources */,
+				D0FB3FB1C3DCF61BF5B39F4E /* RuntimeCodexInspectionModels.swift in Sources */,
+				C993B96E23A793C934A4820B /* RuntimeCodexInspectionPolicyModels.swift in Sources */,
+				559B9FC37418DA0F4C58E6B6 /* RuntimeDashboardModels.swift in Sources */,
+				395DC6ADC914850517054E16 /* RuntimeDataStore.swift in Sources */,
+				308770041AB29182F20CE423 /* RuntimeDirectProviderModels.swift in Sources */,
+				D45F00C3B749B5BBD5CBCB0D /* RuntimeGatewayAccessModels.swift in Sources */,
+				DFEEA867BE0EBFD819045085 /* RuntimeLifecycleService.swift in Sources */,
+				270BDBBC83A06F4BFA97A5EF /* RuntimeLogModels.swift in Sources */,
+				AE179C0380BE288BA3AE1830 /* RuntimeManagerConfigModels.swift in Sources */,
+				53F9C8088B94C434BC6E2988 /* RuntimeModelPriceModels.swift in Sources */,
+				455EAEBDAFC2F71D9DDF8CBB /* RuntimeMonitoringAccountHistoryModels.swift in Sources */,
+				583DED82F207D5A9A39B6B46 /* RuntimeMonitoringEventsModels.swift in Sources */,
+				9CF5AF212790CEB757B853A8 /* RuntimeMonitoringHeaderSnapshotModels.swift in Sources */,
+				7EA65D7C42B59E67C961E616 /* RuntimeOAuthModelPolicyModels.swift in Sources */,
+				138ACFAF5AB015105C174F20 /* RuntimeOAuthModels.swift in Sources */,
+				C910E8016DDC9F60B7EB18B9 /* RuntimeOpenRouterOAuthModels.swift in Sources */,
+				7BBCBB18C6C8BEB7F1FE66BB /* RuntimePluginModels.swift in Sources */,
+				BAFC42275C25E96BEE6077F8 /* RuntimeProviderConnectivityModels.swift in Sources */,
+				1511901B9FC79692EF955AAD /* RuntimeProviderDraftDiagnostics.swift in Sources */,
+				76D917B4B44B131100AF6B18 /* RuntimeProviderModels.swift in Sources */,
+				89D2585581BB6E2FE7ACFDBD /* RuntimeQuotaModels.swift in Sources */,
+				ACE1B8C3ABD2279F334EE436 /* RuntimeSystemStatusModels.swift in Sources */,
+				74AD6F9F1B58003594ABBB6C /* SSHConnectionService.swift in Sources */,
+				98138557908DEBBDFB9D2A52 /* SettingsView.swift in Sources */,
+				8B7CCB05423DF3BAC32E8895 /* SidebarView.swift in Sources */,
+				8C3B7E1FF161625AAB7DDD9D /* SparklineView.swift in Sources */,
+				BC1992E50841A47F1FCBA08E /* StatusPill.swift in Sources */,
+				4E8AA78862436698BE50EC63 /* SystemInfoView.swift in Sources */,
+				F9FE7DC3E00212541182610F /* WelcomeFlowView.swift in Sources */,
+				F612549D7F3CDA4A94AFE285 /* WorkspaceViews.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9708A47445239D5FEFD86ED4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A0893B418E3E185783BF9CF1 /* AppExperienceTests.swift in Sources */,
+				D035C1540F2809CC6856203F /* ConfigurationStateTests.swift in Sources */,
+				4A3F22BF404E9F4607F7CF59 /* OasesAppearanceTests.swift in Sources */,
+				6B285E4C7F4BCDF44028ADFA /* OnboardingStateTests.swift in Sources */,
+				DDD536C9E4B5175CA4AEE697 /* PanelAndQuotaStateTests.swift in Sources */,
+				AF2ECA4AA2FC899619C2BC91 /* RuntimeAccountActionContractTests.swift in Sources */,
+				EA36856F6B0F5D835132D12F /* RuntimeCodexInspectionContractTests.swift in Sources */,
+				8200104FB23A2B731223A5A8 /* RuntimeCodexInspectionPolicyContractTests.swift in Sources */,
+				556B86FE8E04327AD42B9D25 /* RuntimeDecodingTests.swift in Sources */,
+				847661619B4FAFE2D596564A /* RuntimeDirectProviderContractTests.swift in Sources */,
+				4F5DEE03B63A61953F1EED73 /* RuntimeModelPriceContractTests.swift in Sources */,
+				E87ED5845EA6E6593F6671E4 /* RuntimeMonitoringAccountHistoryContractTests.swift in Sources */,
+				C3E0250F5EC0A60CF48A38D5 /* RuntimeMonitoringEventsContractTests.swift in Sources */,
+				E2500F29B14E04B384CABC6C /* RuntimeMonitoringHeaderSnapshotContractTests.swift in Sources */,
+				4A250C5A1B5BED8BCD8F12E4 /* RuntimeOAuthModelPolicyContractTests.swift in Sources */,
+				CDFD4DB0F3BEAC2BCAB53959 /* RuntimeOpenRouterOAuthContractTests.swift in Sources */,
+				480843CEE2D4359B16054343 /* RuntimePluginContractTests.swift in Sources */,
+				3CE052C84A59EE02C48DD9D7 /* RuntimePluginStoreContractTests.swift in Sources */,
+				E31A0ABF1AC4EC60B3B0A5FD /* RuntimeProviderConnectivityContractTests.swift in Sources */,
+				6911849EA065279F794E490C /* RuntimeProviderDraftDiagnosticsContractTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		E4D1E19677494346CA23385C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A6AC49B3B4FBA35B0AE53E2F /* OasesCPA */;
+			targetProxy = C2239259727D9974C06CD793 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		B449A4709469035427350F58 /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				5C3826CAC6F33123A3DAAE51 /* en */,
+				F615D068D4D20305340E278E /* zh-Hans */,
+			);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		078352A099E114802AD47AC3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "OasesCPA-Developer.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = Sources/OasesCPA/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.oases.cpa.macos;
+				PRODUCT_MODULE_NAME = OasesCPA;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		0FFA6A7DD0CF66F43867E88F /* AppStore */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "OasesCPA-AppStore.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = Sources/OasesCPA/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.oases.cpa.macos;
+				PRODUCT_MODULE_NAME = OasesCPA;
+				SDKROOT = macosx;
+			};
+			name = AppStore;
+		};
+		267E8B210912257345F1C5CB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.oases.cpa.macos.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Oases CPA.app/Contents/MacOS/Oases CPA";
+				TEST_TARGET_NAME = OasesCPA;
+			};
+			name = Debug;
+		};
+		666EE467A591EC13A4013A13 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 36;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_LANGUAGE = "zh-Hans";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "Oases CPA";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Debug;
+		};
+		8D51986CC67BC82D6E3428EC /* AppStore */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.oases.cpa.macos.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Oases CPA.app/Contents/MacOS/Oases CPA";
+				TEST_TARGET_NAME = OasesCPA;
+			};
+			name = AppStore;
+		};
+		B4DED8C51B64A329AB8FF22C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.oases.cpa.macos.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Oases CPA.app/Contents/MacOS/Oases CPA";
+				TEST_TARGET_NAME = OasesCPA;
+			};
+			name = Release;
+		};
+		B79615BB6A1228CA9AFCB141 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 36;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_LANGUAGE = "zh-Hans";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "Oases CPA";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+		CB59F60B240B003A37CC0C12 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "OasesCPA-Developer.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = Sources/OasesCPA/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.oases.cpa.macos;
+				PRODUCT_MODULE_NAME = OasesCPA;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		F528925A7564B08D0BC491A3 /* AppStore */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 36;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_LANGUAGE = "zh-Hans";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "Oases CPA";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = AppStore;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		401628C348AE70398AEBAFB9 /* Build configuration list for PBXProject "OasesCPA" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F528925A7564B08D0BC491A3 /* AppStore */,
+				666EE467A591EC13A4013A13 /* Debug */,
+				B79615BB6A1228CA9AFCB141 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = AppStore;
+		};
+		6E87B74DEF7E1CBE336F6D40 /* Build configuration list for PBXNativeTarget "OasesCPA" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0FFA6A7DD0CF66F43867E88F /* AppStore */,
+				078352A099E114802AD47AC3 /* Debug */,
+				CB59F60B240B003A37CC0C12 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = AppStore;
+		};
+		E50D4FB21C472EDC1C392E49 /* Build configuration list for PBXNativeTarget "OasesCPATests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8D51986CC67BC82D6E3428EC /* AppStore */,
+				267E8B210912257345F1C5CB /* Debug */,
+				B4DED8C51B64A329AB8FF22C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = AppStore;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 67A3E4C2E228FBEF45302EE6 /* Project object */;
+}

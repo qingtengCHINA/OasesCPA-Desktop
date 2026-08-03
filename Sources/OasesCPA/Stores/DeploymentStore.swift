@@ -1,0 +1,1302 @@
+import AppKit
+import Combine
+import Foundation
+import SwiftUI
+
+final class TunnelProcessOwner: @unchecked Sendable {
+    private(set) var process: Process?
+
+    func attach(_ process: Process) {
+        stop()
+        self.process = process
+    }
+
+    func stop() {
+        guard let process else { return }
+        defer { self.process = nil }
+        guard process.isRunning else { return }
+
+        process.terminate()
+        waitForExit(process)
+        if process.isRunning {
+            Darwin.kill(process.processIdentifier, SIGKILL)
+            waitForExit(process)
+        }
+    }
+
+    deinit {
+        stop()
+    }
+
+    private func waitForExit(_ process: Process) {
+        for _ in 0..<20 where process.isRunning {
+            usleep(50_000)
+        }
+    }
+}
+
+@MainActor
+final class DeploymentStore: ObservableObject {
+    @Published var targetKind: DeploymentTargetKind = .local
+    @Published var deploymentMethod: DeploymentMethod = .native
+    @Published var remoteHost = ""
+    @Published var remoteUser = "root"
+    @Published var remotePort = "22"
+    @Published var privateKeyPath = ""
+    @Published var installDirectory = "~/.oases-cpa"
+    @Published var stage: DeploymentStage = .idle
+    @Published var steps = DeploymentPlanFactory.makeSteps(target: .local, method: .native)
+    @Published var planPresented = false
+    @Published var statusMessage = OasesLocalization.localized("选择一个目标环境开始")
+    @Published private(set) var probe: DeploymentProbe?
+    @Published private(set) var probeError: String?
+    @Published private(set) var isProbing = false
+    @Published private(set) var isDeploying = false
+    @Published private(set) var managementKey = ""
+    @Published private(set) var cpampAdminKey = ""
+    @Published private(set) var hasLoadedSavedCredentials = false
+    @Published private(set) var deploymentError: String?
+    @Published private(set) var deploymentLog = ""
+    @Published private(set) var deploymentLogSource = ""
+    @Published private(set) var deploymentLogError: String?
+    @Published private(set) var isLoadingDeploymentLog = false
+    @Published private(set) var isMaintaining = false
+    @Published private(set) var maintenanceError: String?
+    @Published private(set) var maintenanceMessage: String?
+    @Published private(set) var latestMaintenanceBackup: String?
+    @Published private(set) var savedProfiles: [DeploymentProfile] = []
+    @Published private(set) var activeProfileID: UUID? = nil
+    @Published private(set) var healthState: DeploymentHealthState = .unknown
+    @Published private(set) var lastHealthCheckAt: Date?
+    @Published private(set) var healthError: String?
+    @Published private(set) var isAutoRecovering = false
+    @Published var healthNotificationsEnabled = UserDefaults.standard.object(forKey: "oases.cpa.health-notifications") as? Bool ?? false
+
+    private let tunnelProcessOwner = TunnelProcessOwner()
+    private var healthMonitorTask: Task<Void, Never>?
+    private var tunnelAttached = false
+    private var cancellables = Set<AnyCancellable>()
+    private var profileIsInstalled = false
+    private var wantsRunning = true
+    private var probeRequestID = UUID()
+    private var logRequestID = UUID()
+    private var maintenanceRequestID = UUID()
+    private var healthIssueNotificationSent = false
+    private var isApplyingProfileConfiguration = false
+
+    deinit {
+        healthMonitorTask?.cancel()
+        tunnelProcessOwner.stop()
+    }
+
+    init() {
+        savedProfiles = DeploymentProfileStore.loadAll()
+        if let profile = DeploymentProfileStore.load() {
+            activeProfileID = profile.id
+            targetKind = profile.targetKind
+            deploymentMethod = profile.deploymentMethod
+            remoteHost = profile.remoteHost
+            remoteUser = profile.remoteUser
+            remotePort = profile.remotePort
+            privateKeyPath = profile.privateKeyPath
+            installDirectory = profile.installDirectory
+            profileIsInstalled = profile.isInstalled
+            wantsRunning = loadWantsRunningPreference()
+            stage = .idle
+            statusMessage = profile.isInstalled
+                ? OasesLocalization.localized("已保存上次的目标；点击“连接已保存目标”后才会读取钥匙串凭据")
+                : OasesLocalization.localized("选择一个目标环境开始")
+            steps = DeploymentPlanFactory.makeSteps(target: profile.targetKind, method: profile.deploymentMethod)
+        }
+
+        bindPersistence()
+        if targetKind == .local {
+            // Local probing is read-only, so make the common first-run path
+            // auto-adopt or reconnect a managed deployment without an early
+            // Keychain read prompt.
+            Task { [weak self] in
+                self?.probeTarget()
+            }
+        }
+    }
+
+    var targetTitle: String { targetKind.title }
+
+    func prepareForApplicationTermination() {
+        stopHealthMonitor()
+        stopTunnel()
+    }
+
+    var localPanelURL: String {
+        targetKind == .local || tunnelAttached
+            ? "http://127.0.0.1:18317/management.html"
+            : OasesLocalization.localized("SSH 隧道建立后使用本机回环地址")
+    }
+
+    var cpaManagementURL: String {
+        targetKind == .local || tunnelAttached
+            ? "http://127.0.0.1:8317"
+            : OasesLocalization.localized("SSH 隧道建立后使用本机 8317 端口")
+    }
+
+    /// User-facing OpenAI-compatible endpoint. Internal management requests
+    /// continue to use `cpaBaseURL` without the `/v1` suffix.
+    var cpaClientURLString: String {
+        let base = cpaBaseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return base.hasSuffix("/v1") ? base : "\(base)/v1"
+    }
+
+    var cpampBaseURL: URL {
+        URL(string: "http://127.0.0.1:18317")!
+    }
+
+    var cpaBaseURL: URL {
+        URL(string: "http://127.0.0.1:8317")!
+    }
+
+    func setHealthNotificationsEnabled(_ enabled: Bool) {
+        healthNotificationsEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: "oases.cpa.health-notifications")
+        guard enabled else { return }
+
+        Task { [weak self] in
+            let authorized = await HealthNotificationService.shared.requestAuthorization()
+            guard let self, !authorized else { return }
+            self.healthNotificationsEnabled = false
+            UserDefaults.standard.set(false, forKey: "oases.cpa.health-notifications")
+        }
+    }
+
+    var targetSummary: DeploymentTargetSummary {
+        if let probe {
+            return .init(
+                operatingSystem: probe.operatingSystem,
+                architecture: probe.architecture,
+                shell: probe.shell,
+                access: targetKind == .local ? OasesLocalization.localized("当前用户") : remoteUser
+            )
+        }
+
+        switch targetKind {
+        case .local:
+            #if arch(arm64)
+            let architecture = "arm64"
+            #else
+            let architecture = "x86_64"
+            #endif
+            return .init(operatingSystem: "macOS", architecture: architecture, shell: "zsh", access: OasesLocalization.localized("当前用户"))
+        case .ssh:
+            return .init(operatingSystem: OasesLocalization.localized("连接后检测"), architecture: OasesLocalization.localized("连接后检测"), shell: OasesLocalization.localized("登录后检测"), access: remoteUser.isEmpty ? OasesLocalization.localized("未填写用户") : remoteUser)
+        }
+    }
+
+    func selectTarget(_ kind: DeploymentTargetKind) {
+        stopHealthMonitor()
+        stopTunnel()
+        targetKind = kind
+        if kind == .local {
+            deploymentMethod = .native
+            statusMessage = OasesLocalization.localized("本机目标已选择，可生成部署计划")
+        } else {
+            statusMessage = remoteHost.isEmpty ? OasesLocalization.localized("请填写 VPS 主机后生成计划") : OasesLocalization.localized("远程目标已选择，可生成部署计划")
+        }
+        steps = DeploymentPlanFactory.makeSteps(target: kind, method: deploymentMethod)
+        stage = .idle
+        planPresented = false
+        invalidateProbe()
+        clearLoadedCredentials()
+        deploymentError = nil
+        invalidateMaintenanceState()
+        invalidateDeploymentLog()
+        resetHealthState()
+        profileIsInstalled = false
+        wantsRunning = true
+        setWantsRunningPreference(true)
+        saveProfile()
+        if kind == .local {
+            Task { [weak self] in
+                self?.probeTarget()
+            }
+        }
+    }
+
+    func beginNewTarget() {
+        guard !isDeploying, !isMaintaining else { return }
+        guard !profileIsInstalled || !wantsRunning else {
+        statusMessage = OasesLocalization.localized("请先停止当前目标服务，再添加新的目标环境")
+            return
+        }
+
+        stopHealthMonitor()
+        stopTunnel()
+        isApplyingProfileConfiguration = true
+        defer { isApplyingProfileConfiguration = false }
+        activeProfileID = UUID()
+        targetKind = .local
+        deploymentMethod = .native
+        remoteHost = ""
+        remoteUser = "root"
+        remotePort = "22"
+        privateKeyPath = ""
+        installDirectory = "~/.oases-cpa"
+        profileIsInstalled = false
+        wantsRunning = true
+        setWantsRunningPreference(true)
+        clearLoadedCredentials()
+        stage = .idle
+        statusMessage = OasesLocalization.localized("新目标已创建，选择本机或 SSH/VPS 开始")
+        steps = DeploymentPlanFactory.makeSteps(target: .local, method: .native)
+        invalidateProbe()
+        deploymentError = nil
+        invalidateMaintenanceState()
+        invalidateDeploymentLog()
+        resetHealthState()
+        Task { [weak self] in
+            self?.probeTarget()
+        }
+    }
+
+    func selectSavedProfile(_ profileID: UUID) {
+        guard profileID != activeProfileID else { return }
+        guard !isDeploying, !isMaintaining else { return }
+        guard !profileIsInstalled || (!wantsRunning && stage != .attached) else {
+        statusMessage = OasesLocalization.localized("请先停止当前目标服务，再切换到其他目标")
+            return
+        }
+        guard let profile = savedProfiles.first(where: { $0.id == profileID }) else { return }
+
+        stopHealthMonitor()
+        stopTunnel()
+        isApplyingProfileConfiguration = true
+        defer { isApplyingProfileConfiguration = false }
+        activeProfileID = profile.id
+        DeploymentProfileStore.setActive(profile.id)
+        targetKind = profile.targetKind
+        deploymentMethod = profile.deploymentMethod
+        remoteHost = profile.remoteHost
+        remoteUser = profile.remoteUser
+        remotePort = profile.remotePort
+        privateKeyPath = profile.privateKeyPath
+        installDirectory = profile.installDirectory
+        profileIsInstalled = profile.isInstalled
+        wantsRunning = loadWantsRunningPreference()
+        clearLoadedCredentials()
+        steps = DeploymentPlanFactory.makeSteps(target: profile.targetKind, method: profile.deploymentMethod)
+        planPresented = false
+        invalidateProbe()
+        deploymentError = nil
+        invalidateMaintenanceState()
+        invalidateDeploymentLog()
+        resetHealthState()
+
+        if profileIsInstalled {
+            stage = .idle
+            statusMessage = "已切换到 \(profile.displayName)；点击“连接已保存目标”后才会读取钥匙串凭据"
+        } else {
+            stage = .idle
+            statusMessage = "已切换到 \(profile.displayName)，可重新检测环境"
+            if targetKind == .local {
+                Task { [weak self] in
+                    self?.probeTarget()
+                }
+            }
+        }
+    }
+
+    func deleteSavedProfile(_ profileID: UUID) {
+        guard let profile = savedProfiles.first(where: { $0.id == profileID }) else { return }
+        guard !profile.isInstalled else {
+        statusMessage = OasesLocalization.localized("已安装目标请使用“解除当前目标绑定”，避免留下未停止的服务")
+            return
+        }
+        try? SSHKeyMaterialStore.delete(profileID: profileID)
+        DeploymentProfileStore.remove(profileID)
+        savedProfiles = DeploymentProfileStore.loadAll()
+        if activeProfileID == profileID {
+            activeProfileID = nil
+            beginNewTarget()
+        }
+    }
+
+    var canSwitchSavedProfile: Bool {
+        !isDeploying && !isMaintaining && (!profileIsInstalled || !wantsRunning) && savedProfiles.count > 1
+    }
+
+    func selectMethod(_ method: DeploymentMethod) {
+        deploymentMethod = method
+        steps = DeploymentPlanFactory.makeSteps(target: targetKind, method: method)
+        invalidateProbe()
+    }
+
+    func preparePlan() {
+        guard targetKind == .local || !remoteHost.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        statusMessage = OasesLocalization.localized("先填写远程 VPS 主机名或 IP 地址")
+            stage = .failed
+            return
+        }
+
+        guard targetKind == .local || !privateKeyPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        statusMessage = OasesLocalization.localized("先选择 SSH 私钥文件")
+            stage = .failed
+            return
+        }
+
+        if targetKind == .ssh, !ensureSSHKeyMaterial() {
+        statusMessage = OasesLocalization.localized("SSH 私钥无法读取，请重新选择私钥文件")
+            stage = .failed
+            return
+        }
+
+        if let preflightFailure = preflightFailureMessage {
+            planPresented = false
+            deploymentError = preflightFailure
+            statusMessage = preflightFailure
+            stage = .failed
+            return
+        }
+
+        steps = DeploymentPlanFactory.makeSteps(target: targetKind, method: deploymentMethod)
+        stage = .ready
+        planPresented = true
+        deploymentError = nil
+        statusMessage = OasesLocalization.localized("计划已生成；确认后才会执行终端命令")
+    }
+
+    func probeTarget() {
+        if targetKind == .ssh, !ensureSSHKeyMaterial() {
+            probeError = OasesLocalization.localized("SSH 私钥无法读取，请重新选择私钥文件")
+            stage = .failed
+            return
+        }
+        probeError = nil
+        isProbing = true
+        stage = .connecting
+        statusMessage = targetKind == .local ? OasesLocalization.localized("正在检测本机终端环境…") : OasesLocalization.localized("正在通过 SSH 检测远程终端环境…")
+
+        let target = targetKind
+        let host = remoteHost
+        let user = remoteUser
+        let port = remotePort
+        let keyPath = privateKeyPath
+        let directory = installDirectory
+        let requestID = UUID()
+        probeRequestID = requestID
+
+        Task { [weak self] in
+            do {
+                let result = try await DeploymentProbeService().probe(
+                    target: target,
+                    host: host,
+                    user: user,
+                    port: port,
+                    privateKeyPath: keyPath,
+                    installDirectory: directory
+                )
+                guard let self, self.probeRequestID == requestID else { return }
+                self.probe = result
+                self.isProbing = false
+                if result.hasManagedInstallation {
+                    guard result.canAdopt(method: self.deploymentMethod) else {
+                        self.stage = .failed
+                        self.planPresented = false
+                        let detail = result.hasRecoverableCredentials
+                            ? OasesLocalization.localized("检测到现有部署，但运行时文件不完整；请查看日志后使用修复功能。")
+                            : OasesLocalization.localized("检测到现有部署，但管理凭据不完整；请查看日志后使用修复功能。")
+                        self.deploymentError = detail
+                        self.statusMessage = detail
+                        return
+                    }
+                    self.adoptExistingDeployment(request: self.currentExecutionRequest, requestID: requestID)
+                    return
+                }
+                self.stage = .ready
+                self.statusMessage = "环境检测完成：\(result.dependencySummary(for: self.deploymentMethod))"
+                self.preparePlan()
+            } catch {
+                guard let self, self.probeRequestID == requestID else { return }
+                self.isProbing = false
+                self.stage = .failed
+                self.probeError = error.localizedDescription
+                self.statusMessage = OasesLocalization.localized("环境检测失败，请检查目标连接信息")
+            }
+        }
+    }
+
+    func acknowledgePlan() {
+        guard !isDeploying else { return }
+        if let preflightFailure = preflightFailureMessage {
+            planPresented = false
+            deploymentError = preflightFailure
+            stage = .failed
+            statusMessage = preflightFailure
+            return
+        }
+        if targetKind == .ssh, !ensureSSHKeyMaterial() {
+            deploymentError = OasesLocalization.localized("SSH 私钥无法读取，请重新选择私钥文件")
+            stage = .failed
+            return
+        }
+
+        let request = DeploymentExecutionRequest(
+            target: targetKind,
+            method: deploymentMethod,
+            host: remoteHost,
+            user: remoteUser.isEmpty ? "root" : remoteUser,
+            port: remotePort,
+            privateKeyPath: privateKeyPath,
+            installDirectory: installDirectory
+        )
+
+        planPresented = false
+        isDeploying = true
+        deploymentError = nil
+        invalidateDeploymentLog()
+        stage = .installing
+        statusMessage = targetKind == .local ? OasesLocalization.localized("正在本机终端部署…") : OasesLocalization.localized("正在通过 SSH 部署到远程目标…")
+        steps = steps.enumerated().map { index, step in
+            var updated = step
+            updated.status = index == 0 ? .current : .pending
+            return updated
+        }
+
+        Task { [weak self] in
+            do {
+                let result = try await DeploymentExecutor().execute(request: request)
+                if request.target == .ssh {
+                    try await self?.startTunnel()
+                }
+                try await RuntimeLifecycleService().waitForConnectionHealth(
+                    cpaManagementKey: result.cpaManagementKey
+                )
+
+                if self?.activeProfileID == nil {
+                    self?.activeProfileID = UUID()
+                }
+                self?.saveActiveCredentials(
+                    managementKey: result.cpaManagementKey,
+                    adminKey: result.cpampAdminKey
+                )
+                self?.profileIsInstalled = true
+                self?.wantsRunning = true
+                self?.setWantsRunningPreference(true)
+                self?.isDeploying = false
+                self?.stage = .attached
+                self?.setHealthState(.healthy)
+                self?.lastHealthCheckAt = Date()
+                self?.statusMessage = request.target == .local
+                    ? OasesLocalization.localized("部署完成，服务已绑定到本机回环地址")
+                    : OasesLocalization.localized("部署完成，SSH 隧道已建立并连接到 App")
+                self?.steps = self?.steps.map { step in
+                    var updated = step
+                    updated.status = .complete
+                    return updated
+                } ?? []
+                self?.saveProfile()
+                self?.startHealthMonitor()
+            } catch {
+                self?.stopTunnel()
+                self?.stopHealthMonitor()
+                self?.resetHealthState()
+                self?.isDeploying = false
+                self?.stage = .failed
+                self?.deploymentError = error.localizedDescription
+                self?.statusMessage = OasesLocalization.localized("部署失败，请查看目标目录中的日志")
+                self?.refreshDeploymentLog()
+            }
+        }
+    }
+
+    func openPanel() {
+        guard let url = URL(string: localPanelURL), localPanelURL.hasPrefix("http") else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    func refreshDeploymentLog() {
+        guard !isLoadingDeploymentLog else { return }
+        if targetKind == .ssh, !ensureSSHKeyMaterial() {
+        deploymentLogError = OasesLocalization.localized("SSH 私钥无法读取，暂时无法读取远程日志。")
+            return
+        }
+
+        let request = currentExecutionRequest
+        let requestID = UUID()
+        logRequestID = requestID
+        isLoadingDeploymentLog = true
+        deploymentLogError = nil
+
+        Task { [weak self] in
+            do {
+                let snapshot = try await DeploymentLogService().read(request: request)
+                guard let self, self.logRequestID == requestID else { return }
+                self.deploymentLog = snapshot.text
+                self.deploymentLogSource = snapshot.source
+                self.isLoadingDeploymentLog = false
+            } catch {
+                guard let self, self.logRequestID == requestID else { return }
+                self.isLoadingDeploymentLog = false
+                self.deploymentLogError = error.localizedDescription
+            }
+        }
+    }
+
+    func cleanupFailedDeployment() {
+        guard !isDeploying, !profileIsInstalled else { return }
+        if targetKind == .ssh, !ensureSSHKeyMaterial() {
+        deploymentError = OasesLocalization.localized("SSH 私钥无法读取，无法清理远程失败部署")
+            stage = .failed
+            return
+        }
+
+        let request = currentExecutionRequest
+        let backupName = "failed-\(Int(Date().timeIntervalSince1970))-\(String(UUID().uuidString.prefix(8)).lowercased())"
+        isDeploying = true
+        deploymentError = nil
+        stage = .installing
+        statusMessage = OasesLocalization.localized("正在停止并备份失败部署…")
+
+        Task { [weak self] in
+            do {
+                let result = try await DeploymentRecoveryService().cleanupFailedDeployment(
+                    request: request,
+                    backupName: backupName
+                )
+                guard let self else { return }
+                self.isDeploying = false
+                self.profileIsInstalled = false
+                self.wantsRunning = true
+                self.setWantsRunningPreference(true)
+                self.invalidateProbe()
+                self.stage = .idle
+                self.statusMessage = "失败部署已备份到目标目录的 backups/\(result.backupName)，现在可以重新检测并重试"
+                self.deploymentLogSource = "失败部署已备份；原日志保留在 backups/\(result.backupName)"
+                self.deploymentLogError = nil
+                self.saveProfile()
+            } catch {
+                self?.isDeploying = false
+                self?.stage = .failed
+                self?.deploymentError = error.localizedDescription
+                self?.statusMessage = OasesLocalization.localized("清理失败部署未完成；目标文件未被移除")
+            }
+        }
+    }
+
+    func upgradeDeployment() {
+        performMaintenance(.upgrade)
+    }
+
+    func rollbackDeployment() {
+        performMaintenance(.rollback)
+    }
+
+    func refreshLatestMaintenanceBackup() {
+        guard profileIsInstalled, !isMaintaining else { return }
+        if targetKind == .ssh, !ensureSSHKeyMaterial() { return }
+
+        let request = currentExecutionRequest
+        let requestID = UUID()
+        maintenanceRequestID = requestID
+
+        Task { [weak self] in
+            do {
+                let backup = try await DeploymentMaintenanceService().latestBackup(request: request)
+                guard let self, self.maintenanceRequestID == requestID else { return }
+                self.latestMaintenanceBackup = backup
+            } catch {
+                guard let self, self.maintenanceRequestID == requestID else { return }
+                self.latestMaintenanceBackup = nil
+            }
+        }
+    }
+
+    private enum MaintenanceAction: Equatable {
+        case upgrade
+        case rollback
+
+        var title: String {
+            switch self {
+            case .upgrade: OasesLocalization.localized("升级")
+            case .rollback: OasesLocalization.localized("回滚")
+            }
+        }
+    }
+
+    private func performMaintenance(_ action: MaintenanceAction) {
+        guard profileIsInstalled, !isDeploying, !isMaintaining else { return }
+        if targetKind == .ssh, !ensureSSHKeyMaterial() {
+            maintenanceError = OasesLocalization.localized("SSH 私钥无法读取，请重新导入后再执行维护操作")
+            stage = .failed
+            return
+        }
+
+        let request = currentExecutionRequest
+        stopHealthMonitor()
+        isMaintaining = true
+        maintenanceError = nil
+        maintenanceMessage = nil
+        deploymentError = nil
+        stage = .installing
+        statusMessage = action == .upgrade ? OasesLocalization.localized("正在下载并切换到最新运行时…") : OasesLocalization.localized("正在恢复上一版运行时…")
+
+        Task { [weak self] in
+            do {
+                let service = DeploymentMaintenanceService()
+                let result: DeploymentMaintenanceResult
+                switch action {
+                case .upgrade:
+                    result = try await service.upgrade(request: request)
+                case .rollback:
+                    result = try await service.rollback(request: request)
+                }
+
+                guard let self else { return }
+                if request.target == .ssh {
+                    try await self.startTunnel()
+                }
+                try await RuntimeLifecycleService().waitForConnectionHealth(
+                    cpaManagementKey: self.managementKey
+                )
+                self.isMaintaining = false
+                self.stage = .attached
+                self.setHealthState(.healthy)
+                self.lastHealthCheckAt = Date()
+                self.statusMessage = result.detail
+                self.maintenanceMessage = result.detail
+                self.latestMaintenanceBackup = result.backupName
+                self.saveProfile()
+                self.startHealthMonitor()
+            } catch {
+                guard let self else { return }
+                self.isMaintaining = false
+                self.stage = .failed
+                self.setHealthState(.degraded, error: error.localizedDescription)
+                self.maintenanceError = error.localizedDescription
+                self.statusMessage = "\(action.title)失败；App 已尝试恢复原运行时，请查看目标日志"
+                self.refreshDeploymentLog()
+                self.startHealthMonitor()
+            }
+        }
+    }
+
+    var hasInstalledDeployment: Bool { profileIsInstalled }
+
+    func stopServices() {
+        guard profileIsInstalled, !isDeploying else { return }
+        if targetKind == .ssh, !ensureSSHKeyMaterial() {
+            deploymentError = OasesLocalization.localized("SSH 私钥无法读取，请重新导入后再停止服务")
+            stage = .failed
+            return
+        }
+        stopHealthMonitor()
+        wantsRunning = false
+        setWantsRunningPreference(false)
+        isDeploying = true
+        statusMessage = OasesLocalization.localized("正在停止目标环境服务…")
+        let target = targetKind
+        let method = deploymentMethod
+        let host = remoteHost
+        let user = remoteUser
+        let port = remotePort
+        let keyPath = privateKeyPath
+        let root = installDirectory
+
+        Task { [weak self] in
+            do {
+                try await RuntimeLifecycleService().stop(
+                    target: target,
+                    method: method,
+                    host: host,
+                    user: user,
+                    port: port,
+                    privateKeyPath: keyPath,
+                    installDirectory: root
+                )
+                self?.stopTunnel()
+                self?.isDeploying = false
+                self?.stage = .idle
+                self?.resetHealthState()
+                self?.statusMessage = OasesLocalization.localized("服务已停止；部署文件和凭据已保留")
+        } catch {
+                self?.stopTunnel()
+                self?.isDeploying = false
+                self?.stage = .failed
+                self?.setHealthState(.degraded, error: error.localizedDescription)
+                self?.deploymentError = error.localizedDescription
+                self?.statusMessage = OasesLocalization.localized("停止服务失败")
+                self?.refreshDeploymentLog()
+            }
+        }
+    }
+
+    func forgetCurrentDeployment() {
+        guard profileIsInstalled, !isDeploying else { return }
+        if targetKind == .ssh, !ensureSSHKeyMaterial() {
+            deploymentError = OasesLocalization.localized("SSH 私钥无法读取，无法安全停止并解除远程目标绑定")
+            stage = .failed
+            return
+        }
+
+        let request = currentExecutionRequest
+        let shouldStop = stage == .attached || wantsRunning
+        stopHealthMonitor()
+        wantsRunning = false
+        setWantsRunningPreference(false)
+        isDeploying = true
+        deploymentError = nil
+        statusMessage = shouldStop ? OasesLocalization.localized("正在停止服务并解除当前目标绑定…") : OasesLocalization.localized("正在解除当前目标绑定…")
+
+        Task { [weak self] in
+            do {
+                if shouldStop {
+                    try await RuntimeLifecycleService().stop(
+                        target: request.target,
+                        method: request.method,
+                        host: request.host,
+                        user: request.user,
+                        port: request.port,
+                        privateKeyPath: request.privateKeyPath,
+                        installDirectory: request.installDirectory
+                    )
+                }
+
+                self?.deleteActiveCredentials()
+
+                guard let self else { return }
+                self.stopTunnel()
+                self.profileIsInstalled = false
+                self.managementKey = ""
+                self.cpampAdminKey = ""
+                self.isDeploying = false
+                self.stage = .idle
+                self.resetHealthState()
+                self.planPresented = false
+                self.steps = DeploymentPlanFactory.makeSteps(target: self.targetKind, method: self.deploymentMethod)
+                self.invalidateProbe()
+                self.invalidateDeploymentLog()
+                self.deploymentError = nil
+                self.statusMessage = OasesLocalization.localized("已解除当前目标绑定；目标目录保留，可重新检测或切换到另一个目标")
+                self.setWantsRunningPreference(false)
+                if let activeProfileID = self.activeProfileID {
+                    DeploymentProfileStore.remove(activeProfileID)
+                }
+                self.savedProfiles = DeploymentProfileStore.loadAll()
+                let nextProfileID = self.savedProfiles.first?.id
+                self.activeProfileID = nil
+                if let nextProfileID {
+                    self.selectSavedProfile(nextProfileID)
+                } else {
+                    self.beginNewTarget()
+                }
+            } catch {
+                self?.isDeploying = false
+                self?.stage = .failed
+                self?.deploymentError = error.localizedDescription
+                self?.statusMessage = OasesLocalization.localized("解除目标绑定未完成；服务和凭据状态未被静默清除")
+            }
+        }
+    }
+
+    func resumeServices() {
+        guard profileIsInstalled, !isDeploying else { return }
+        if managementKey.isEmpty {
+            do {
+                try loadActiveCredentials()
+            } catch {
+                deploymentError = "无法读取已保存的钥匙串凭据：\(error.localizedDescription)"
+                statusMessage = OasesLocalization.localized("未能读取已保存凭据；请在系统提示中授权，或重新配置目标")
+                stage = .failed
+                return
+            }
+        }
+        guard !managementKey.isEmpty else {
+            deploymentError = OasesLocalization.localized("没有找到该目标的 CLIProxyAPI 管理密钥。")
+            statusMessage = OasesLocalization.localized("未找到已保存凭据；请重新部署或重新连接该目标")
+            stage = .failed
+            return
+        }
+        if targetKind == .ssh, !ensureSSHKeyMaterial() {
+            deploymentError = OasesLocalization.localized("SSH 私钥无法读取，请重新选择私钥文件")
+            stage = .failed
+            return
+        }
+        stopHealthMonitor()
+        wantsRunning = true
+        setWantsRunningPreference(true)
+        stage = .connecting
+        statusMessage = OasesLocalization.localized("正在重新连接目标环境…")
+        Task { [weak self] in
+            await self?.restoreConnection()
+        }
+    }
+
+    private func startTunnel() async throws {
+        stopTunnel()
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+        process.arguments = try SSHConnectionService.tunnelArguments(
+            host: remoteHost,
+            user: remoteUser,
+            port: remotePort,
+            privateKeyPath: privateKeyPath
+        )
+        let nullDevice = FileHandle(forWritingAtPath: "/dev/null")
+        process.standardOutput = nullDevice
+        process.standardError = nullDevice
+        try process.run()
+        tunnelProcessOwner.attach(process)
+        tunnelAttached = false
+
+        try await Task.sleep(nanoseconds: 500_000_000)
+        guard process.isRunning else {
+            stopTunnel()
+            throw DeploymentExecutionError.commandFailed(OasesLocalization.localized("SSH 隧道未能建立，请检查远程端口和私钥权限。"))
+        }
+
+        tunnelAttached = true
+    }
+
+    private func stopTunnel() {
+        tunnelProcessOwner.stop()
+        tunnelAttached = false
+    }
+
+    func importSSHKey(from url: URL) {
+        do {
+            if activeProfileID == nil {
+                activeProfileID = UUID()
+                saveProfile()
+            }
+            privateKeyPath = try SSHKeyMaterialStore.save(from: url, profileID: activeProfileID)
+            deploymentError = nil
+            statusMessage = OasesLocalization.localized("SSH 私钥已按当前目标保存到 Keychain，可用于连接检测和部署")
+        } catch {
+            deploymentError = error.localizedDescription
+            statusMessage = OasesLocalization.localized("SSH 私钥导入失败")
+        }
+    }
+
+    private func ensureSSHKeyMaterial() -> Bool {
+        guard targetKind == .ssh else { return true }
+        if let materializedPath = try? SSHKeyMaterialStore.materialize(
+            profileID: activeProfileID,
+            allowLegacyFallback: profileIsInstalled
+        ) {
+            privateKeyPath = materializedPath
+            return true
+        }
+        return FileManager.default.isReadableFile(atPath: privateKeyPath)
+    }
+
+    private func bindPersistence() {
+        $targetKind.dropFirst().sink { [weak self] _ in self?.configurationDidChange() }.store(in: &cancellables)
+        $deploymentMethod.dropFirst().sink { [weak self] _ in self?.configurationDidChange() }.store(in: &cancellables)
+        $remoteHost.dropFirst().sink { [weak self] _ in self?.configurationDidChange() }.store(in: &cancellables)
+        $remoteUser.dropFirst().sink { [weak self] _ in self?.configurationDidChange() }.store(in: &cancellables)
+        $remotePort.dropFirst().sink { [weak self] _ in self?.configurationDidChange() }.store(in: &cancellables)
+        $privateKeyPath.dropFirst().sink { [weak self] _ in self?.configurationDidChange() }.store(in: &cancellables)
+        $installDirectory.dropFirst().sink { [weak self] _ in self?.configurationDidChange() }.store(in: &cancellables)
+    }
+
+    private var preflightFailureMessage: String? {
+        guard let probe else {
+            return OasesLocalization.localized("请先连接并检测目标环境；部署前置检查不会执行安装或启动命令。")
+        }
+        guard probe.testedInstallDirectory == installDirectory else {
+            return OasesLocalization.localized("安装目录已变化，请重新连接并检测环境。")
+        }
+        let missing = probe.missingDependencies(for: deploymentMethod)
+        guard missing.isEmpty else {
+            return "当前部署方式无法继续：缺少\(missing.joined(separator: "、"))。"
+        }
+        return nil
+    }
+
+    private func configurationDidChange() {
+        guard !isApplyingProfileConfiguration else { return }
+        invalidateProbe()
+        invalidateDeploymentLog()
+        saveProfile()
+    }
+
+    private func invalidateProbe() {
+        probeRequestID = UUID()
+        probe = nil
+        probeError = nil
+        isProbing = false
+    }
+
+    private var currentExecutionRequest: DeploymentExecutionRequest {
+        DeploymentExecutionRequest(
+            target: targetKind,
+            method: deploymentMethod,
+            host: remoteHost,
+            user: remoteUser.isEmpty ? "root" : remoteUser,
+            port: remotePort,
+            privateKeyPath: privateKeyPath,
+            installDirectory: installDirectory
+        )
+    }
+
+    private func invalidateDeploymentLog() {
+        logRequestID = UUID()
+        deploymentLog = ""
+        deploymentLogSource = ""
+        deploymentLogError = nil
+        isLoadingDeploymentLog = false
+    }
+
+    private func invalidateMaintenanceState() {
+        maintenanceRequestID = UUID()
+        isMaintaining = false
+        maintenanceError = nil
+        maintenanceMessage = nil
+        latestMaintenanceBackup = nil
+    }
+
+    private func saveProfile() {
+        let id = activeProfileID ?? UUID()
+        activeProfileID = id
+        let profile = DeploymentProfile(
+            id: id,
+            targetKind: targetKind,
+            deploymentMethod: deploymentMethod,
+            remoteHost: remoteHost,
+            remoteUser: remoteUser,
+            remotePort: remotePort,
+            privateKeyPath: privateKeyPath,
+            installDirectory: installDirectory,
+            isInstalled: profileIsInstalled,
+            lastAttachedAt: profileIsInstalled ? Date() : nil
+        )
+        let canonical = DeploymentProfileStore.save(profile)
+        if canonical.id != profile.id {
+            activeProfileID = canonical.id
+            profileIsInstalled = canonical.isInstalled
+            wantsRunning = loadWantsRunningPreference()
+        }
+        savedProfiles = DeploymentProfileStore.loadAll()
+    }
+
+    private func adoptExistingDeployment(request: DeploymentExecutionRequest, requestID: UUID) {
+        guard !isDeploying else { return }
+        isDeploying = true
+        deploymentError = nil
+        planPresented = false
+        stage = .connecting
+        statusMessage = OasesLocalization.localized("发现现有 Oases CPA 部署，正在自动接管并恢复服务…")
+
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let credentials = try await ExistingDeploymentAdoptionService().readCredentials(request: request)
+                guard self.probeRequestID == requestID else { return }
+
+                if request.target == .ssh {
+                    try await self.startTunnel()
+                }
+                try await RuntimeLifecycleService().ensureRunning(
+                    target: request.target,
+                    method: request.method,
+                    host: request.host,
+                    user: request.user,
+                    port: request.port,
+                    privateKeyPath: request.privateKeyPath,
+                    installDirectory: request.installDirectory,
+                    cpaManagementKey: credentials.cpaManagementKey
+                )
+                guard self.probeRequestID == requestID else {
+                    self.stopTunnel()
+                    return
+                }
+
+                if self.activeProfileID == nil {
+                    self.activeProfileID = UUID()
+                }
+                self.saveActiveCredentials(
+                    managementKey: credentials.cpaManagementKey,
+                    adminKey: credentials.cpampAdminKey
+                )
+                self.profileIsInstalled = true
+                self.wantsRunning = true
+                self.setWantsRunningPreference(true)
+                self.isDeploying = false
+                self.stage = .attached
+                self.setHealthState(.healthy)
+                self.lastHealthCheckAt = Date()
+                self.deploymentError = nil
+                self.steps = self.steps.map { step in
+                    var updated = step
+                    updated.status = .complete
+                    return updated
+                }
+                self.saveProfile()
+                self.statusMessage = request.target == .local
+                    ? OasesLocalization.localized("已接管现有本机部署并恢复连接")
+                    : OasesLocalization.localized("已接管现有远程部署并恢复 SSH 连接")
+                self.startHealthMonitor()
+            } catch {
+                guard self.probeRequestID == requestID else { return }
+                self.stopTunnel()
+                self.isDeploying = false
+                self.stage = .failed
+                self.setHealthState(.degraded, error: error.localizedDescription)
+                self.deploymentError = error.localizedDescription
+                self.statusMessage = OasesLocalization.localized("发现现有部署，但自动接管失败；部署文件未被修改。")
+                self.refreshDeploymentLog()
+            }
+        }
+    }
+
+    private func loadActiveCredentials() throws {
+        let managementAccount = credentialAccount("cpa-management-key")
+        let adminAccount = credentialAccount("cpamp-admin-key")
+        managementKey = try KeychainStore.load(account: managementAccount) ?? ""
+        cpampAdminKey = try KeychainStore.load(account: adminAccount) ?? ""
+
+        if profileIsInstalled && activeProfileID != nil && managementKey.isEmpty {
+            managementKey = try KeychainStore.loadLegacy(account: managementAccount) ?? ""
+            if managementKey.isEmpty {
+                managementKey = try KeychainStore.loadLegacy(account: "cpa-management-key") ?? ""
+            }
+            if !managementKey.isEmpty {
+                try KeychainStore.save(managementKey, account: managementAccount)
+            }
+        }
+        if profileIsInstalled && activeProfileID != nil && cpampAdminKey.isEmpty {
+            cpampAdminKey = try KeychainStore.loadLegacy(account: adminAccount) ?? ""
+            if cpampAdminKey.isEmpty {
+                cpampAdminKey = try KeychainStore.loadLegacy(account: "cpamp-admin-key") ?? ""
+            }
+            if !cpampAdminKey.isEmpty {
+                try KeychainStore.save(cpampAdminKey, account: adminAccount)
+            }
+        }
+        hasLoadedSavedCredentials = true
+    }
+
+    private func saveActiveCredentials(managementKey: String, adminKey: String) {
+        self.managementKey = managementKey
+        self.cpampAdminKey = adminKey
+        hasLoadedSavedCredentials = true
+        try? KeychainStore.save(managementKey, account: credentialAccount("cpa-management-key"))
+        try? KeychainStore.save(adminKey, account: credentialAccount("cpamp-admin-key"))
+    }
+
+    private func deleteActiveCredentials() {
+        try? KeychainStore.delete(account: credentialAccount("cpa-management-key"))
+        try? KeychainStore.delete(account: credentialAccount("cpamp-admin-key"))
+        try? SSHKeyMaterialStore.delete(profileID: activeProfileID)
+        if savedProfiles.count <= 1 {
+            try? KeychainStore.delete(account: "cpa-management-key")
+            try? KeychainStore.delete(account: "cpamp-admin-key")
+            try? SSHKeyMaterialStore.deleteLegacy()
+        }
+        clearLoadedCredentials()
+    }
+
+    private func clearLoadedCredentials() {
+        managementKey = ""
+        cpampAdminKey = ""
+        hasLoadedSavedCredentials = false
+    }
+
+    private func credentialAccount(_ base: String) -> String {
+        guard let activeProfileID else { return base }
+        return "\(base)-\(activeProfileID.uuidString)"
+    }
+
+    private func wantsRunningPreferenceKey() -> String {
+        guard let activeProfileID else { return "oases.cpa.runtime.wants-running" }
+        return "oases.cpa.runtime.wants-running.\(activeProfileID.uuidString)"
+    }
+
+    private func loadWantsRunningPreference() -> Bool {
+        if let value = UserDefaults.standard.object(forKey: wantsRunningPreferenceKey()) as? Bool {
+            return value
+        }
+        return UserDefaults.standard.object(forKey: "oases.cpa.runtime.wants-running") as? Bool ?? true
+    }
+
+    private func setWantsRunningPreference(_ value: Bool) {
+        UserDefaults.standard.set(value, forKey: wantsRunningPreferenceKey())
+        UserDefaults.standard.set(value, forKey: "oases.cpa.runtime.wants-running")
+    }
+
+    private func resetHealthState() {
+        healthState = .unknown
+        lastHealthCheckAt = nil
+        healthError = nil
+        isAutoRecovering = false
+        healthIssueNotificationSent = false
+    }
+
+    private func setHealthState(_ state: DeploymentHealthState, error: String? = nil) {
+        healthState = state
+        if let error {
+            healthError = error
+        } else if state == .healthy || state == .checking || state == .recovering {
+            healthError = nil
+        }
+
+        let target = targetKind == .local
+            ? OasesLocalization.localized("本机 Mac")
+            : (remoteHost.isEmpty ? OasesLocalization.localized("远程 SSH / VPS") : remoteHost)
+        if state == .degraded, healthNotificationsEnabled, !healthIssueNotificationSent {
+            healthIssueNotificationSent = true
+        let detail = error ?? OasesLocalization.localized("CLIProxyAPI 或 CPAMP 健康检查未通过。")
+            Task {
+                await HealthNotificationService.shared.notifyDegraded(target: target, detail: detail)
+            }
+        } else if state == .healthy {
+            let shouldNotify = healthNotificationsEnabled && healthIssueNotificationSent
+            healthIssueNotificationSent = false
+            if shouldNotify {
+                Task {
+                    await HealthNotificationService.shared.notifyRecovered(target: target)
+                }
+            }
+        }
+    }
+
+    private func stopHealthMonitor() {
+        healthMonitorTask?.cancel()
+        healthMonitorTask = nil
+        isAutoRecovering = false
+    }
+
+    private func startHealthMonitor() {
+        guard profileIsInstalled, wantsRunning else { return }
+        healthMonitorTask?.cancel()
+        healthMonitorTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                await self.performHealthCheck()
+                do {
+                    try await Task.sleep(nanoseconds: 30_000_000_000)
+                } catch {
+                    return
+                }
+            }
+        }
+    }
+
+    private func performHealthCheck() async {
+        guard profileIsInstalled, wantsRunning, !isDeploying, !isMaintaining else { return }
+        guard !managementKey.isEmpty else {
+            setHealthState(.degraded, error: OasesLocalization.localized("缺少 CLIProxyAPI 管理密钥，无法进行后台健康检查。"))
+            return
+        }
+
+        setHealthState(.checking)
+        let isHealthy = await RuntimeLifecycleService().checkConnectionHealth(
+            cpaManagementKey: managementKey
+        )
+        guard !Task.isCancelled, profileIsInstalled, wantsRunning else { return }
+
+        lastHealthCheckAt = Date()
+        if isHealthy {
+            setHealthState(.healthy)
+            deploymentError = nil
+            if stage == .failed {
+                stage = .attached
+                statusMessage = targetKind == .local ? OasesLocalization.localized("本机服务已恢复连接") : OasesLocalization.localized("SSH 隧道与远程服务已恢复连接")
+            }
+            return
+        }
+
+        setHealthState(.degraded, error: OasesLocalization.localized("CLIProxyAPI 或 CPAMP 健康检查未通过。"))
+        await attemptAutomaticRecovery()
+    }
+
+    private func attemptAutomaticRecovery() async {
+        guard profileIsInstalled,
+              wantsRunning,
+              !isDeploying,
+              !isMaintaining,
+              !managementKey.isEmpty,
+              !Task.isCancelled else { return }
+
+        isAutoRecovering = true
+        setHealthState(.recovering)
+        stage = .connecting
+        statusMessage = OasesLocalization.localized("检测到服务不可用，正在自动恢复…")
+        defer { isAutoRecovering = false }
+
+        do {
+            if targetKind == .ssh {
+                try await startTunnel()
+            }
+            try await RuntimeLifecycleService().ensureRunning(
+                target: targetKind,
+                method: deploymentMethod,
+                host: remoteHost,
+                user: remoteUser,
+                port: remotePort,
+                privateKeyPath: privateKeyPath,
+                installDirectory: installDirectory,
+                cpaManagementKey: managementKey
+            )
+            guard !Task.isCancelled, profileIsInstalled, wantsRunning else { return }
+
+            stage = .attached
+            setHealthState(.healthy)
+            deploymentError = nil
+            lastHealthCheckAt = Date()
+            statusMessage = targetKind == .local ? OasesLocalization.localized("本机服务已自动恢复") : OasesLocalization.localized("SSH 隧道与远程服务已自动恢复")
+        } catch {
+            guard !Task.isCancelled, profileIsInstalled, wantsRunning else { return }
+            stopTunnel()
+            stage = .failed
+            setHealthState(.degraded, error: error.localizedDescription)
+            deploymentError = error.localizedDescription
+            statusMessage = OasesLocalization.localized("自动恢复失败；App 会继续重试，或可手动重新启动")
+        }
+    }
+
+    private func restoreConnection() async {
+        guard profileIsInstalled, wantsRunning else { return }
+        setHealthState(.checking)
+        do {
+            if targetKind == .ssh {
+                try await startTunnel()
+            }
+            guard !managementKey.isEmpty else {
+                throw DeploymentExecutionError.missingResult
+            }
+            let runtime = RuntimeLifecycleService()
+            try await runtime.ensureRunning(
+                target: targetKind,
+                method: deploymentMethod,
+                host: remoteHost,
+                user: remoteUser,
+                port: remotePort,
+                privateKeyPath: privateKeyPath,
+                installDirectory: installDirectory,
+                cpaManagementKey: managementKey
+            )
+            guard !Task.isCancelled, profileIsInstalled, wantsRunning else {
+                stopTunnel()
+                return
+            }
+            stage = .attached
+            setHealthState(.healthy)
+            lastHealthCheckAt = Date()
+        statusMessage = targetKind == .local ? OasesLocalization.localized("已恢复本机服务连接") : OasesLocalization.localized("已恢复 SSH 隧道与远程服务连接")
+            steps = steps.map { step in
+                var updated = step
+                updated.status = .complete
+                return updated
+            }
+            startHealthMonitor()
+        } catch {
+            stopTunnel()
+            guard profileIsInstalled, wantsRunning else { return }
+            stage = .failed
+            setHealthState(.degraded, error: error.localizedDescription)
+            deploymentError = error.localizedDescription
+        statusMessage = OasesLocalization.localized("上次部署存在，但当前服务未能自动恢复")
+            refreshDeploymentLog()
+            startHealthMonitor()
+        }
+    }
+}

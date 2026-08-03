@@ -1,0 +1,321 @@
+import Foundation
+
+struct RuntimeManagerConfigResponse: Codable, Equatable {
+    var config: RuntimeManagerConfig
+    var source: String?
+    var cpaUsage: RuntimeCPAUsageConfig?
+}
+
+struct RuntimeManagerConfig: Codable, Equatable {
+    var cpaConnection: RuntimeCPAConnectionConfig
+    var collector: RuntimeManagerCollectorConfig
+    var codexInspection: RuntimeCodexInspectionConfig?
+    var externalUsageService: RuntimeExternalUsageServiceConfig
+    var updatedAtMs: Int64?
+
+    init(
+        cpaConnection: RuntimeCPAConnectionConfig = .init(),
+        collector: RuntimeManagerCollectorConfig = .init(),
+        codexInspection: RuntimeCodexInspectionConfig? = nil,
+        externalUsageService: RuntimeExternalUsageServiceConfig = .init(),
+        updatedAtMs: Int64? = nil
+    ) {
+        self.cpaConnection = cpaConnection
+        self.collector = collector
+        self.codexInspection = codexInspection
+        self.externalUsageService = externalUsageService
+        self.updatedAtMs = updatedAtMs
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case cpaConnection
+        case collector
+        case codexInspection
+        case externalUsageService
+        case updatedAtMs
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        cpaConnection = try container.decodeIfPresent(RuntimeCPAConnectionConfig.self, forKey: .cpaConnection) ?? .init()
+        collector = try container.decodeIfPresent(RuntimeManagerCollectorConfig.self, forKey: .collector) ?? .init()
+        codexInspection = try container.decodeIfPresent(RuntimeCodexInspectionConfig.self, forKey: .codexInspection)
+        externalUsageService = try container.decodeIfPresent(RuntimeExternalUsageServiceConfig.self, forKey: .externalUsageService) ?? .init()
+        updatedAtMs = try container.decodeIfPresent(Int64.self, forKey: .updatedAtMs)
+    }
+
+    var isMonitoringEnabled: Bool {
+        collector.enabled ?? true
+    }
+
+    var managementKey: String {
+        cpaConnection.managementKey ?? ""
+    }
+}
+
+struct RuntimeCPAConnectionConfig: Codable, Equatable {
+    var cpaBaseURL: String
+    var managementKey: String?
+
+    init(cpaBaseURL: String = "", managementKey: String? = nil) {
+        self.cpaBaseURL = cpaBaseURL
+        self.managementKey = managementKey
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case cpaBaseURL = "cpaBaseUrl"
+        case managementKey
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        cpaBaseURL = try container.decodeIfPresent(String.self, forKey: .cpaBaseURL) ?? ""
+        managementKey = try container.decodeIfPresent(String.self, forKey: .managementKey)
+    }
+}
+
+struct RuntimeManagerCollectorConfig: Codable, Equatable {
+    var enabled: Bool?
+    var collectorMode: String
+    var queue: String
+    var popSide: String
+    var batchSize: Int
+    var pollIntervalMs: Int
+    var queryLimit: Int
+    var tlsSkipVerify: Bool
+
+    init(
+        enabled: Bool? = true,
+        collectorMode: String = "auto",
+        queue: String = "usage",
+        popSide: String = "right",
+        batchSize: Int = 100,
+        pollIntervalMs: Int = 500,
+        queryLimit: Int = 50_000,
+        tlsSkipVerify: Bool = false
+    ) {
+        self.enabled = enabled
+        self.collectorMode = collectorMode
+        self.queue = queue
+        self.popSide = popSide
+        self.batchSize = batchSize
+        self.pollIntervalMs = pollIntervalMs
+        self.queryLimit = queryLimit
+        self.tlsSkipVerify = tlsSkipVerify
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case enabled
+        case collectorMode
+        case queue
+        case popSide
+        case batchSize
+        case pollIntervalMs
+        case queryLimit
+        case tlsSkipVerify
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled)
+        collectorMode = try container.decodeIfPresent(String.self, forKey: .collectorMode) ?? "auto"
+        queue = try container.decodeIfPresent(String.self, forKey: .queue) ?? "usage"
+        popSide = try container.decodeIfPresent(String.self, forKey: .popSide) ?? "right"
+        batchSize = try container.decodeIfPresent(Int.self, forKey: .batchSize) ?? 100
+        pollIntervalMs = try container.decodeIfPresent(Int.self, forKey: .pollIntervalMs) ?? 500
+        queryLimit = try container.decodeIfPresent(Int.self, forKey: .queryLimit) ?? 50_000
+        tlsSkipVerify = try container.decodeIfPresent(Bool.self, forKey: .tlsSkipVerify) ?? false
+    }
+}
+
+struct RuntimeExternalUsageServiceConfig: Codable, Equatable {
+    var enabled: Bool
+    var serviceBase: String
+
+    init(enabled: Bool = false, serviceBase: String = "") {
+        self.enabled = enabled
+        self.serviceBase = serviceBase
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case enabled
+        case serviceBase
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
+        serviceBase = try container.decodeIfPresent(String.self, forKey: .serviceBase) ?? ""
+    }
+}
+
+struct RuntimeCodexInspectionConfig: Codable, Equatable {
+    var enabled: Bool?
+    var schedule: RuntimeCodexInspectionScheduleConfig
+    var targetTypes: [String]
+    var targetType: String
+    var workers: Int
+    var deleteWorkers: Int
+    var timeout: Int
+    var retries: Int
+    var userAgent: String
+    var xaiInferenceUserAgent: String
+    var xaiInferenceEnabled: Bool
+    var xaiInferenceModel: String
+    var xaiInferencePrompt: String
+    var usedPercentThreshold: Double
+    var sampleSize: Int
+    var autoActionMode: String
+    var autoRecoverEnabled: Bool
+
+    init(
+        enabled: Bool? = nil,
+        schedule: RuntimeCodexInspectionScheduleConfig = .init(),
+        targetTypes: [String] = [],
+        targetType: String = "",
+        workers: Int = 0,
+        deleteWorkers: Int = 0,
+        timeout: Int = 0,
+        retries: Int = 0,
+        userAgent: String = "",
+        xaiInferenceUserAgent: String = "",
+        xaiInferenceEnabled: Bool = false,
+        xaiInferenceModel: String = "",
+        xaiInferencePrompt: String = "",
+        usedPercentThreshold: Double = 0,
+        sampleSize: Int = 0,
+        autoActionMode: String = "none",
+        autoRecoverEnabled: Bool = false
+    ) {
+        self.enabled = enabled
+        self.schedule = schedule
+        self.targetTypes = targetTypes
+        self.targetType = targetType
+        self.workers = workers
+        self.deleteWorkers = deleteWorkers
+        self.timeout = timeout
+        self.retries = retries
+        self.userAgent = userAgent
+        self.xaiInferenceUserAgent = xaiInferenceUserAgent
+        self.xaiInferenceEnabled = xaiInferenceEnabled
+        self.xaiInferenceModel = xaiInferenceModel
+        self.xaiInferencePrompt = xaiInferencePrompt
+        self.usedPercentThreshold = usedPercentThreshold
+        self.sampleSize = sampleSize
+        self.autoActionMode = autoActionMode
+        self.autoRecoverEnabled = autoRecoverEnabled
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case enabled
+        case schedule
+        case targetTypes
+        case targetType
+        case workers
+        case deleteWorkers
+        case timeout
+        case retries
+        case userAgent
+        case xaiInferenceUserAgent
+        case xaiInferenceEnabled
+        case xaiInferenceModel
+        case xaiInferencePrompt
+        case usedPercentThreshold
+        case sampleSize
+        case autoActionMode
+        case autoRecoverEnabled
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled)
+        schedule = try container.decodeIfPresent(RuntimeCodexInspectionScheduleConfig.self, forKey: .schedule) ?? .init()
+        targetTypes = try container.decodeIfPresent([String].self, forKey: .targetTypes) ?? []
+        targetType = try container.decodeIfPresent(String.self, forKey: .targetType) ?? ""
+        workers = try container.decodeIfPresent(Int.self, forKey: .workers) ?? 0
+        deleteWorkers = try container.decodeIfPresent(Int.self, forKey: .deleteWorkers) ?? 0
+        timeout = try container.decodeIfPresent(Int.self, forKey: .timeout) ?? 0
+        retries = try container.decodeIfPresent(Int.self, forKey: .retries) ?? 0
+        userAgent = try container.decodeIfPresent(String.self, forKey: .userAgent) ?? ""
+        xaiInferenceUserAgent = try container.decodeIfPresent(String.self, forKey: .xaiInferenceUserAgent) ?? ""
+        xaiInferenceEnabled = try container.decodeIfPresent(Bool.self, forKey: .xaiInferenceEnabled) ?? false
+        xaiInferenceModel = try container.decodeIfPresent(String.self, forKey: .xaiInferenceModel) ?? ""
+        xaiInferencePrompt = try container.decodeIfPresent(String.self, forKey: .xaiInferencePrompt) ?? ""
+        usedPercentThreshold = try container.decodeIfPresent(Double.self, forKey: .usedPercentThreshold) ?? 0
+        sampleSize = try container.decodeIfPresent(Int.self, forKey: .sampleSize) ?? 0
+        autoActionMode = try container.decodeIfPresent(String.self, forKey: .autoActionMode) ?? "none"
+        autoRecoverEnabled = try container.decodeIfPresent(Bool.self, forKey: .autoRecoverEnabled) ?? false
+    }
+}
+
+struct RuntimeCodexInspectionScheduleConfig: Codable, Equatable {
+    var mode: String
+    var timePoints: [String]
+    var intervalMinutes: Int
+    var timeZone: String
+
+    init(
+        mode: String = "interval",
+        timePoints: [String] = [],
+        intervalMinutes: Int = 60,
+        timeZone: String = ""
+    ) {
+        self.mode = mode
+        self.timePoints = timePoints
+        self.intervalMinutes = intervalMinutes
+        self.timeZone = timeZone
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case mode
+        case timePoints
+        case intervalMinutes
+        case timeZone
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        mode = try container.decodeIfPresent(String.self, forKey: .mode) ?? "interval"
+        timePoints = try container.decodeIfPresent([String].self, forKey: .timePoints) ?? []
+        intervalMinutes = try container.decodeIfPresent(Int.self, forKey: .intervalMinutes) ?? 60
+        timeZone = try container.decodeIfPresent(String.self, forKey: .timeZone) ?? ""
+    }
+}
+
+struct RuntimeCPAUsageConfig: Codable, Equatable {
+    var usageStatisticsEnabled: Bool
+    var redisUsageQueueRetentionSeconds: Int
+    var retentionSourceDefault: Bool?
+}
+
+struct RuntimeManagerConfigPayload: Encodable {
+    let config: RuntimeManagerConfig
+
+    private enum CodingKeys: String, CodingKey {
+        case config
+    }
+
+    private enum ConfigKeys: String, CodingKey {
+        case cpaConnection
+        case collector
+        case codexInspection
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        var configContainer = container.nestedContainer(keyedBy: ConfigKeys.self, forKey: .config)
+
+        // CPAMP merges a decoded ManagerConfig instead of a JSON patch. Sending
+        // an omitted inspection object would arrive as zero values and can
+        // reset fields such as auto recovery, xAI inference, retries and
+        // sample size. The app always starts from the latest complete config,
+        // then submits that full inspection snapshot so advanced fields remain
+        // intact when the user edits only relay or collector settings.
+        try configContainer.encode(config.cpaConnection, forKey: .cpaConnection)
+        try configContainer.encode(config.collector, forKey: .collector)
+        try configContainer.encode(
+            config.codexInspection ?? RuntimeCodexInspectionPolicyDraft.defaultConfig(),
+            forKey: .codexInspection
+        )
+    }
+}

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760">
+  <rect width="1200" height="760" rx="28" fill="#f8f5ee"/>
+  <text x="600" y="150" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="46" font-weight="600" fill="#2f302e">将 Oases CPA 拖到 Applications</text>
+  <text x="600" y="198" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="22" fill="#6d6e69">Drag Oases CPA to Applications to install</text>
+  <path d="M455 375 H745" stroke="#438b32" stroke-width="8" stroke-linecap="round"/>
+  <path d="M710 338 L760 375 L710 412" fill="none" stroke="#438b32" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

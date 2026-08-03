@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="390" viewBox="0 0 1200 390" role="img" aria-labelledby="title desc">
+  <title id="title">From a Mac to the first API request</title>
+  <desc id="desc">Four steps: choose a local or SSH target, deploy CLIProxyAPI and CPA Manager Plus, add a provider and fetch models, then create an API key and call the v1 endpoint.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F4F8F3"/>
+      <stop offset="1" stop-color="#EAF3EB"/>
+    </linearGradient>
+    <linearGradient id="signal" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#138A2A"/>
+      <stop offset="1" stop-color="#65D83F"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="390" rx="28" fill="url(#bg)"/>
+  <text x="58" y="62" fill="#112217" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, sans-serif" font-size="34" font-weight="760">从空白 Mac 到第一个 /v1 请求</text>
+  <text x="58" y="91" fill="#68786C" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" letter-spacing="1">A FOUR-STEP, USER-AUTHORIZED PATH</text>
+
+  <path d="M250 202H326M534 202H610M818 202H894" stroke="#6BBE72" stroke-width="2" stroke-dasharray="6 7"/>
+  <path d="m316 195 12 7-12 7M600 195l12 7-12 7M884 195l12 7-12 7" fill="none" stroke="#3A9E49" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, sans-serif">
+    <g transform="translate(54 124)">
+      <rect width="196" height="174" rx="22" fill="#FFFFFF" stroke="#C5D5C7"/>
+      <circle cx="34" cy="34" r="18" fill="#E4F5E5"/>
+      <text x="34" y="40" fill="#218B32" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" font-weight="800" text-anchor="middle">01</text>
+      <text x="22" y="86" fill="#15271A" font-size="22" font-weight="720">选择目标</text>
+      <text x="22" y="116" fill="#617066" font-size="15">默认：当前 Mac</text>
+      <text x="22" y="141" fill="#617066" font-size="15">进阶：SSH / VPS</text>
+    </g>
+
+    <g transform="translate(338 124)">
+      <rect width="196" height="174" rx="22" fill="#FFFFFF" stroke="#C5D5C7"/>
+      <circle cx="34" cy="34" r="18" fill="#E4F5E5"/>
+      <text x="34" y="40" fill="#218B32" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" font-weight="800" text-anchor="middle">02</text>
+      <text x="22" y="86" fill="#15271A" font-size="22" font-weight="720">一键部署</text>
+      <text x="22" y="116" fill="#617066" font-size="15">CLIProxyAPI :8317</text>
+      <text x="22" y="141" fill="#617066" font-size="15">CPAMP :18317</text>
+    </g>
+
+    <g transform="translate(622 124)">
+      <rect width="196" height="174" rx="22" fill="#FFFFFF" stroke="#C5D5C7"/>
+      <circle cx="34" cy="34" r="18" fill="#E4F5E5"/>
+      <text x="34" y="40" fill="#218B32" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" font-weight="800" text-anchor="middle">03</text>
+      <text x="22" y="86" fill="#15271A" font-size="22" font-weight="720">添加 AI 服务</text>
+      <text x="22" y="116" fill="#617066" font-size="15">获取 /models</text>
+      <text x="22" y="141" fill="#617066" font-size="15">显式连通性测试</text>
+    </g>
+
+    <g transform="translate(906 124)">
+      <rect width="240" height="174" rx="22" fill="#102416" stroke="#56C35B" stroke-width="2"/>
+      <circle cx="34" cy="34" r="18" fill="url(#signal)"/>
+      <text x="34" y="40" fill="#FFFFFF" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" font-weight="800" text-anchor="middle">04</text>
+      <text x="22" y="86" fill="#F2F8F1" font-size="22" font-weight="720">创建 API Key</text>
+      <text x="22" y="116" fill="#BBD4BE" font-size="15">复制 Base URL + /v1</text>
+      <text x="22" y="144" fill="#78E37B" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" font-weight="700">POST /chat/completions</text>
+    </g>
+  </g>
+
+  <g transform="translate(54 333)" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">
+    <circle cx="7" cy="-4" r="5" fill="#42B44E"/>
+    <text x="22" y="1" fill="#617066">下载、写入、上游探测与重置操作都由用户明确触发</text>
+    <text x="1092" y="1" fill="#278D38" font-weight="700" text-anchor="end">LOCAL-FIRST</text>
+  </g>
+</svg>

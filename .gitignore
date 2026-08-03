@@ -1,0 +1,11 @@
+.build/
+dist/
+.derived-data/
+.xcode-derived/
+DerivedData/
+.swiftpm/
+.DS_Store
+xcuserdata/
+*.xcuserstate
+*.p12
+*.provisionprofile

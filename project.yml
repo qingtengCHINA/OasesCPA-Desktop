@@ -1,0 +1,73 @@
+name: OasesCPA
+options:
+  developmentLanguage: zh-Hans
+  knownRegions:
+    - zh-Hans
+    - en
+    - Base
+  deploymentTarget:
+    macOS: "14.0"
+  minimumXcodeGenVersion: 2.42.0
+configs:
+  Debug: debug
+  Release: release
+  AppStore: release
+settings:
+  base:
+    CURRENT_PROJECT_VERSION: "36"
+    DEVELOPMENT_LANGUAGE: zh-Hans
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    MARKETING_VERSION: "0.1.0"
+    PRODUCT_NAME: Oases CPA
+    SWIFT_VERSION: "6.0"
+    VERSIONING_SYSTEM: apple-generic
+targets:
+  OasesCPA:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/OasesCPA
+    settings:
+      base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_ENTITLEMENTS: OasesCPA-Developer.entitlements
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_HARDENED_RUNTIME: YES
+        INFOPLIST_FILE: Sources/OasesCPA/Resources/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: dev.oases.cpa.macos
+        PRODUCT_MODULE_NAME: OasesCPA
+      configs:
+        AppStore:
+          CODE_SIGN_ENTITLEMENTS: OasesCPA-AppStore.entitlements
+  OasesCPATests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/OasesCPATests
+    dependencies:
+      - target: OasesCPA
+    settings:
+      base:
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: dev.oases.cpa.macos.tests
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Oases CPA.app/Contents/MacOS/Oases CPA"
+        TEST_TARGET_NAME: OasesCPA
+schemes:
+  Oases CPA:
+    build:
+      targets:
+        OasesCPA: all
+        OasesCPATests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - OasesCPATests
+    analyze:
+      config: Debug
+    archive:
+      config: AppStore
+    profile:
+      config: AppStore
