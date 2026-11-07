@@ -374,7 +374,7 @@ private struct GatewayEndpointCard: View {
 
             Divider()
 
-            Text("模型目录：GET /v1/models   ·   OpenAI 兼容调用：POST /v1/chat/completions")
+            Text("模型目录：GET /v1/models   ·   兼容调用：POST /v1/chat/completions")
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(.secondary)
 

@@ -275,7 +275,7 @@ enum RuntimeProviderConnectivityFactory {
     ) -> [RuntimeProviderConnectivityExecution] {
         let providerName = displayText(
             provider.name,
-            fallback: "OpenAI-compatible Provider \(providerIndex + 1)"
+            fallback: "Compatible Provider \(providerIndex + 1)"
         )
         let endpointLabel = "GET /models"
         let resolution = endpoint(
@@ -301,7 +301,7 @@ enum RuntimeProviderConnectivityFactory {
             let target = target(
                 id: "openai.\(providerIndex).\(entry.index)",
                 providerTitle: "\(providerName) · 密钥 \(entry.index + 1)",
-                providerKind: "OpenAI-compatible",
+                providerKind: "Compatible",
                 host: resolution.map(\.host) ?? hostLabel(
                     configuredBaseURL: provider.baseURL,
                     fallbackBaseURL: nil

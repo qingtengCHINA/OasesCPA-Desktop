@@ -1259,7 +1259,7 @@ struct ProvidersView: View {
             runtimeDataStore.refreshProviders(using: deploymentStore)
         }
         .confirmationDialog(
-            "删除 OpenAI-compatible Provider？",
+            "删除兼容 Provider？",
             isPresented: $deleteConfirmationPresented,
             titleVisibility: .visible
         ) {
@@ -1281,7 +1281,7 @@ struct ProvidersView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("这会从当前目标 CLIProxyAPI 的 openai-compatibility 列表中删除该条目。")
+            Text("这会从当前目标 CLIProxyAPI 的兼容 Provider 列表中删除该条目。")
         }
     }
 

@@ -55,7 +55,7 @@ struct ProviderConnectivityCard: View {
                         confirmationPreview = preview
                         confirmationPresented = true
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.oasesPrimary)
                     .disabled(
                         deploymentStore.stage != .attached
                             || preview.targetCount == 0
@@ -83,7 +83,7 @@ struct ProviderConnectivityCard: View {
             } else if preview.targetCount == 0 {
                 InfoBanner(
                     title: "没有可检查的上游配置",
-                    message: "先添加内置上游凭证或 OpenAI-compatible Provider；刷新配置后就可以在这里验证连通性。",
+                    message: "先添加内置上游凭证或兼容 Provider；刷新配置后就可以在这里验证连通性。",
                     systemImage: "slider.horizontal.3",
                     tint: .oasesOrange
                 )
@@ -129,9 +129,9 @@ struct ProviderConnectivityCard: View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: "checkmark.shield")
                 .font(.title2)
-                .foregroundStyle(Color.oasesMint)
+                .foregroundStyle(Oases.Color.textSecondary)
                 .frame(width: 40, height: 40)
-                .background(Color.oasesMint.opacity(0.12), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 5) {
                 Text("准备检查 \(preview.targetCount) 个配置")
@@ -213,7 +213,7 @@ private struct ProviderConnectivityResultRow: View {
                 .font(.title3)
                 .foregroundStyle(tint)
                 .frame(width: 36, height: 36)
-                .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {

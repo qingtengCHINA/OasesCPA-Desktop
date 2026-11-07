@@ -43,7 +43,7 @@ struct DirectProviderCredentialsCard: View {
                 Button("添加凭证", systemImage: "plus") {
                     editorTarget = DirectProviderEditorTarget(kind: selectedKind, credential: nil)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.oasesPrimary)
                 .disabled(deploymentStore.stage != .attached || runtimeDataStore.isSavingDirectProviders)
             }
 
@@ -92,7 +92,7 @@ struct DirectProviderCredentialsCard: View {
                     Button("添加 \(selectedKind.title) 凭证", systemImage: "plus") {
                         editorTarget = DirectProviderEditorTarget(kind: selectedKind, credential: nil)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.oasesPrimary)
                 }
                 .frame(maxWidth: .infinity, minHeight: 160)
             } else {
@@ -198,9 +198,9 @@ private struct DirectProviderCredentialRow: View {
         HStack(spacing: 14) {
             Image(systemName: credential.kind.systemImage)
                 .font(.title3)
-                .foregroundStyle(Color.oasesMint)
+                .foregroundStyle(Oases.Color.textSecondary)
                 .frame(width: 36, height: 36)
-                .background(Color.oasesMint.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
@@ -569,7 +569,7 @@ struct DirectProviderCredentialEditorView: View {
                 Button(isNew ? "添加凭证" : "保存修改") {
                     showSaveConfirmation = true
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.oasesPrimary)
                 .keyboardShortcut(.defaultAction)
                 .disabled(
                     editorValidationMessage != nil ||

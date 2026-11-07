@@ -68,7 +68,7 @@ struct OpenAICompatibilityEditorView: View {
                             spacing: 16
                         ) {
                             EditorField(title: "显示名称", detail: "起一个自己容易认出的名字") {
-                                TextField("例如：我的 OpenAI 服务", text: $name)
+                                TextField("例如：我的中转服务", text: $name)
                                     .textFieldStyle(.roundedBorder)
                             }
                             EditorField(title: "服务地址", detail: "支持 http 或 https") {
@@ -112,7 +112,7 @@ struct OpenAICompatibilityEditorView: View {
                             Button("检测并添加模型", systemImage: "arrow.down.circle") {
                                 discoverModels()
                             }
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(.oasesPrimary)
                             .disabled(!canDiscoverModels || isDiscoveringModels || isTestingKeys)
 
                             if isDiscoveringModels {
@@ -213,7 +213,7 @@ struct OpenAICompatibilityEditorView: View {
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button("保存") { save() }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.oasesPrimary)
                         .disabled(!isValid || runtimeDataStore.isSavingProviders || isDiscoveringModels || isTestingKeys)
                 }
             }
@@ -234,9 +234,9 @@ struct OpenAICompatibilityEditorView: View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: index == nil ? "plus.circle.fill" : "slider.horizontal.3")
                 .font(.system(size: 30, weight: .semibold))
-                .foregroundStyle(Color.oasesBlue)
+                .foregroundStyle(Oases.Color.textSecondary)
                 .frame(width: 52, height: 52)
-                .background(Color.oasesBlue.opacity(0.12), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(LocalizedStringKey(index == nil ? "添加 AI 服务" : "调整 AI 服务"))
@@ -254,7 +254,7 @@ struct OpenAICompatibilityEditorView: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
-                .background(Color(nsColor: .controlBackgroundColor), in: Capsule())
+                .background(Oases.Color.surface, in: Capsule())
                 .lineLimit(1)
         }
         .padding(20)
@@ -267,7 +267,7 @@ struct OpenAICompatibilityEditorView: View {
                 .font(.headline)
 
             EditorField(title: "模型前缀", detail: "可选，例如 team-a；普通用户建议留空") {
-                TextField("例如：openai", text: $prefix)
+                TextField("例如：relay", text: $prefix)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
             }
@@ -706,9 +706,9 @@ private struct ProviderEditorSection<Content: View>: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: systemImage)
-                    .foregroundStyle(Color.oasesBlue)
+                    .foregroundStyle(Oases.Color.textSecondary)
                     .frame(width: 32, height: 32)
-                    .background(Color.oasesBlue.opacity(0.11), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .oasesIconTile()
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(LocalizedStringKey(title))
@@ -927,17 +927,17 @@ private struct ProviderModelEditorCard: View {
                 spacing: 14
             ) {
                 EditorField(title: "上游模型名", detail: "必填") {
-                    TextField("例如：gpt-4.1", text: $model.name)
+                    TextField("例如：glm-4.6", text: $model.name)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
                 }
                 EditorField(title: "客户端别名", detail: "可选") {
-                    TextField("例如：gpt-4.1-proxy", text: $model.alias)
+                    TextField("例如：glm-4.6-proxy", text: $model.alias)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
                 }
                 EditorField(title: "展示名称", detail: "可选") {
-                    TextField("例如：GPT-4.1", text: $model.displayName)
+                    TextField("例如：GLM-4.6", text: $model.displayName)
                         .textFieldStyle(.roundedBorder)
                 }
                 EditorField(title: "输入模态", detail: "例如：text,image") {

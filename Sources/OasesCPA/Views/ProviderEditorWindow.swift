@@ -107,7 +107,7 @@ struct ProviderEditorWindow: View {
             Button("关闭窗口") {
                 closeWindow()
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.oasesPrimary)
         }
     }
 

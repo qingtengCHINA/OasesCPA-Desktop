@@ -41,7 +41,7 @@ enum RuntimeDataStoreError: LocalizedError {
         case .invalidModelPrice(let message):
             message
         case .openAICompatibilityProviderAlreadyExists:
-            OasesLocalization.localized("同名 OpenAI-compatible Provider 已存在；请刷新后编辑现有条目。")
+            OasesLocalization.localized("同名兼容 Provider 已存在；请刷新后编辑现有条目。")
         case .openAICompatibilityProviderDeletionNotConfirmed:
             OasesLocalization.localized("目标仍返回该 AI 服务配置；删除尚未生效，请稍后重试。")
         case .accountActionCandidateNotPending:

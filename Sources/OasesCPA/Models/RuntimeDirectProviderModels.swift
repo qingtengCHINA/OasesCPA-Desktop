@@ -39,7 +39,7 @@ enum RuntimeDirectProviderKind: String, CaseIterable, Identifiable, Sendable {
     var subtitle: String {
         switch self {
         case .gemini: OasesLocalization.localized("Google Gemini API 密钥与路由覆盖")
-        case .interactions: OasesLocalization.localized("OpenAI Interactions API 密钥")
+        case .interactions: OasesLocalization.localized("Interactions API 密钥")
         case .codex: OasesLocalization.localized("Codex / Responses 上游密钥")
         case .xai: OasesLocalization.localized("xAI 上游密钥与路由覆盖")
         case .claude: OasesLocalization.localized("Anthropic Claude API 密钥")
@@ -80,7 +80,7 @@ enum RuntimeDirectProviderKind: String, CaseIterable, Identifiable, Sendable {
         case .interactions:
             OasesLocalization.localized("留空使用 Interactions 默认地址")
         case .codex:
-            "https://api.openai.com/v1"
+            "https://api.example.com/v1"
         case .xai:
             "https://api.x.ai/v1"
         case .claude:

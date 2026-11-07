@@ -341,9 +341,9 @@ enum RuntimeOpenAICompatibilityListMutationError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidResponse:
-            OasesLocalization.localized("当前目标返回的 OpenAI-compatible 列表格式不兼容。")
+            OasesLocalization.localized("当前目标返回的兼容 Provider 列表格式不兼容。")
         case .invalidProvider:
-            OasesLocalization.localized("要写入的 OpenAI-compatible Provider 缺少名称或 Base URL。")
+            OasesLocalization.localized("要写入的兼容 Provider 缺少名称或 Base URL。")
         }
     }
 }

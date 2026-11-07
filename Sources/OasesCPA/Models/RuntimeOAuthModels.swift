@@ -11,7 +11,7 @@ enum RuntimeOAuthProvider: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .codex: "OpenAI Codex"
+        case .codex: "Codex"
         case .anthropic: "Anthropic Claude"
         case .antigravity: "Google Antigravity"
         case .kimi: "Kimi"

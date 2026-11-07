@@ -468,7 +468,7 @@ private struct ModelPriceEditorView: View {
         VStack(spacing: 0) {
             Form {
                 Section {
-                    TextField("模型 ID", text: $draft.modelID, prompt: Text("例如 gpt-5.6"))
+                    TextField("模型 ID", text: $draft.modelID, prompt: Text("例如 glm-4.6"))
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
                         .disabled(target.locksModelID)

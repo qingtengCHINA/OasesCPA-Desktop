@@ -70,7 +70,7 @@ final class RuntimeProviderConnectivityContractTests: XCTestCase {
         let target = RuntimeProviderConnectivityTarget(
             id: "openai.0.0",
             providerTitle: "OpenAI Pool · 密钥 1",
-            providerKind: "OpenAI-compatible",
+            providerKind: "Compatible",
             host: "gateway.example.test",
             endpointLabel: "GET /models",
             systemImage: "arrow.left.arrow.right"

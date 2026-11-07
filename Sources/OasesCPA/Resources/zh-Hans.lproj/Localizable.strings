@@ -118,7 +118,7 @@
 "Oases CPA 负责目标连接、生命周期和安全存储；此功能的实际读写由当前目标上的 CPA Manager Plus 面板完成。" = "Oases CPA 负责目标连接、生命周期和安全存储；此功能的实际读写由当前目标上的 CPA Manager Plus 面板完成。";
 "Oases CPA：目标服务不可用" = "Oases CPA：目标服务不可用";
 "Oases CPA：目标服务已恢复" = "Oases CPA：目标服务已恢复";
-"OpenAI Interactions API 密钥" = "OpenAI Interactions API 密钥";
+"Interactions API 密钥" = "Interactions API 密钥";
 "OpenRouter 回调中的授权码无效。" = "OpenRouter 回调中的授权码无效。";
 "OpenRouter 回调无效" = "OpenRouter 回调无效";
 "OpenRouter 回调无效：\(message)" = "OpenRouter 回调无效：\(message)";
@@ -306,16 +306,16 @@
 "例如 1.25" = "例如 1.25";
 "例如 1.5" = "例如 1.5";
 "例如 10" = "例如 10";
-"例如 gpt-5.6" = "例如 gpt-5.6";
+"例如 glm-4.6" = "例如 glm-4.6";
 "例如 socks5://127.0.0.1:1080" = "例如 socks5://127.0.0.1:1080";
 "例如 team-a/" = "例如 team-a/";
-"例如：GPT-4.1" = "例如：GPT-4.1";
-"例如：gpt-4.1" = "例如：gpt-4.1";
-"例如：gpt-4.1-proxy" = "例如：gpt-4.1-proxy";
-"例如：openai" = "例如：openai";
+"例如：GLM-4.6" = "例如：GLM-4.6";
+"例如：glm-4.6" = "例如：glm-4.6";
+"例如：glm-4.6-proxy" = "例如：glm-4.6-proxy";
+"例如：relay" = "例如：relay";
 "例如：text" = "例如：text";
 "例如：text,image" = "例如：text,image";
-"例如：我的 OpenAI 服务" = "例如：我的 OpenAI 服务";
+"例如：我的中转服务" = "例如：我的中转服务";
 "保存" = "保存";
 "保存 CLIProxyAPI 配置？" = "保存 CLIProxyAPI 配置？";
 "保存 CPAMP 配置？" = "保存 CPAMP 配置？";
@@ -373,7 +373,7 @@
 "先填写远程 VPS 主机名或 IP 地址" = "先填写远程 VPS 主机名或 IP 地址";
 "先完成本机或 SSH/VPS 部署；这里不会读取或修改其他目标的密钥。" = "先完成本机或 SSH/VPS 部署；这里不会读取或修改其他目标的密钥。";
 "先检测远程目标，再通过 SSH 安装 CLIProxyAPI 和 CPAMP。" = "先检测远程目标，再通过 SSH 安装 CLIProxyAPI 和 CPAMP。";
-"先添加内置上游凭证或 OpenAI-compatible Provider；刷新配置后就可以在这里验证连通性。" = "先添加内置上游凭证或 OpenAI-compatible Provider；刷新配置后就可以在这里验证连通性。";
+"先添加内置上游凭证或兼容 Provider；刷新配置后就可以在这里验证连通性。" = "先添加内置上游凭证或兼容 Provider；刷新配置后就可以在这里验证连通性。";
 "先连接一个目标环境" = "先连接一个目标环境";
 "先连接你的电脑或服务器" = "先连接你的电脑或服务器";
 "先选择 SSH 私钥文件" = "先选择 SSH 私钥文件";
@@ -396,7 +396,7 @@
 "关闭窗口" = "关闭窗口";
 "兼容恢复模式" = "兼容恢复模式";
 "内容来自当前目标的 /v0/management/config.yaml；不会写入 App 偏好设置。导入或编辑后，保存会直接替换目标配置并触发 CLIProxyAPI 重新加载。" = "内容来自当前目标的 /v0/management/config.yaml；不会写入 App 偏好设置。导入或编辑后，保存会直接替换目标配置并触发 CLIProxyAPI 重新加载。";
-"内置 OAuth 的凭证由目标 CLIProxyAPI 写入 auths 目录。OpenRouter 使用本机 loopback 回调与 PKCE，换得的 API Key 不会写入 App 偏好设置，并会直接写入当前目标的 OpenAI-compatible 配置；GitHub Copilot 仍使用 CPAMP 兼容流程。" = "内置 OAuth 的凭证由目标 CLIProxyAPI 写入 auths 目录。OpenRouter 使用本机 loopback 回调与 PKCE，换得的 API Key 不会写入 App 偏好设置，并会直接写入当前目标的 OpenAI-compatible 配置；GitHub Copilot 仍使用 CPAMP 兼容流程。";
+"内置 OAuth 的凭证由目标 CLIProxyAPI 写入 auths 目录。OpenRouter 使用本机 loopback 回调与 PKCE，换得的 API Key 不会写入 App 偏好设置，并会直接写入当前目标的兼容 Provider 配置；GitHub Copilot 仍使用 CPAMP 兼容流程。" = "内置 OAuth 的凭证由目标 CLIProxyAPI 写入 auths 目录。OpenRouter 使用本机 loopback 回调与 PKCE，换得的 API Key 不会写入 App 偏好设置，并会直接写入当前目标的兼容 Provider 配置；GitHub Copilot 仍使用 CPAMP 兼容流程。";
 "内置上游 Provider" = "内置上游 Provider";
 "再添加一把密钥" = "再添加一把密钥";
 "准备好开始" = "准备好开始";
@@ -416,7 +416,7 @@
 "创建第一个 Key" = "创建第一个 Key";
 "创建第一个 Key 后，客户端即可通过 Base URL 调用 `/v1/models` 和兼容接口。" = "创建第一个 Key 后，客户端即可通过 Base URL 调用 `/v1/models` 和兼容接口。";
 "删除" = "删除";
-"删除 OpenAI-compatible Provider？" = "删除 OpenAI-compatible Provider？";
+"删除兼容 Provider？" = "删除兼容 Provider？";
 "删除 \(apiKey.maskedValue)" = "删除 \(apiKey.maskedValue)";
 "删除 \(deletingCredential?.kind.title ?? " = "删除 \(deletingCredential?.kind.title ?? ";
 "删除 \(deletingRecord?.modelID ?? " = "删除 \(deletingRecord?.modelID ?? ";
@@ -516,7 +516,7 @@
 "可选值：\(field.enumValues.joined(separator: " = "可选值：\(field.enumValues.joined(separator: ";
 "可选，例如 team-a；普通用户建议留空" = "可选，例如 team-a；普通用户建议留空";
 "右侧" = "右侧";
-"同名 OpenAI-compatible Provider 已存在；请刷新后编辑现有条目。" = "同名 OpenAI-compatible Provider 已存在；请刷新后编辑现有条目。";
+"同名兼容 Provider 已存在；请刷新后编辑现有条目。" = "同名兼容 Provider 已存在；请刷新后编辑现有条目。";
 "同步 \(result.sources.isEmpty ? " = "同步 \(result.sources.isEmpty ? ";
 "后台提醒" = "后台提醒";
 "后台运行" = "后台运行";
@@ -548,7 +548,7 @@
 "回调已提交，继续等待目标服务完成授权。" = "回调已提交，继续等待目标服务完成授权。";
 "回调请求不完整。请返回浏览器继续完成授权。" = "回调请求不完整。请返回浏览器继续完成授权。";
 "图像模型" = "图像模型";
-"在 AI IDE 工具中输入 Base URL 和 API Key，API 格式选择 OpenAI 兼容（Chat Completions），再填写可用的 Model ID" = "在 AI IDE 工具中输入 Base URL 和 API Key，API 格式选择 OpenAI 兼容（Chat Completions），再填写可用的 Model ID";
+"在 AI IDE 工具中输入 Base URL 和 API Key，API 格式选择通用兼容（Chat Completions），再填写可用的 Model ID" = "在 AI IDE 工具中输入 Base URL 和 API Key，API 格式选择通用兼容（Chat Completions），再填写可用的 Model ID";
 "在 App 内管理你的 CPA 中转站" = "在 App 内管理你的 CPA 中转站";
 "在 CPAMP 面板中安装、更新或删除插件" = "在 CPAMP 面板中安装、更新或删除插件";
 "在原生配置页调整巡检范围、定时策略和自动处理规则" = "在原生配置页调整巡检范围、定时策略和自动处理规则";
@@ -780,7 +780,7 @@
 "当前目标管理 API 响应格式不兼容：\(detail)" = "当前目标管理 API 响应格式不兼容：\(detail)";
 "当前目标管理 API 返回 HTTP \(status)：\(message)" = "当前目标管理 API 返回 HTTP \(status)：\(message)";
 "当前目标管理 API 返回了无法解析的数据。" = "当前目标管理 API 返回了无法解析的数据。";
-"当前目标返回的 OpenAI-compatible 列表格式不兼容。" = "当前目标返回的 OpenAI-compatible 列表格式不兼容。";
+"当前目标返回的兼容 Provider 列表格式不兼容。" = "当前目标返回的兼容 Provider 列表格式不兼容。";
 "当前目标返回的此身份汇总项不完整；请稍后再试。" = "当前目标返回的此身份汇总项不完整；请稍后再试。";
 "当前目标：\(deploymentStore.targetTitle)" = "当前目标：\(deploymentStore.targetTitle)";
 "当前策略为仅记录。仍会向 Provider 发送健康检查请求，但不会按策略自动禁用、启用或删除认证文件。" = "当前策略为仅记录。仍会向 Provider 发送健康检查请求，但不会按策略自动禁用、启用或删除认证文件。";
@@ -1138,7 +1138,7 @@
 "模型映射 \(provider.models.count) 个" = "模型映射 \(provider.models.count) 个";
 "模型目录会从当前网关的 /v1/models 读取。" = "模型目录会从当前网关的 /v1/models 读取。";
 "模型目录读取失败" = "模型目录读取失败";
-"模型目录：GET /v1/models   ·   OpenAI 兼容调用：POST /v1/chat/completions" = "模型目录：GET /v1/models   ·   OpenAI 兼容调用：POST /v1/chat/completions";
+"模型目录：GET /v1/models   ·   兼容调用：POST /v1/chat/completions" = "模型目录：GET /v1/models   ·   兼容调用：POST /v1/chat/completions";
 "模式" = "模式";
 "欢迎使用 Oases CPA" = "欢迎使用 Oases CPA";
 "欢迎引导进度" = "欢迎引导进度";
@@ -1467,7 +1467,7 @@
 "补齐失败恢复" = "补齐失败恢复";
 "补齐最多 5,000 条记录" = "补齐最多 5,000 条记录";
 "补齐认证历史汇总？" = "补齐认证历史汇总？";
-"要写入的 OpenAI-compatible Provider 缺少名称或 Base URL。" = "要写入的 OpenAI-compatible Provider 缺少名称或 Base URL。";
+"要写入的兼容 Provider 缺少名称或 Base URL。" = "要写入的兼容 Provider 缺少名称或 Base URL。";
 "覆盖为手动价格" = "覆盖为手动价格";
 "覆盖为手动价格？" = "覆盖为手动价格？";
 "规则直接写入 CLIProxyAPI" = "规则直接写入 CLIProxyAPI";
@@ -1612,7 +1612,7 @@
 "运行中" = "运行中";
 "运行中的 Docker daemon" = "运行中的 Docker daemon";
 "运行历史" = "运行历史";
-"运行在你的设备或 VPS 上，为 AI 工具提供 OpenAI 兼容的 API。" = "运行在你的设备或 VPS 上，为 AI 工具提供 OpenAI 兼容的 API。";
+"运行在你的设备或 VPS 上，为 AI 工具提供通用兼容的 API。" = "运行在你的设备或 VPS 上，为 AI 工具提供通用兼容的 API。";
 "运行日志与证据" = "运行日志与证据";
 "运行时" = "运行时";
 "运行时凭证" = "运行时凭证";
@@ -1627,7 +1627,7 @@
 "这些参数仅影响后续巡检的请求并发、超时和探测方式；保存配置本身不会立即启动巡检。" = "这些参数仅影响后续巡检的请求并发、超时和探测方式；保存配置本身不会立即启动巡检。";
 "这些模型不会通过该 OAuth 渠道暴露给客户端。" = "这些模型不会通过该 OAuth 渠道暴露给客户端。";
 "这会从当前目标 CLIProxyAPI 的 \(deletingCredential?.kind.title ?? " = "这会从当前目标 CLIProxyAPI 的 \(deletingCredential?.kind.title ?? ";
-"这会从当前目标 CLIProxyAPI 的 openai-compatibility 列表中删除该条目。" = "这会从当前目标 CLIProxyAPI 的 openai-compatibility 列表中删除该条目。";
+"这会从当前目标 CLIProxyAPI 的兼容 Provider 列表中删除该条目。" = "这会从当前目标 CLIProxyAPI 的兼容 Provider 列表中删除该条目。";
 "这会从当前目标 CLIProxyAPI 的认证目录中删除该 JSON 文件。删除前请确认你仍保留必要的凭证备份。" = "这会从当前目标 CLIProxyAPI 的认证目录中删除该 JSON 文件。删除前请确认你仍保留必要的凭证备份。";
 "这会从当前目标的插件目录移除插件文件，并删除对应的 plugins.configs 配置。若插件正在运行，CLIProxyAPI 可能要求先重启服务。" = "这会从当前目标的插件目录移除插件文件，并删除对应的 plugins.configs 配置。若插件正在运行，CLIProxyAPI 可能要求先重启服务。";
 "这会删除 \(target) 渠道当前保存的模型别名规则。" = "这会删除 \(target) 渠道当前保存的模型别名规则。";

@@ -416,7 +416,7 @@ struct OAuthView: View {
     private var securityCard: some View {
         InfoBanner(
             title: "凭证由目标 CLIProxyAPI 管理",
-            message: "内置 OAuth 的凭证由目标 CLIProxyAPI 写入 auths 目录。OpenRouter 使用本机 loopback 回调与 PKCE，换得的 API Key 不会写入 App 偏好设置，并会直接写入当前目标的 OpenAI-compatible 配置；GitHub Copilot 仍使用 CPAMP 兼容流程。",
+            message: "内置 OAuth 的凭证由目标 CLIProxyAPI 写入 auths 目录。OpenRouter 使用本机 loopback 回调与 PKCE，换得的 API Key 不会写入 App 偏好设置，并会直接写入当前目标的兼容 Provider 配置；GitHub Copilot 仍使用 CPAMP 兼容流程。",
             systemImage: "checkmark.shield",
             tint: .oasesBlue
         )
