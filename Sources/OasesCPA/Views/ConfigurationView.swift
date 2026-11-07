@@ -190,7 +190,7 @@ struct ConfigurationView: View {
                     Button("编辑 config.yaml", systemImage: "pencil") {
                         showCPAConfigEditor = true
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.oasesPrimary)
                 } else if selectedWorkspaceMode == .manager {
                     Button("刷新", systemImage: "arrow.clockwise") {
                         editState.reset()
@@ -202,7 +202,7 @@ struct ConfigurationView: View {
                     Button("保存配置", systemImage: "checkmark.circle") {
                         showSaveConfirmation = true
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.oasesPrimary)
                     .disabled(!editState.isDirty || runtimeDataStore.isSavingManagerConfiguration || !isValidDraft)
                 }
             }
@@ -222,7 +222,7 @@ struct ConfigurationView: View {
         .labelsHidden()
         .frame(maxWidth: 680)
         .padding(6)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Oases.Color.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private var cpaConfigCard: some View {
@@ -241,7 +241,7 @@ struct ConfigurationView: View {
                 Button("编辑 config.yaml", systemImage: "pencil") {
                     showCPAConfigEditor = true
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.oasesPrimary)
                 .disabled(runtimeDataStore.isLoadingCPAConfig || runtimeDataStore.isSavingCPAConfig)
             }
 
@@ -297,7 +297,7 @@ struct ConfigurationView: View {
             Button("重新读取", systemImage: "arrow.clockwise") {
                 runtimeDataStore.refreshManagerConfiguration(using: deploymentStore)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.oasesPrimary)
         }
         .padding(22)
         .oasesCard()

@@ -84,7 +84,7 @@ struct AuthFileEditorView: View {
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button("保存") { save() }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.oasesPrimary)
                         .disabled(!isValid || isLoading || isSaving || runtimeDataStore.isSavingAuthFiles)
                 }
             }
@@ -102,7 +102,7 @@ struct AuthFileEditorView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 10)
-                .background(Color(nsColor: .controlBackgroundColor))
+                .background(Oases.Color.surface)
             }
         }
         .frame(minWidth: 720, minHeight: 720)

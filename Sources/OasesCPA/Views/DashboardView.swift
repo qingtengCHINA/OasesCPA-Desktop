@@ -12,7 +12,7 @@ struct DashboardView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: Oases.Space.l) {
                 hero
 
                 if let errorMessage = runtimeDataStore.errorMessage {
@@ -22,14 +22,12 @@ struct DashboardView: View {
                         systemImage: "exclamationmark.triangle",
                         tint: .oasesOrange
                     )
-                } else if !runtimeDataStore.isLive {
+                } else if deploymentStore.stage != .attached {
                     InfoBanner(
-                        title: deploymentStore.stage == .attached ? "正在等待目标数据" : "尚未连接目标环境",
-                        message: deploymentStore.stage == .attached
-                            ? "正在等待 CPAMP 仪表盘摘要；数据会自动更新。"
-                            : "先在“连接与部署”中选择本机终端或 SSH / VPS；连接完成后，这里只显示当前目标环境的真实数据。",
+                        title: "尚未连接目标环境",
+                        message: "先在“连接与部署”中选择本机终端或 SSH / VPS；连接完成后，这里只显示当前目标环境的真实数据。",
                         systemImage: "info.circle",
-                        tint: .oasesOrange
+                        tint: .oasesBlue
                     )
                 }
 
@@ -61,9 +59,9 @@ struct DashboardView: View {
                         .frame(minWidth: 250, maxWidth: 320)
                 }
             }
-            .padding(28)
+            .padding(Oases.Space.page)
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Oases.Color.background)
         .task(id: liveRefreshTaskID) {
             guard scenePhase == .active, deploymentStore.stage == .attached else { return }
 
@@ -83,75 +81,68 @@ struct DashboardView: View {
         "\(deploymentStore.stage.rawValue)|\(deploymentStore.cpaClientURLString)|\(scenePhase == .active)"
     }
 
+    private var heroTone: Oases.Tone {
+        if runtimeDataStore.errorMessage != nil { return .warning }
+        if runtimeDataStore.isLive { return .success }
+        return deploymentStore.stage == .attached ? .info : .neutral
+    }
+
+    private var heroTitle: String {
+        if runtimeDataStore.errorMessage != nil { return "已接入，但实时数据读取失败" }
+        if runtimeDataStore.isLive { return "网关运行中 · 实时数据" }
+        return deploymentStore.stage == .attached ? "已接入，正在读取数据" : "尚未连接目标环境"
+    }
+
+    /// One-line status bar: state, target and Base URL, last refresh, primary action.
     private var hero: some View {
-        VStack(alignment: .leading, spacing: 17) {
-            HStack(alignment: .top, spacing: 18) {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 9) {
-                        Text("CPA 网关概览")
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
-                            .tracking(-0.5)
+        HStack(alignment: .center, spacing: Oases.Space.md) {
+            StatusDot(tone: heroTone, size: 9)
 
-                        StatusPill(
-                            title: runtimeDataStore.isLive ? "实时数据" : (deploymentStore.stage == .attached ? "已接入" : "未连接"),
-                            tint: runtimeDataStore.isLive ? .oasesGreen : .oasesOrange,
-                            systemImage: runtimeDataStore.isLive ? "waveform.path.ecg" : (deploymentStore.stage == .attached ? "checkmark.circle" : "link.badge.plus")
-                        )
-                    }
-
-                    Text("CLIProxyAPI 网关与 CPA Manager Plus 的桌面总览")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: Oases.Space.xs) {
+                Text(LocalizedStringKey(heroTitle))
+                    .font(.headline)
+                    .foregroundStyle(heroTone == .warning ? heroTone.text : Oases.Color.textPrimary)
+                HStack(spacing: Oases.Space.sm) {
+                    Text(deploymentStore.targetTitle)
+                        .foregroundStyle(Oases.Color.textSecondary)
+                    Text("·").foregroundStyle(Oases.Color.textTertiary)
+                    OasesMonoValue(text: deploymentStore.cpaClientURLString, copyValue: deploymentStore.cpaClientURLString)
+                        .fixedSize()
                 }
+                .font(.callout)
+            }
+            .layoutPriority(1)
 
-                Spacer()
+            Spacer(minLength: Oases.Space.md)
 
-                VStack(alignment: .trailing, spacing: 8) {
-                    Text("最近刷新")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(localizedTime(runtimeDataStore.lastDashboardRefreshAt ?? store.lastRefreshed))
-                        .font(.system(.body, design: .monospaced).weight(.medium))
-                }
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("最近刷新")
+                    .font(.caption)
+                    .foregroundStyle(Oases.Color.textTertiary)
+                Text(localizedTime(runtimeDataStore.lastDashboardRefreshAt ?? store.lastRefreshed))
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(Oases.Color.textSecondary)
             }
 
-            Divider()
-
-            HStack(alignment: .bottom, spacing: 28) {
-                DashboardHeroFact(title: "连接状态") {
-                    Text(deploymentStore.stage == .attached ? "已接入" : "待接入")
-                        .foregroundStyle(deploymentStore.stage == .attached ? Color.oasesGreen : Color.oasesOrange)
-                        .fontWeight(.semibold)
-                }
-
-                DashboardHeroFact(title: "目标环境") {
-                    Text(deploymentStore.targetTitle)
-                        .font(.system(.body, design: .monospaced))
-                }
-
-                DashboardHeroFact(title: "客户端 Base URL") {
-                    Text(deploymentStore.cpaClientURLString)
-                        .font(.system(.body, design: .monospaced))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .textSelection(.enabled)
-                }
-                .layoutPriority(1)
-
-                Spacer()
-
+            if deploymentStore.stage == .attached {
                 Button {
                     store.selectSection(.monitoring)
                 } label: {
                     Label("查看请求监控", systemImage: "arrow.right")
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.regular)
+                .buttonStyle(.oasesPrimary)
+            } else {
+                Button {
+                    store.selectSection(.environments)
+                } label: {
+                    Label("连接与部署", systemImage: "arrow.right")
+                }
+                .buttonStyle(.oasesPrimary)
             }
-            .font(.callout)
         }
-        .padding(22)
-        .oasesCard(cornerRadius: 18)
+        .padding(.horizontal, Oases.Space.l)
+        .padding(.vertical, Oases.Space.md)
+        .oasesCard(fill: heroTone == .warning ? Oases.Color.warningBg : Oases.Color.surface)
     }
 
     private var runtimeMetrics: [MetricSummary] {
@@ -267,7 +258,7 @@ struct TrafficChartCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            CardTitle(title: "流量趋势（今日）", subtitle: "调用与 Token 的小时级变化", icon: "chart.xyaxis.line")
+            CardTitle(title: "流量趋势（今日）", subtitle: "调用与 Token 的小时级变化", icon: "chart.xyaxis.line", destination: .usageAnalytics)
 
             if points.isEmpty {
                 Text("连接成功后显示真实流量趋势")
@@ -280,16 +271,16 @@ struct TrafficChartCard: View {
                         x: .value("时间", point.label),
                         y: .value("调用", point.requests)
                     )
-                    .foregroundStyle(Color.oasesMint.gradient)
-                    .cornerRadius(5)
+                    .foregroundStyle(Oases.Color.accent.opacity(0.55))
+                    .cornerRadius(3)
 
                     LineMark(
                         x: .value("时间", point.label),
                         y: .value("Token", point.tokens)
                     )
-                    .foregroundStyle(Color.oasesBlue)
-                    .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
-                    .symbol(Circle())
+                    .foregroundStyle(Oases.Color.violet)
+                    .lineStyle(StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+                    .interpolationMethod(.monotone)
                 }
                 .chartLegend(position: .top, alignment: .trailing)
                 .chartYAxis { AxisMarks(position: .leading) }
@@ -309,11 +300,11 @@ struct HealthTimelineCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                CardTitle(title: "请求健康时间线", subtitle: "今日请求健康状态，按 10 分钟聚合", icon: "square.grid.3x3")
+                CardTitle(title: "请求健康时间线", subtitle: "今日请求健康状态，按 10 分钟聚合", icon: "square.grid.3x3", destination: .monitoring)
                 Spacer()
                 Text(successRate)
-                    .font(.system(.title3, design: .rounded).weight(.bold))
-                    .foregroundStyle(Color.oasesGreen)
+                    .font(.title3.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(Oases.Color.successText)
             }
 
             Group {
@@ -335,7 +326,7 @@ struct HealthTimelineCard: View {
             .padding(.top, 6)
 
             HStack(spacing: 13) {
-                LegendDot(title: "无请求", color: .secondary.opacity(0.22))
+                LegendDot(title: "无请求", color: Oases.Color.track)
                 LegendDot(title: "成功", color: .oasesGreen)
                 LegendDot(title: "警告", color: .oasesOrange)
                 LegendDot(title: "失败", color: .oasesRed)
@@ -358,8 +349,8 @@ struct HealthTimelineCard: View {
     }
 
     private func color(for point: RuntimeRequestHealthPoint) -> Color {
-        if point.future || point.tone == "future" { return .secondary.opacity(0.12) }
-        if point.calls == 0 || point.tone == "empty" { return .secondary.opacity(0.16) }
+        if point.future || point.tone == "future" { return Oases.Color.wash }
+        if point.calls == 0 || point.tone == "empty" { return Oases.Color.track }
         switch point.tone {
         case "bad": return .oasesRed
         case "warn": return .oasesOrange
@@ -384,7 +375,7 @@ struct TokenBreakdownCard: View {
             CardTitle(title: "Token 构成", subtitle: "今日请求的用量分布", icon: "chart.pie")
 
             Text(totalTokens)
-                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .font(.system(size: 26, weight: .semibold).monospacedDigit())
 
             if rows.isEmpty {
                 Text(dashboard == nil ? "连接目标环境后显示真实构成" : "当前摘要未返回 Token 构成")
@@ -407,7 +398,7 @@ struct TokenBreakdownCard: View {
 
                             GeometryReader { proxy in
                                 Capsule()
-                                    .fill(row.tint.opacity(0.12))
+                                    .fill(Oases.Color.track)
                                     .overlay(alignment: .leading) {
                                         Capsule()
                                             .fill(row.tint)
@@ -454,10 +445,10 @@ struct TokenBreakdownCard: View {
 
     private func tokenTint(_ key: String) -> Color {
         switch key {
-        case "input": return .oasesBlue
-        case "output": return .oasesMint
-        case "reasoning": return .oasesPurple
-        default: return .oasesOrange
+        case "input": return Oases.Color.accent
+        case "output": return Oases.Color.violet
+        case "reasoning": return Oases.Color.textSecondary
+        default: return Oases.Color.textTertiary
         }
     }
 
@@ -484,7 +475,7 @@ struct ModelCostCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 17) {
-            CardTitle(title: "模型成本排行", subtitle: "今日估算成本", icon: "arrow.up.right")
+            CardTitle(title: "模型成本排行", subtitle: "今日估算成本", icon: "arrow.up.right", destination: .modelPrices)
 
             if models.isEmpty {
                 Text(dashboard == nil ? "连接目标环境后显示真实排行" : "当前摘要未返回模型成本数据")
@@ -527,22 +518,25 @@ struct ModelCostCard: View {
             HStack(spacing: 9) {
                 Text("\(model.rank)")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 22, height: 22)
-                    .background(model.rank == 1 ? Color.oasesOrange : Color.secondary.opacity(0.45), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .monospacedDigit()
+                    .foregroundStyle(model.rank == 1 ? Oases.Color.inkContrast : Oases.Color.textSecondary)
+                    .frame(width: 20, height: 20)
+                    .background(model.rank == 1 ? Oases.Color.ink : Oases.Color.washStrong, in: RoundedRectangle(cornerRadius: Oases.Radius.small, style: .continuous))
                 Text(model.name)
-                    .font(.callout.weight(.medium))
+                    .font(.system(.callout, design: .monospaced).weight(.medium))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
                 Spacer()
                 Text(model.cost)
-                    .font(.callout.weight(.semibold))
+                    .font(.callout.weight(.semibold).monospacedDigit())
             }
 
             GeometryReader { proxy in
                 Capsule()
-                    .fill(Color.oasesBlue.opacity(0.13))
+                    .fill(Oases.Color.track)
                     .overlay(alignment: .leading) {
                         Capsule()
-                            .fill(Color.oasesBlue)
+                            .fill(Oases.Color.accent)
                             .frame(width: proxy.size.width * model.weight)
                     }
             }
@@ -556,7 +550,7 @@ struct ChannelHealthCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            CardTitle(title: "渠道健康状态", subtitle: "当前 Provider 路由", icon: "point.3.connected.trianglepath.dotted")
+            CardTitle(title: "渠道健康状态", subtitle: "当前 Provider 路由", icon: "point.3.connected.trianglepath.dotted", destination: .authFiles)
 
             if channels.isEmpty {
                 Text(dashboard == nil ? "连接目标环境后显示真实渠道" : "当前摘要未返回渠道健康数据")
@@ -622,7 +616,7 @@ struct RecentFailuresCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                CardTitle(title: "最近请求", subtitle: "脱敏后的最近活动", icon: "clock.arrow.circlepath")
+                CardTitle(title: "最近请求", subtitle: "脱敏后的最近活动", icon: "clock.arrow.circlepath", destination: .monitoring)
                 Spacer()
                 Button("查看全部") {
                     store.selectSection(.monitoring)
@@ -710,23 +704,46 @@ struct CollectorStatusCard: View {
     }
 }
 
+/// Card heading: neutral icon, title, one-line subtitle. With `destination`, the title
+/// becomes a "›" link to that section so dashboard cards are never dead ends.
 struct CardTitle: View {
+    @EnvironmentObject private var store: AppStore
     let title: String
     let subtitle: String
     let icon: String
+    var destination: AppSection?
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: Oases.Space.sm) {
             Image(systemName: icon)
-                .foregroundStyle(Color.oasesBlue)
-                .frame(width: 22)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Oases.Color.textTertiary)
+                .frame(width: 18, height: 18)
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(LocalizedStringKey(title))
+            VStack(alignment: .leading, spacing: 2) {
+                if let destination {
+                    Button {
+                        store.selectSection(destination)
+                    } label: {
+                        HStack(spacing: Oases.Space.xs) {
+                            Text(LocalizedStringKey(title))
+                            Image(systemName: "chevron.right").font(.caption2.weight(.bold))
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                     .font(.headline)
+                    .foregroundStyle(Oases.Color.textPrimary)
+                    .help(OasesLocalization.localizedFormat("打开%@", destination.title))
+                } else {
+                    Text(LocalizedStringKey(title))
+                        .font(.headline)
+                        .foregroundStyle(Oases.Color.textPrimary)
+                }
                 Text(LocalizedStringKey(subtitle))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Oases.Color.textSecondary)
             }
         }
     }

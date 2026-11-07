@@ -37,7 +37,7 @@ struct OAuthModelPoliciesCard: View {
                 Button("添加规则渠道", systemImage: "plus") {
                     editorTarget = OAuthModelPolicyEditorTarget(channel: "")
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.oasesPrimary)
                 .disabled(deploymentStore.stage != .attached || runtimeDataStore.isSavingOAuthModelPolicies)
             }
 
@@ -57,7 +57,7 @@ struct OAuthModelPoliciesCard: View {
                     Button("添加规则渠道", systemImage: "plus") {
                         editorTarget = OAuthModelPolicyEditorTarget(channel: "")
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.oasesPrimary)
                 }
                 .frame(maxWidth: .infinity, minHeight: 160)
             } else {
@@ -126,9 +126,9 @@ private struct OAuthModelPolicyChannelRow: View {
         HStack(spacing: 14) {
             Image(systemName: "arrow.triangle.branch")
                 .font(.title3)
-                .foregroundStyle(Color.oasesBlue)
+                .foregroundStyle(Oases.Color.textSecondary)
                 .frame(width: 36, height: 36)
-                .background(Color.oasesBlue.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(channel)
@@ -422,7 +422,7 @@ private struct OAuthModelPolicyEditorView: View {
                 Button(normalizedExcludedModels.isEmpty ? "清除排除规则" : "保存排除规则") {
                     showExcludedSaveConfirmation = true
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.oasesPrimary)
                 .disabled(
                     !hasExcludedChanges ||
                     channelValidationMessage != nil ||
@@ -485,7 +485,7 @@ private struct OAuthModelPolicyEditorView: View {
                 Button(aliases.isEmpty ? "清除模型别名" : "保存模型别名") {
                     showAliasSaveConfirmation = true
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.oasesPrimary)
                 .disabled(
                     !hasAliasChanges ||
                     aliasValidationMessage != nil ||

@@ -289,7 +289,7 @@ private struct AccountActionCandidateCard: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(actionTint)
                     .frame(width: 38, height: 38)
-                    .background(actionTint.opacity(0.12), in: Circle())
+                    .oasesIconTile(cornerRadius: 999)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(candidate.accountTitle)
@@ -356,7 +356,7 @@ private struct AccountActionCandidateCard: View {
                     Button("重新启用", systemImage: "checkmark.circle") {
                         onRequestOperation(.enable)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.oasesPrimary)
                     .tint(.oasesGreen)
                     .disabled(isBusy)
 

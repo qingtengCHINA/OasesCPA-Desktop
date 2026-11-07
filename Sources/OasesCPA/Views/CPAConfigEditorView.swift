@@ -91,7 +91,7 @@ struct CPAConfigEditorView: View {
                     Button("保存") {
                         showSaveConfirmation = true
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.oasesPrimary)
                     .disabled(!isValid || !isDirty || isLoading || runtimeDataStore.isSavingCPAConfig)
                 }
             }

@@ -115,7 +115,7 @@ struct InspectionView: View {
             Button("开始巡检", systemImage: "play.fill") {
                 pendingConfirmation = .start(policy: inspectionPolicy)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.oasesPrimary)
             .tint(inspectionPolicy.isMutationCapable ? .oasesOrange : .oasesBlue)
             .disabled(!canStart)
         }
@@ -1189,7 +1189,7 @@ private struct InspectionResultDetailSheet: View {
                 Button("完成") {
                     dismiss()
                 }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.oasesPrimary)
             }
 
             ScrollView {

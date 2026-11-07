@@ -80,7 +80,7 @@ struct PluginsView: View {
                     operationErrorMessage = nil
                     runtimeDataStore.refreshPlugins(using: deploymentStore)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.oasesPrimary)
                 .disabled(runtimeDataStore.isLoadingPlugins || runtimeDataStore.isSavingPlugins)
             }
         }
@@ -148,7 +148,7 @@ struct PluginsView: View {
             Button("前往连接与部署", systemImage: "arrow.triangle.branch") {
                 store.selectSection(.environments)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.oasesPrimary)
         }
         .padding(22)
         .oasesCard()
@@ -180,7 +180,7 @@ struct PluginsView: View {
             Button("重新读取", systemImage: "arrow.clockwise") {
                 runtimeDataStore.refreshPlugins(using: deploymentStore)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.oasesPrimary)
         }
         .padding(22)
         .oasesCard()
@@ -387,7 +387,7 @@ private struct RuntimePluginRow: View {
                 .font(.title3)
                 .foregroundStyle(statusTint)
                 .frame(width: 34, height: 34)
-                .background(statusTint.opacity(0.11), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {

@@ -1234,7 +1234,7 @@ struct ProvidersView: View {
                     Button("添加 AI 服务", systemImage: "plus") {
                         presentProviderEditor(.createOpenAICompatibility)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.oasesPrimary)
                     .disabled(deploymentStore.stage != .attached || runtimeDataStore.isSavingProviders)
                 }
 
@@ -1386,7 +1386,7 @@ struct ProvidersView: View {
                     Button("添加第一个 AI 服务", systemImage: "plus") {
                         presentProviderEditor(.createOpenAICompatibility)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.oasesPrimary)
                 }
                 .frame(maxWidth: .infinity, minHeight: 180)
             } else {
@@ -1397,7 +1397,7 @@ struct ProvidersView: View {
                                 .font(.title3)
                                 .foregroundStyle(provider.disabled ? Color.oasesOrange : Color.oasesMint)
                                 .frame(width: 36, height: 36)
-                                .background((provider.disabled ? Color.oasesOrange : Color.oasesMint).opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .oasesIconTile()
 
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack(spacing: 8) {
@@ -1817,7 +1817,7 @@ struct RuntimeAuthFileRow: View {
                 .font(.title3)
                 .foregroundStyle(tint)
                 .frame(width: 34, height: 34)
-                .background(tint.opacity(0.11), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 7) {
@@ -1898,7 +1898,7 @@ struct AccountRow: View {
                 .font(.title3)
                 .foregroundStyle(account.tint)
                 .frame(width: 34, height: 34)
-                .background(account.tint.opacity(0.11), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 7) {
@@ -2213,7 +2213,7 @@ struct QuotaCooldownRow: View {
                 .font(.title3)
                 .foregroundStyle(Color.oasesOrange)
                 .frame(width: 32, height: 32)
-                .background(Color.oasesOrange.opacity(0.11), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 8) {
@@ -2278,7 +2278,7 @@ struct QuotaEvidenceCard: View {
                     .font(.title3)
                     .foregroundStyle(statusTint)
                     .frame(width: 32, height: 32)
-                    .background(statusTint.opacity(0.11), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .oasesIconTile()
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
@@ -2448,7 +2448,7 @@ struct GenericWorkspaceView: View {
                         Button("打开 CPAMP 面板", systemImage: "rectangle.on.rectangle") {
                             store.selectSection(.panel)
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.oasesPrimary)
                     }
                     .padding(22)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -2526,11 +2526,11 @@ struct InfoBanner: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(16)
-        .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(Oases.Space.md)
+        .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: Oases.Radius.panel, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(tint.opacity(0.18), lineWidth: 1)
+            RoundedRectangle(cornerRadius: Oases.Radius.panel, style: .continuous)
+                .strokeBorder(tint.opacity(0.28), lineWidth: 1)
         }
     }
 }

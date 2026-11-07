@@ -29,7 +29,7 @@ struct SidebarView: View {
             )) {
                 ForEach(SectionGroup.allCases) { group in
                     Section(group.title) {
-                        ForEach(AppSection.allCases.filter { $0.group == group }) { section in
+                        ForEach(group.sections) { section in
                             HStack(spacing: 8) {
                                 Image(systemName: section.systemImage)
                                     .frame(width: 24, alignment: .center)
@@ -50,20 +50,16 @@ struct SidebarView: View {
             Divider()
 
             HStack(spacing: 10) {
-                Circle()
-                    .fill(deploymentStore.stage == .attached ? Color.oasesGreen : Color.oasesOrange)
-                    .frame(width: 9, height: 9)
-                    .shadow(
-                        color: (deploymentStore.stage == .attached ? Color.oasesGreen : Color.oasesOrange).opacity(0.35),
-                        radius: 4
-                    )
+                StatusDot(tone: deploymentStore.stage == .attached ? .success : .warning, size: 8)
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(deploymentStore.stage == .attached ? "已接入" : store.connectionLabel)
                         .font(.caption.weight(.semibold))
+                        .foregroundStyle(Oases.Color.textPrimary)
                     Text(deploymentStore.stage == .attached ? deploymentStore.targetTitle : store.connectionDetail)
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Oases.Color.textSecondary)
+                        .lineLimit(1)
                 }
 
                 Spacer()

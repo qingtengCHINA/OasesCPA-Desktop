@@ -92,7 +92,7 @@ struct AccessKeysView: View {
                 operationErrorMessage = nil
                 isAddingKey = true
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.oasesPrimary)
             .disabled(deploymentStore.stage != .attached || runtimeDataStore.isSavingGatewayAccess)
         }
     }
@@ -156,7 +156,7 @@ struct AccessKeysView: View {
                     Button("创建第一个 Key", systemImage: "plus") {
                         isAddingKey = true
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.oasesPrimary)
                 }
                 .frame(maxWidth: .infinity, minHeight: 170)
             } else {
@@ -178,9 +178,9 @@ struct AccessKeysView: View {
         HStack(spacing: 14) {
             Image(systemName: "key.horizontal.fill")
                 .font(.title3)
-                .foregroundStyle(Color.oasesBlue)
+                .foregroundStyle(Oases.Color.textSecondary)
                 .frame(width: 36, height: 36)
-                .background(Color.oasesBlue.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("调用 Key \(apiKey.index + 1)")
@@ -471,7 +471,7 @@ private struct APIKeyEditorSheet: View {
                 Button(mode.actionTitle) {
                     save()
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.oasesPrimary)
                 .keyboardShortcut(.defaultAction)
                 .disabled(runtimeDataStore.isSavingGatewayAccess)
             }

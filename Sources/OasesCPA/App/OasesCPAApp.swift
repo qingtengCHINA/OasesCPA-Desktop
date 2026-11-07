@@ -42,7 +42,7 @@ struct OasesCPAApp: App {
                 #endif
                 .environment(\.locale, preferredLocale)
                 .preferredColorScheme(preferredColorScheme)
-                .frame(minWidth: 720, minHeight: 520)
+                .frame(minWidth: 880, minHeight: 560)
                 .background(AdaptiveWindowConfigurator())
                 .onAppear {
                     #if !APP_STORE

@@ -124,7 +124,7 @@ struct PluginStoreView: View {
             Button("重新读取", systemImage: "arrow.clockwise") {
                 runtimeDataStore.refreshPluginStore(using: deploymentStore)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.oasesPrimary)
         }
         .padding(22)
         .oasesCard()
@@ -464,7 +464,7 @@ private struct PluginStoreEntryRow: View {
                 .font(.title3)
                 .foregroundStyle(statusTint)
                 .frame(width: 34, height: 34)
-                .background(statusTint.opacity(0.11), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 8) {
@@ -523,7 +523,7 @@ private struct PluginStoreEntryRow: View {
                     Button(entry.installed ? "更新" : "安装", systemImage: entry.installed ? "arrow.triangle.2.circlepath" : "arrow.down.circle") {
                         onInstall()
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.oasesPrimary)
                     .disabled(isSaving)
                 } else if entry.authRequired && !entry.authConfigured {
                     Button("配置来源授权", systemImage: "key") {

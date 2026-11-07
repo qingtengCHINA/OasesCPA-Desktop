@@ -1,19 +1,34 @@
 import SwiftUI
 
+/// Sidebar groups, matching the web panel and the iOS companion:
+/// 概览 / 账号 / 网关 / 配置 / 运维.
 enum SectionGroup: String, CaseIterable, Identifiable {
-    case connect
     case overview
-    case manage
-    case inspect
+    case accounts
+    case gateway
+    case configuration
+    case operations
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .connect: OasesLocalization.localized("连接与部署")
         case .overview: OasesLocalization.localized("概览")
-        case .manage: OasesLocalization.localized("管理")
-        case .inspect: OasesLocalization.localized("检查与系统")
+        case .accounts: OasesLocalization.localized("账号")
+        case .gateway: OasesLocalization.localized("网关")
+        case .configuration: OasesLocalization.localized("配置")
+        case .operations: OasesLocalization.localized("运维")
+        }
+    }
+
+    /// Sidebar order inside the group.
+    var sections: [AppSection] {
+        switch self {
+        case .overview: [.dashboard, .usageAnalytics, .monitoring]
+        case .accounts: [.authFiles, .oauth, .quota, .accountActions, .codexInspection]
+        case .gateway: [.accessKeys, .aiProviders]
+        case .configuration: [.config, .modelPrices, .plugins]
+        case .operations: [.environments, .panel, .logs, .system]
         }
     }
 }
@@ -106,11 +121,7 @@ enum AppSection: String, CaseIterable, Identifiable, Hashable {
     }
 
     var group: SectionGroup {
-        switch self {
-        case .environments, .panel: .connect
-        case .dashboard, .usageAnalytics, .monitoring, .accountActions, .modelPrices: .overview
-        case .config, .accessKeys, .aiProviders, .plugins, .authFiles, .oauth, .quota: .manage
-        case .codexInspection, .logs, .system: .inspect
-        }
+        SectionGroup.allCases.first { $0.sections.contains(self) } ?? .operations
     }
+
 }

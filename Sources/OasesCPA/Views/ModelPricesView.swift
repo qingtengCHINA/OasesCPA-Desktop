@@ -101,7 +101,7 @@ struct ModelPricesView: View {
                     Button("添加手动价格", systemImage: "plus") {
                         editorTarget = ModelPriceEditorTarget(modelID: "", payload: nil, locksModelID: false)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.oasesPrimary)
                     .disabled(
                         deploymentStore.stage != .attached ||
                         runtimeDataStore.isSavingModelPrices ||
@@ -267,7 +267,7 @@ struct ModelPricesView: View {
                     Button("添加手动价格", systemImage: "plus") {
                         editorTarget = ModelPriceEditorTarget(modelID: "", payload: nil, locksModelID: false)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.oasesPrimary)
                 }
                 .frame(maxWidth: .infinity, minHeight: 180)
             } else if rows.isEmpty {
@@ -362,12 +362,9 @@ private struct ModelPriceRow: View {
         HStack(spacing: 14) {
             Image(systemName: row.payload == nil ? "dollarsign.circle" : "dollarsign.circle.fill")
                 .font(.title3)
-                .foregroundStyle(row.payload == nil ? Color.oasesOrange : Color.oasesGreen)
-                .frame(width: 36, height: 36)
-                .background(
-                    (row.payload == nil ? Color.oasesOrange : Color.oasesGreen).opacity(0.12),
-                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-                )
+                .foregroundStyle(row.payload == nil ? Oases.Color.warning : Oases.Color.textSecondary)
+                .frame(width: 32, height: 32)
+                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 8) {
@@ -538,7 +535,7 @@ private struct ModelPriceEditorView: View {
                 Button(target.payload == nil ? "保存手动价格" : "覆盖为手动价格") {
                     saveConfirmationPresented = true
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.oasesPrimary)
                 .keyboardShortcut(.defaultAction)
                 .disabled(
                     draft.validationMessage != nil ||

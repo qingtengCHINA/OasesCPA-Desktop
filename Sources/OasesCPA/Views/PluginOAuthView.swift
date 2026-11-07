@@ -139,7 +139,7 @@ struct PluginOAuthView: View {
                 Button(flowState == .starting ? "正在准备…" : "开始授权", systemImage: "arrow.up.right") {
                     startAuthorization()
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.oasesPrimary)
                 .disabled(flowState == .starting || deploymentStore.stage != .attached)
 
                 if deploymentStore.stage != .attached {
@@ -165,7 +165,7 @@ struct PluginOAuthView: View {
                 Button("打开授权页", systemImage: "safari") {
                     openAuthorizationURL()
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.oasesPrimary)
             }
 
             Text(authorizationURL)
@@ -224,7 +224,7 @@ struct PluginOAuthView: View {
                 Button("提交回调", systemImage: "arrow.up.circle") {
                     submitCallback()
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.oasesPrimary)
                 .disabled(callbackURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSubmittingCallback)
 
                 if isSubmittingCallback {

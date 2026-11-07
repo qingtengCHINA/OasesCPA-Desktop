@@ -7,12 +7,22 @@ enum ProviderEditorRoute: Equatable {
 }
 
 final class AppStore: ObservableObject {
-    @Published private(set) var selectedSection: AppSection = .dashboard
+    @Published private(set) var selectedSection: AppSection = AppStore.initialSection
     @Published private(set) var pendingSection: AppSection?
     @Published var configurationHasUnsavedChanges = false
     @Published var lastRefreshed = Date()
     @Published private(set) var refreshCount = 0
     @Published var providerEditorRoute: ProviderEditorRoute?
+
+    /// DEBUG QA: `-OasesQASection monitoring` opens a section directly (screenshots, review).
+    private static var initialSection: AppSection {
+        #if DEBUG
+        if let raw = UserDefaults.standard.string(forKey: "OasesQASection"), let section = AppSection(rawValue: raw) {
+            return section
+        }
+        #endif
+        return .dashboard
+    }
 
     var connectionLabel: String { OasesLocalization.localized("未连接") }
 

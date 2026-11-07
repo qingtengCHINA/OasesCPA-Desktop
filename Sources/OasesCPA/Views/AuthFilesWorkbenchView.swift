@@ -257,14 +257,14 @@ struct AuthFilesWorkbenchView: View {
         return Button {
             workbench.providerFilter = selection
         } label: {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(isSelected ? Color.white : Color.primary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background(isSelected ? Color.accentColor : Color.clear, in: Capsule())
+            Text(LocalizedStringKey(title))
+                .font(.callout.weight(.medium))
+                .foregroundStyle(isSelected ? Oases.Color.inkContrast : Oases.Color.textSecondary)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 5)
+                .background(isSelected ? Oases.Color.ink : Oases.Color.surface, in: Capsule())
                 .overlay {
-                    Capsule().strokeBorder(Color.primary.opacity(isSelected ? 0 : 0.12), lineWidth: 1)
+                    Capsule().strokeBorder(isSelected ? Color.clear : Oases.Color.borderStrong, lineWidth: 1)
                 }
         }
         .buttonStyle(.plain)
@@ -728,7 +728,7 @@ private struct AuthFilesWorkbenchMetadataEditor: View {
                             dismiss()
                         }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.oasesPrimary)
                     .disabled(isSaving || (Int(priority.trimmingCharacters(in: .whitespacesAndNewlines)) == nil && !priority.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
                 }
             }

@@ -2,7 +2,7 @@ import AppKit
 
 enum WindowLayoutPolicy {
     static let screenMargin: CGFloat = 16
-    static let preferredMinimumContentSize = NSSize(width: 720, height: 520)
+    static let preferredMinimumContentSize = NSSize(width: 880, height: 560)
 
     static func minimumContentSize(
         _ preferredSize: NSSize = preferredMinimumContentSize,

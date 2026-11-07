@@ -286,7 +286,7 @@ struct CPAQuickConfigurationView: View {
                         isShowingRiskConfirmation = true
                     }
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.oasesPrimary)
                 .disabled(!store.isDirty || store.isSaving || deploymentStore.stage != .attached)
             }
         }

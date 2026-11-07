@@ -35,7 +35,7 @@ struct LogsView: View {
                             Button("启用文件日志") {
                                 runtimeDataStore.enableFileLogging(using: deploymentStore)
                             }
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(.oasesPrimary)
                             .disabled(runtimeDataStore.isLoadingLogs)
                         }
                         .padding(14)
@@ -94,7 +94,7 @@ struct LogsView: View {
             Button("打开 CPAMP", systemImage: "rectangle.on.rectangle") {
                 store.selectSection(.panel)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.oasesPrimary)
             .disabled(deploymentStore.stage != .attached)
         }
     }

@@ -54,7 +54,7 @@ struct PanelView: View {
                     Button("前往连接与部署") {
                         store.selectSection(.environments)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.oasesPrimary)
                 }
             }
         }

@@ -118,7 +118,7 @@ struct PluginConfigEditorView: View {
                     Button("保存") {
                         showSaveConfirmation = true
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.oasesPrimary)
                     .disabled(!isValid || !isDirty || isLoading || isSaving || runtimeDataStore.isSavingPlugins)
                 }
             }
@@ -134,7 +134,7 @@ struct PluginConfigEditorView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 10)
-                .background(Color(nsColor: .controlBackgroundColor))
+                .background(Oases.Color.surface)
             }
         }
         .frame(minWidth: 760, minHeight: 720)

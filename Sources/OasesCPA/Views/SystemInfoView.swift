@@ -60,7 +60,7 @@ struct SystemInfoView: View {
                     Button("打开 CPAMP 面板", systemImage: "rectangle.on.rectangle") {
                         store.selectSection(.panel)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.oasesPrimary)
 
                     Button("前往连接与部署", systemImage: "arrow.triangle.branch") {
                         store.selectSection(.environments)
@@ -437,9 +437,9 @@ private struct QuickLinkButton: View {
             HStack(spacing: 10) {
                 Image(systemName: systemImage)
                     .font(.title3)
-                    .foregroundStyle(Color.oasesBlue)
+                    .foregroundStyle(Oases.Color.textSecondary)
                     .frame(width: 34, height: 34)
-                    .background(Color.oasesBlue.opacity(0.1), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .oasesIconTile()
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
                         .font(.callout.weight(.semibold))

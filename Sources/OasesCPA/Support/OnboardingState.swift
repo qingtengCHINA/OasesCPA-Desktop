@@ -1,7 +1,7 @@
 import Foundation
 
 struct OnboardingState {
-    static let currentVersion = 1
+    static let currentVersion = 2
     static let completionVersionKey = "oases.cpa.onboarding.completed-version"
     static let legacyCompletionKey = "oases.cpa.onboarding.completed"
 

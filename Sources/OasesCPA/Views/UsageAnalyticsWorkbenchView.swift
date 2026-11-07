@@ -39,7 +39,7 @@ struct UsageAnalyticsWorkbenchView: View {
                         Text(errorMessage)
                     } actions: {
                         Button("重试", systemImage: "arrow.clockwise") { store.refreshNow() }
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(.oasesPrimary)
                     }
                     .frame(maxWidth: .infinity, minHeight: 360)
                     .oasesCard()
@@ -113,30 +113,38 @@ struct UsageAnalyticsWorkbenchView: View {
         }
     }
 
+    /// Geist-style tabs: plain labels, the selected one in primary text over an ink underline.
     private var tabBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 5) {
+            HStack(spacing: Oases.Space.l) {
                 ForEach(RuntimeUsageAnalyticsTab.allCases) { tab in
+                    let isSelected = store.selectedTab == tab
                     Button {
                         store.selectedTab = tab
                     } label: {
                         Text(tab.title)
+                            .font(.callout.weight(isSelected ? .semibold : .regular))
+                            .foregroundStyle(isSelected ? Oases.Color.textPrimary : Oases.Color.textSecondary)
                             .lineLimit(1)
-                            .padding(.horizontal, 8)
+                            .padding(.vertical, Oases.Space.sm)
+                            .overlay(alignment: .bottom) {
+                                Rectangle()
+                                    .fill(isSelected ? Oases.Color.ink : Color.clear)
+                                    .frame(height: 2)
+                                    .offset(y: 1)
+                            }
+                            .contentShape(Rectangle())
                     }
-                    .buttonStyle(.bordered)
-                    .tint(store.selectedTab == tab ? Color.oasesBlue : .secondary)
-                    .background(
-                        store.selectedTab == tab
-                            ? Color.oasesBlue.opacity(0.12)
-                            : Color.clear,
-                        in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    )
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
             }
+            .padding(.horizontal, Oases.Space.xs)
         }
-        .padding(5)
-        .background(Color(nsColor: .underPageBackgroundColor), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Oases.Color.border).frame(height: 1)
+        }
+        .animation(Oases.Motion.stateChange, value: store.selectedTab)
     }
 
     private var filterBar: some View {
@@ -243,7 +251,7 @@ struct UsageAnalyticsWorkbenchView: View {
         Button("应用") {
             store.range = .custom(from: customFrom, to: customTo)
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.oasesPrimary)
     }
 
     @ViewBuilder
@@ -478,7 +486,7 @@ struct UsageAnalyticsWorkbenchView: View {
                 .frame(width: 90, alignment: .trailing)
         }
         .padding(11)
-        .background(Color(nsColor: .underPageBackgroundColor), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(Oases.Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private func heatmap(_ points: [RuntimeUsageAnalyticsHeatmapPoint]) -> some View {

@@ -14,6 +14,11 @@ struct ContentView: View {
                 .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 300)
         } detail: {
             DetailWorkspaceView(section: store.selectedSection)
+                .oasesCanvas()
+                .navigationTitle(store.selectedSection.title)
+                .navigationSubtitle(deploymentStore.stage == .attached
+                    ? OasesLocalization.localizedFormat("已接入 · %@", deploymentStore.targetTitle)
+                    : store.connectionLabel)
         }
         .navigationSplitViewStyle(.balanced)
         .toolbar {
@@ -63,7 +68,8 @@ struct ContentView: View {
                 .help("连接与外观设置")
             }
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Oases.Color.background)
+        .tint(Oases.Color.accent)
         .task {
             runtimeDataStore.refresh(using: deploymentStore)
         }
