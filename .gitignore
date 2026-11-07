@@ -9,3 +9,12 @@ xcuserdata/
 *.xcuserstate
 *.p12
 *.provisionprofile
+参考项目/
+.playwright-mcp/
+.codex/
+ExportOptions.plist
+*.p8
+*.mobileprovision
+Config/Local.xcconfig
+script/private-terms.local
+script/history-mailmap.local

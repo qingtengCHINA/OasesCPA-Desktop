@@ -1,0 +1,30 @@
+# Allowlist for script/check-no-private.sh (vendored from the Server repo).
+#
+# Entry format, one per line:  <path glob><TAB><ERE><TAB><reason>
+#   - Every entry needs a reason; an entry without one makes the scanner exit 2.
+#   - The glob is matched against the repository-relative path with shell case rules
+#     (a "*" also matches "/"). Text on standard input (the commit gate) uses the path
+#     "<stdin>", so entries for fixtures use the glob "*" with a tight pattern.
+#   - The ERE (grep -E) must match text on the offending line that includes the finding,
+#     so an entry only silences the finding it names, not other findings on that line.
+#   - Add an entry only for a hit the scanner actually reports and that is verified to be
+#     a made-up value. Never add one to silence real private data.
+#   - Lines starting with "#" are comments.
+#
+# Public identities. They do not trigger any generic rule; they are recorded here so
+# that reviewers can see them (design section 11.13):
+#   qingtengCHINA
+#   QingTeng
+#   QingTeng Studio
+#   qingtengstudio.com
+#
+# The public commit identity (GitHub noreply address):
+*	qingtengCHINA@users\.noreply\.github\.com	公开提交身份（GitHub noreply），设计 §8.1
+#
+# Synthetic account addresses in the test fixtures. example.com is reserved for
+# documentation (RFC 2606); no mailbox exists there.
+*	[A-Za-z0-9._-]+@example\.com	Synthetic fixture addresses on the reserved example.com domain (RFC 2606), never real accounts
+#
+# Synthetic CPA client keys in Tests/OasesCPATests/RuntimeDecodingTests.swift: made-up
+# placeholders for decoding and patch tests; none was ever issued.
+*	sk-cpa-(12345678901234567890|replacement-value|oases-e2e-rotated-)	Synthetic sk-cpa-* fixture keys of the runtime decoding tests, never real credentials
