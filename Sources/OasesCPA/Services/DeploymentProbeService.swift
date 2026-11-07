@@ -142,8 +142,21 @@ struct DeploymentProbeService {
 
     private func runLocalProbe(installDirectory: String) async throws -> DeploymentProbe {
         let command = probeCommand(installDirectory: installDirectory)
-        let output = try await runProcess(executable: "/bin/zsh", arguments: ["-lc", command])
-        return parse(output, installDirectory: installDirectory)
+        do {
+            let output = try await BoundedProcessRunner.run(
+                executable: "/bin/zsh",
+                arguments: ["-lc", command],
+                timeout: 30
+            ).standardOutput
+            return parse(output, installDirectory: installDirectory)
+        } catch let error as BoundedProcessError {
+            throw DeploymentProbeError.commandFailed(
+                BoundedProcessRunner.userFacingMessage(
+                    for: error,
+                    fallback: OasesLocalization.localized("目标终端命令执行失败。")
+                )
+            )
+        }
     }
 
     private func runRemoteProbe(
@@ -158,8 +171,21 @@ struct DeploymentProbeService {
             port: port,
             privateKeyPath: privateKeyPath
         ) + ["\(user.isEmpty ? "root" : user)@\(host)", command]
-        let output = try await runProcess(executable: "/usr/bin/ssh", arguments: arguments)
-        return parse(output, installDirectory: installDirectory)
+        do {
+            let output = try await BoundedProcessRunner.run(
+                executable: "/usr/bin/ssh",
+                arguments: arguments,
+                timeout: 30
+            ).standardOutput
+            return parse(output, installDirectory: installDirectory)
+        } catch let error as BoundedProcessError {
+            throw DeploymentProbeError.commandFailed(
+                BoundedProcessRunner.userFacingMessage(
+                    for: error,
+                    fallback: OasesLocalization.localized("目标终端命令执行失败。")
+                )
+            )
+        }
     }
 
     func parseForVerification(_ output: String, installDirectory: String) -> DeploymentProbe {
@@ -248,37 +274,6 @@ struct DeploymentProbeService {
           printf 'managed_docker_runtime=no\\n'
         fi
         """
-    }
-
-    private func runProcess(executable: String, arguments: [String]) async throws -> String {
-        try await Task.detached(priority: .userInitiated) {
-            let process = Process()
-            let outputPipe = Pipe()
-            let errorPipe = Pipe()
-            process.executableURL = URL(fileURLWithPath: executable)
-            process.arguments = arguments
-            process.standardOutput = outputPipe
-            process.standardError = errorPipe
-
-            do {
-                try process.run()
-            } catch {
-                throw DeploymentProbeError.commandFailed(error.localizedDescription)
-            }
-
-            process.waitUntilExit()
-
-            let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            let errorOutput = String(data: errorPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-
-            guard process.terminationStatus == 0 else {
-                throw DeploymentProbeError.commandFailed(
-                    SSHConnectionService.userFacingError(errorOutput, fallback: OasesLocalization.localized("目标终端命令执行失败。"))
-                )
-            }
-
-            return output
-        }.value
     }
 
     private func parse(_ output: String, installDirectory: String) -> DeploymentProbe {

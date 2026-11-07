@@ -4,6 +4,8 @@
 " ] || { printf 'checksums.txt 中没有找到 %s。\n' " = " ] || { printf 'checksums.txt 中没有找到 %s。\n' ";
 " 个模型。" = " 个模型。";
 "%.1f 秒" = "%.1f 秒";
+"%@：%@ App 会继续尝试自动恢复。" = "%@：%@ App 会继续尝试自动恢复。";
+"%@：CLIProxyAPI、CPAMP 和连接通道已重新可用。" = "%@：CLIProxyAPI、CPAMP 和连接通道已重新可用。";
 "%@ 次请求" = "%@ 次请求";
 "失败 %@ 次" = "失败 %@ 次";
 "总 Token %@" = "总 Token %@";
@@ -220,8 +222,6 @@
 "\(source.source) 失败" = "\(source.source) 失败";
 "\(successCount) 把可用，\(indexes.count - successCount) 把需要处理。" = "\(successCount) 把可用，\(indexes.count - successCount) 把需要处理。";
 "\(successfulCount) 个可连接" = "\(successfulCount) 个可连接";
-"\(target)：CLIProxyAPI、CPAMP 和连接通道已重新可用。" = "\(target)：CLIProxyAPI、CPAMP 和连接通道已重新可用。";
-"\(target)：\(detail) App 会继续尝试自动恢复。" = "\(target)：\(detail) App 会继续尝试自动恢复。";
 "\(usageByModel.count) 个已调用" = "\(usageByModel.count) 个已调用";
 "\(visibleCandidates.count) 项符合当前筛选 · 数据来自 CPAMP Management API" = "\(visibleCandidates.count) 项符合当前筛选 · 数据来自 CPAMP Management API";
 "\(visibleResults.count) / \(detail.results.count) 项符合当前筛选" = "\(visibleResults.count) / \(detail.results.count) 项符合当前筛选";

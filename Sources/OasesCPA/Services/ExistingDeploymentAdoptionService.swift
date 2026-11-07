@@ -25,25 +25,36 @@ struct ExistingDeploymentAdoptionService {
         let script = credentialScript(installDirectory: request.installDirectory)
         let output: String
 
-        switch request.target {
-        case .local:
-            output = try await runProcess(
-                executable: "/bin/bash",
-                arguments: ["-s"],
-                standardInput: script
-            )
-        case .ssh:
-            let sshArguments = try SSHConnectionService.connectionArguments(
-                port: request.port,
-                privateKeyPath: request.privateKeyPath
-            )
-            output = try await runProcess(
-                executable: "/usr/bin/ssh",
-                arguments: sshArguments + [
-                    "\(request.user.isEmpty ? "root" : request.user)@\(request.host)",
-                    "bash -s"
-                ],
-                standardInput: script
+        do {
+            switch request.target {
+            case .local:
+                output = try await BoundedProcessRunner.run(
+                    executable: "/bin/bash",
+                    arguments: ["-s"],
+                    standardInput: script,
+                    timeout: 5 * 60
+                ).standardOutput
+            case .ssh:
+                let sshArguments = try SSHConnectionService.connectionArguments(
+                    port: request.port,
+                    privateKeyPath: request.privateKeyPath
+                )
+                output = try await BoundedProcessRunner.run(
+                    executable: "/usr/bin/ssh",
+                    arguments: sshArguments + [
+                        "\(request.user.isEmpty ? "root" : request.user)@\(request.host)",
+                        "bash -s"
+                    ],
+                    standardInput: script,
+                    timeout: 5 * 60
+                ).standardOutput
+            }
+        } catch let error as BoundedProcessError {
+            throw ExistingDeploymentAdoptionError.commandFailed(
+                BoundedProcessRunner.userFacingMessage(
+                    for: error,
+                    fallback: OasesLocalization.localized("无法读取现有 Oases CPA 部署凭据。")
+                )
             )
         }
 
@@ -140,51 +151,6 @@ struct ExistingDeploymentAdoptionService {
         emit_secret 'OASES_CPA_MANAGEMENT_KEY_B64' "$ROOT/secrets/cpa-management-key"
         emit_secret 'OASES_CPAMP_ADMIN_KEY_B64' "$ROOT/secrets/cpamp-admin-key"
         """
-    }
-
-    private func runProcess(
-        executable: String,
-        arguments: [String],
-        standardInput: String
-    ) async throws -> String {
-        try await Task.detached(priority: .userInitiated) {
-            let process = Process()
-            let outputPipe = Pipe()
-            let errorPipe = Pipe()
-            let inputPipe = Pipe()
-            process.executableURL = URL(fileURLWithPath: executable)
-            process.arguments = arguments
-            process.standardInput = inputPipe
-            process.standardOutput = outputPipe
-            process.standardError = errorPipe
-
-            do {
-                try process.run()
-                inputPipe.fileHandleForWriting.write(Data(standardInput.utf8))
-                inputPipe.fileHandleForWriting.closeFile()
-            } catch {
-                throw ExistingDeploymentAdoptionError.commandFailed(error.localizedDescription)
-            }
-
-            process.waitUntilExit()
-            let output = String(
-                data: outputPipe.fileHandleForReading.readDataToEndOfFile(),
-                encoding: .utf8
-            ) ?? ""
-            let errorOutput = String(
-                data: errorPipe.fileHandleForReading.readDataToEndOfFile(),
-                encoding: .utf8
-            ) ?? ""
-            guard process.terminationStatus == 0 else {
-                throw ExistingDeploymentAdoptionError.commandFailed(
-                    SSHConnectionService.userFacingError(
-                        errorOutput,
-                        fallback: OasesLocalization.localized("无法读取现有 Oases CPA 部署凭据。")
-                    )
-                )
-            }
-            return output
-        }.value
     }
 
     private func shellQuote(_ value: String) -> String {

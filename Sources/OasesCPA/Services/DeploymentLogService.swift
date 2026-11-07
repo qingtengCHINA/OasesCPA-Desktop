@@ -10,25 +10,36 @@ struct DeploymentLogService {
         let script = logScript(method: request.method, installDirectory: request.installDirectory)
         let output: String
 
-        switch request.target {
-        case .local:
-            output = try await runProcess(
-                executable: "/bin/bash",
-                arguments: ["-s"],
-                standardInput: script
-            )
-        case .ssh:
-            let sshArguments = try SSHConnectionService.connectionArguments(
-                port: request.port,
-                privateKeyPath: request.privateKeyPath
-            )
-            output = try await runProcess(
-                executable: "/usr/bin/ssh",
-                arguments: sshArguments + [
-                    "\(request.user)@\(request.host)",
-                    "bash -s"
-                ],
-                standardInput: script
+        do {
+            switch request.target {
+            case .local:
+                output = try await BoundedProcessRunner.run(
+                    executable: "/bin/bash",
+                    arguments: ["-s"],
+                    standardInput: script,
+                    timeout: 30
+                ).standardOutput
+            case .ssh:
+                let sshArguments = try SSHConnectionService.connectionArguments(
+                    port: request.port,
+                    privateKeyPath: request.privateKeyPath
+                )
+                output = try await BoundedProcessRunner.run(
+                    executable: "/usr/bin/ssh",
+                    arguments: sshArguments + [
+                        "\(request.user)@\(request.host)",
+                        "bash -s"
+                    ],
+                    standardInput: script,
+                    timeout: 30
+                ).standardOutput
+            }
+        } catch let error as BoundedProcessError {
+            throw DeploymentExecutionError.commandFailed(
+                BoundedProcessRunner.userFacingMessage(
+                    for: error,
+                    fallback: OasesLocalization.localized("读取目标日志失败。")
+                )
             )
         }
 
@@ -117,42 +128,6 @@ struct DeploymentLogService {
             fi
             """
         }
-    }
-
-    private func runProcess(
-        executable: String,
-        arguments: [String],
-        standardInput: String
-    ) async throws -> String {
-        try await Task.detached(priority: .utility) {
-            let process = Process()
-            let outputPipe = Pipe()
-            let errorPipe = Pipe()
-            let inputPipe = Pipe()
-            process.executableURL = URL(fileURLWithPath: executable)
-            process.arguments = arguments
-            process.standardInput = inputPipe
-            process.standardOutput = outputPipe
-            process.standardError = errorPipe
-
-            do {
-                try process.run()
-                inputPipe.fileHandleForWriting.write(Data(standardInput.utf8))
-                inputPipe.fileHandleForWriting.closeFile()
-            } catch {
-                throw DeploymentExecutionError.commandFailed(error.localizedDescription)
-            }
-
-            process.waitUntilExit()
-            let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            let errorOutput = String(data: errorPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            guard process.terminationStatus == 0 else {
-                throw DeploymentExecutionError.commandFailed(
-                    SSHConnectionService.userFacingError(errorOutput, fallback: OasesLocalization.localized("读取目标日志失败。"))
-                )
-            }
-            return output
-        }.value
     }
 
     private func shellQuote(_ value: String) -> String {

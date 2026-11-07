@@ -26,25 +26,36 @@ struct RuntimeLifecycleService {
         }
 
         let script = startScript(method: method, installDirectory: installDirectory)
-        switch target {
-        case .local:
-            _ = try await runProcess(
-                executable: "/bin/bash",
-                arguments: ["-s"],
-                standardInput: script
-            )
-        case .ssh:
-            let sshArguments = try SSHConnectionService.connectionArguments(
-                port: port,
-                privateKeyPath: privateKeyPath
-            )
-            _ = try await runProcess(
-                executable: "/usr/bin/ssh",
-                arguments: sshArguments + [
-                    "\(user.isEmpty ? "root" : user)@\(host)",
-                    "bash -s"
-                ],
-                standardInput: script
+        do {
+            switch target {
+            case .local:
+                _ = try await BoundedProcessRunner.run(
+                    executable: "/bin/bash",
+                    arguments: ["-s"],
+                    standardInput: script,
+                    timeout: 5 * 60
+                )
+            case .ssh:
+                let sshArguments = try SSHConnectionService.connectionArguments(
+                    port: port,
+                    privateKeyPath: privateKeyPath
+                )
+                _ = try await BoundedProcessRunner.run(
+                    executable: "/usr/bin/ssh",
+                    arguments: sshArguments + [
+                        "\(user.isEmpty ? "root" : user)@\(host)",
+                        "bash -s"
+                    ],
+                    standardInput: script,
+                    timeout: 5 * 60
+                )
+            }
+        } catch let error as BoundedProcessError {
+            throw DeploymentExecutionError.commandFailed(
+                BoundedProcessRunner.userFacingMessage(
+                    for: error,
+                    fallback: OasesLocalization.localized("生命周期命令执行失败。")
+                )
             )
         }
 
@@ -71,25 +82,36 @@ struct RuntimeLifecycleService {
         installDirectory: String
     ) async throws {
         let script = stopScript(method: method, installDirectory: installDirectory)
-        switch target {
-        case .local:
-            _ = try await runProcess(
-                executable: "/bin/bash",
-                arguments: ["-s"],
-                standardInput: script
-            )
-        case .ssh:
-            let sshArguments = try SSHConnectionService.connectionArguments(
-                port: port,
-                privateKeyPath: privateKeyPath
-            )
-            _ = try await runProcess(
-                executable: "/usr/bin/ssh",
-                arguments: sshArguments + [
-                    "\(user.isEmpty ? "root" : user)@\(host)",
-                    "bash -s"
-                ],
-                standardInput: script
+        do {
+            switch target {
+            case .local:
+                _ = try await BoundedProcessRunner.run(
+                    executable: "/bin/bash",
+                    arguments: ["-s"],
+                    standardInput: script,
+                    timeout: 5 * 60
+                )
+            case .ssh:
+                let sshArguments = try SSHConnectionService.connectionArguments(
+                    port: port,
+                    privateKeyPath: privateKeyPath
+                )
+                _ = try await BoundedProcessRunner.run(
+                    executable: "/usr/bin/ssh",
+                    arguments: sshArguments + [
+                        "\(user.isEmpty ? "root" : user)@\(host)",
+                        "bash -s"
+                    ],
+                    standardInput: script,
+                    timeout: 5 * 60
+                )
+            }
+        } catch let error as BoundedProcessError {
+            throw DeploymentExecutionError.commandFailed(
+                BoundedProcessRunner.userFacingMessage(
+                    for: error,
+                    fallback: OasesLocalization.localized("生命周期命令执行失败。")
+                )
             )
         }
     }
@@ -225,49 +247,20 @@ struct RuntimeLifecycleService {
                   *) expected_root="$ROOT" ;;
                 esac
                 if managed_process "$pid" "$expected_root"; then
-                  kill "$pid" >/dev/null 2>&1 || true
+                  kill -TERM "$pid" >/dev/null 2>&1 || true
+                  for _ in $(seq 1 25); do
+                    managed_process "$pid" "$expected_root" || break
+                    sleep 0.2
+                  done
+                  if managed_process "$pid" "$expected_root"; then
+                    kill -KILL "$pid" >/dev/null 2>&1 || true
+                  fi
                 fi
                 rm -f "$pid_file"
               fi
             done
             """
         }
-    }
-
-    private func runProcess(
-        executable: String,
-        arguments: [String],
-        standardInput: String
-    ) async throws -> String {
-        try await Task.detached(priority: .utility) {
-            let process = Process()
-            let outputPipe = Pipe()
-            let errorPipe = Pipe()
-            let inputPipe = Pipe()
-            process.executableURL = URL(fileURLWithPath: executable)
-            process.arguments = arguments
-            process.standardInput = inputPipe
-            process.standardOutput = outputPipe
-            process.standardError = errorPipe
-
-            do {
-                try process.run()
-                inputPipe.fileHandleForWriting.write(Data(standardInput.utf8))
-                inputPipe.fileHandleForWriting.closeFile()
-            } catch {
-                throw DeploymentExecutionError.commandFailed(error.localizedDescription)
-            }
-
-            process.waitUntilExit()
-            let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            let errorOutput = String(data: errorPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            guard process.terminationStatus == 0 else {
-                throw DeploymentExecutionError.commandFailed(
-                    SSHConnectionService.userFacingError(errorOutput, fallback: OasesLocalization.localized("生命周期命令执行失败。"))
-                )
-            }
-            return output
-        }.value
     }
 
     private func shellQuote(_ value: String) -> String {

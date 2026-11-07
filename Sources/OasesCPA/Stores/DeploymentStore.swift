@@ -37,13 +37,27 @@ final class TunnelProcessOwner: @unchecked Sendable {
 
 @MainActor
 final class DeploymentStore: ObservableObject {
-    @Published var targetKind: DeploymentTargetKind = .local
-    @Published var deploymentMethod: DeploymentMethod = .native
-    @Published var remoteHost = ""
-    @Published var remoteUser = "root"
-    @Published var remotePort = "22"
-    @Published var privateKeyPath = ""
-    @Published var installDirectory = "~/.oases-cpa"
+    @Published var targetKind: DeploymentTargetKind = .local {
+        didSet { enforceOperationSnapshot() }
+    }
+    @Published var deploymentMethod: DeploymentMethod = .native {
+        didSet { enforceOperationSnapshot() }
+    }
+    @Published var remoteHost = "" {
+        didSet { enforceOperationSnapshot() }
+    }
+    @Published var remoteUser = "root" {
+        didSet { enforceOperationSnapshot() }
+    }
+    @Published var remotePort = "22" {
+        didSet { enforceOperationSnapshot() }
+    }
+    @Published var privateKeyPath = "" {
+        didSet { enforceOperationSnapshot() }
+    }
+    @Published var installDirectory = "~/.oases-cpa" {
+        didSet { enforceOperationSnapshot() }
+    }
     @Published var stage: DeploymentStage = .idle
     @Published var steps = DeploymentPlanFactory.makeSteps(target: .local, method: .native)
     @Published var planPresented = false
@@ -75,6 +89,7 @@ final class DeploymentStore: ObservableObject {
     @Published private(set) var lastHealthCheckAt: Date?
     @Published private(set) var healthError: String?
     @Published private(set) var isAutoRecovering = false
+    @Published private(set) var pendingSSHHostKeyConfirmation: SSHHostKeyConfirmation?
     @Published var healthNotificationsEnabled = UserDefaults.standard.object(forKey: "oases.cpa.health-notifications") as? Bool ?? false
 
     private let tunnelProcessOwner = TunnelProcessOwner()
@@ -91,6 +106,30 @@ final class DeploymentStore: ObservableObject {
     private var deploymentTask: Task<Void, Never>?
     private var deploymentOperationID = UUID()
     private var deploymentControlToken: String?
+    private var pendingSSHHostKeyRetryAction: SSHHostKeyRetryAction?
+    private var activeOperationRequest: DeploymentExecutionRequest?
+
+#if DEBUG
+    func beginOperationSnapshotForTesting(_ request: DeploymentExecutionRequest) {
+        activeOperationRequest = request
+        isDeploying = true
+    }
+
+    func endOperationSnapshotForTesting() {
+        activeOperationRequest = nil
+        isDeploying = false
+    }
+
+    var operationRequestSnapshotForTesting: DeploymentExecutionRequest? {
+        activeOperationRequest
+    }
+#endif
+
+    private enum SSHHostKeyRetryAction {
+        case probe
+        case deploymentPlan
+        case reconnect
+    }
 
     deinit {
         healthMonitorTask?.cancel()
@@ -201,6 +240,7 @@ final class DeploymentStore: ObservableObject {
     }
 
     func selectTarget(_ kind: DeploymentTargetKind) {
+        guard !isDeploying, !isMaintaining, !isRemovingDeployment else { return }
         stopHealthMonitor()
         stopTunnel()
         targetKind = kind
@@ -231,7 +271,7 @@ final class DeploymentStore: ObservableObject {
     }
 
     func beginNewTarget() {
-        guard !isDeploying, !isMaintaining else { return }
+        guard !isDeploying, !isMaintaining, !isRemovingDeployment else { return }
         guard !profileIsInstalled || !wantsRunning else {
         statusMessage = OasesLocalization.localized("请先停止当前目标服务，再添加新的目标环境")
             return
@@ -268,7 +308,7 @@ final class DeploymentStore: ObservableObject {
 
     func selectSavedProfile(_ profileID: UUID) {
         guard profileID != activeProfileID else { return }
-        guard !isDeploying, !isMaintaining else { return }
+        guard !isDeploying, !isMaintaining, !isRemovingDeployment else { return }
         guard !profileIsInstalled || (!wantsRunning && stage != .attached) else {
         statusMessage = OasesLocalization.localized("请先停止当前目标服务，再切换到其他目标")
             return
@@ -314,6 +354,7 @@ final class DeploymentStore: ObservableObject {
     }
 
     func deleteSavedProfile(_ profileID: UUID) {
+        guard !isDeploying, !isMaintaining, !isRemovingDeployment else { return }
         guard let profile = savedProfiles.first(where: { $0.id == profileID }) else { return }
         guard !profile.isInstalled else {
         statusMessage = OasesLocalization.localized("已安装目标请使用“解除当前目标绑定”，避免留下未停止的服务")
@@ -333,12 +374,14 @@ final class DeploymentStore: ObservableObject {
     }
 
     func selectMethod(_ method: DeploymentMethod) {
+        guard !isDeploying, !isMaintaining, !isRemovingDeployment else { return }
         deploymentMethod = method
         steps = DeploymentPlanFactory.makeSteps(target: targetKind, method: method)
         invalidateProbe()
     }
 
     func preparePlan() {
+        guard !isDeploying, !isMaintaining, !isRemovingDeployment else { return }
         guard targetKind == .local || !remoteHost.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
         statusMessage = OasesLocalization.localized("先填写远程 VPS 主机名或 IP 地址")
             stage = .failed
@@ -373,6 +416,7 @@ final class DeploymentStore: ObservableObject {
     }
 
     func probeTarget() {
+        guard !isDeploying, !isMaintaining, !isRemovingDeployment else { return }
         if targetKind == .ssh, !ensureSSHKeyMaterial() {
             probeError = OasesLocalization.localized("SSH 私钥无法读取，请重新选择私钥文件")
             stage = .failed
@@ -384,6 +428,7 @@ final class DeploymentStore: ObservableObject {
         statusMessage = targetKind == .local ? OasesLocalization.localized("正在检测本机终端环境…") : OasesLocalization.localized("正在通过 SSH 检测远程终端环境…")
 
         let target = targetKind
+        let method = deploymentMethod
         let host = remoteHost
         let user = remoteUser
         let port = remotePort
@@ -394,6 +439,21 @@ final class DeploymentStore: ObservableObject {
 
         Task { [weak self] in
             do {
+                if target == .ssh {
+                    guard let store = self else { return }
+                    try await store.ensureSSHHostKeyTrust(
+                        for: DeploymentExecutionRequest(
+                            target: target,
+                            method: method,
+                            host: host,
+                            user: user.isEmpty ? "root" : user,
+                            port: port,
+                            privateKeyPath: keyPath,
+                            installDirectory: directory
+                        ),
+                        retryAction: .probe
+                    )
+                }
                 let result = try await DeploymentProbeService().probe(
                     target: target,
                     host: host,
@@ -425,11 +485,51 @@ final class DeploymentStore: ObservableObject {
             } catch {
                 guard let self, self.probeRequestID == requestID else { return }
                 self.isProbing = false
+                if self.isSSHHostKeyConfirmationRequired(error) {
+                    self.stage = .failed
+                    self.probeError = nil
+                    self.statusMessage = OasesLocalization.localized("请先确认 SSH 主机指纹，然后重新检测目标环境")
+                    return
+                }
                 self.stage = .failed
                 self.probeError = error.localizedDescription
                 self.statusMessage = OasesLocalization.localized("环境检测失败，请检查目标连接信息")
             }
         }
+    }
+
+    func confirmPendingSSHHostKey() {
+        guard let confirmation = pendingSSHHostKeyConfirmation else { return }
+        do {
+            try SSHConnectionService.confirmHostKey(confirmation)
+            let retryAction = pendingSSHHostKeyRetryAction
+            pendingSSHHostKeyConfirmation = nil
+            pendingSSHHostKeyRetryAction = nil
+            deploymentError = nil
+            statusMessage = OasesLocalization.localized("SSH 主机指纹已记录；正在继续之前的操作")
+
+            switch retryAction {
+            case .probe:
+                probeTarget()
+            case .deploymentPlan:
+                stage = .ready
+                planPresented = true
+            case .reconnect:
+                resumeServices()
+            case nil:
+                statusMessage = OasesLocalization.localized("SSH 主机指纹已记录；请重新执行之前的操作")
+            }
+        } catch {
+            deploymentError = error.localizedDescription
+            statusMessage = OasesLocalization.localized("SSH 主机指纹确认未完成；请重新核验")
+        }
+    }
+
+    func rejectPendingSSHHostKey() {
+        guard pendingSSHHostKeyConfirmation != nil else { return }
+        pendingSSHHostKeyConfirmation = nil
+        pendingSSHHostKeyRetryAction = nil
+        statusMessage = OasesLocalization.localized("已取消 SSH 主机指纹确认；连接未开始")
     }
 
     func acknowledgePlan() {
@@ -456,6 +556,7 @@ final class DeploymentStore: ObservableObject {
             privateKeyPath: privateKeyPath,
             installDirectory: installDirectory
         )
+        activeOperationRequest = request
 
         planPresented = false
         isDeploying = true
@@ -479,7 +580,19 @@ final class DeploymentStore: ObservableObject {
         deploymentControlToken = controlToken
         deploymentTask?.cancel()
         deploymentTask = Task { [weak self] in
+            defer {
+                if self?.deploymentOperationID == operationID {
+                    self?.activeOperationRequest = nil
+                }
+            }
             do {
+                if request.target == .ssh {
+                    guard let store = self else { return }
+                    try await store.ensureSSHHostKeyTrust(
+                        for: request,
+                        retryAction: .deploymentPlan
+                    )
+                }
                 let result = try await DeploymentExecutor().execute(
                     request: request,
                     controlToken: controlToken
@@ -493,7 +606,7 @@ final class DeploymentStore: ObservableObject {
                 if self.activeProfileID == nil {
                     self.activeProfileID = UUID()
                 }
-                self.saveActiveCredentials(
+                try self.saveActiveCredentials(
                     managementKey: result.cpaManagementKey,
                     adminKey: result.cpampAdminKey
                 )
@@ -505,7 +618,7 @@ final class DeploymentStore: ObservableObject {
                 self.saveProfile()
 
                 if request.target == .ssh {
-                    try await self.startTunnel()
+                    try await self.startTunnel(for: request)
                 }
                 try await RuntimeLifecycleService().waitForConnectionHealth(
                     cpaManagementKey: result.cpaManagementKey
@@ -545,6 +658,13 @@ final class DeploymentStore: ObservableObject {
                 self.isDeploymentPaused = false
                 self.deploymentControlToken = nil
                 self.deploymentTask = nil
+                if self.isSSHHostKeyConfirmationRequired(error) {
+                    self.stage = .ready
+                    self.planPresented = true
+                    self.deploymentError = nil
+                    self.statusMessage = OasesLocalization.localized("请先确认 SSH 主机指纹，然后重新确认部署")
+                    return
+                }
                 self.stage = .failed
                 self.deploymentError = error.localizedDescription
                 self.statusMessage = OasesLocalization.localized("部署失败，请查看目标目录中的日志")
@@ -603,6 +723,10 @@ final class DeploymentStore: ObservableObject {
 
         Task { [weak self] in
             do {
+                if request.target == .ssh {
+                    guard let store = self else { return }
+                    try await store.ensureSSHHostKeyTrust(for: request, retryAction: nil)
+                }
                 try await DeploymentControlService().perform(
                     action: action,
                     request: request,
@@ -650,6 +774,7 @@ final class DeploymentStore: ObservableObject {
             guard let self else { return }
             var cancellationCompleted = false
             do {
+                try await self.ensureSSHHostKeyTrust(for: request, retryAction: nil)
                 if let controlToken, self.stage == .installing {
                     do {
                         try await DeploymentControlService().perform(
@@ -723,6 +848,7 @@ final class DeploymentStore: ObservableObject {
         }
 
         let request = currentExecutionRequest
+        activeOperationRequest = request
         stopHealthMonitor()
         wantsRunning = false
         setWantsRunningPreference(false)
@@ -732,7 +858,12 @@ final class DeploymentStore: ObservableObject {
         statusMessage = OasesLocalization.localized("正在停止服务并彻底删除部署目录…")
 
         Task { [weak self] in
+            defer { self?.activeOperationRequest = nil }
             do {
+                if request.target == .ssh {
+                    guard let store = self else { return }
+                    try await store.ensureSSHHostKeyTrust(for: request, retryAction: nil)
+                }
                 try await DeploymentRemovalService().uninstall(request: request)
                 self?.finishFullRemoval()
             } catch {
@@ -747,6 +878,7 @@ final class DeploymentStore: ObservableObject {
     }
 
     private func finishCancelledDeployment() {
+        activeOperationRequest = nil
         isDeploying = false
         isDeploymentPaused = false
         isControllingDeployment = false
@@ -763,6 +895,7 @@ final class DeploymentStore: ObservableObject {
     }
 
     private func finishFullRemoval() {
+        activeOperationRequest = nil
         let removedProfileID = activeProfileID
         stopTunnel()
         stopHealthMonitor()
@@ -821,6 +954,10 @@ final class DeploymentStore: ObservableObject {
 
         Task { [weak self] in
             do {
+                if request.target == .ssh {
+                    guard let store = self else { return }
+                    try await store.ensureSSHHostKeyTrust(for: request, retryAction: nil)
+                }
                 let snapshot = try await DeploymentLogService().read(request: request)
                 guard let self, self.logRequestID == requestID else { return }
                 self.deploymentLog = snapshot.text
@@ -844,13 +981,19 @@ final class DeploymentStore: ObservableObject {
 
         let request = currentExecutionRequest
         let backupName = "failed-\(Int(Date().timeIntervalSince1970))-\(String(UUID().uuidString.prefix(8)).lowercased())"
+        activeOperationRequest = request
         isDeploying = true
         deploymentError = nil
         stage = .installing
         statusMessage = OasesLocalization.localized("正在停止并备份失败部署…")
 
         Task { [weak self] in
+            defer { self?.activeOperationRequest = nil }
             do {
+                if request.target == .ssh {
+                    guard let store = self else { return }
+                    try await store.ensureSSHHostKeyTrust(for: request, retryAction: nil)
+                }
                 let result = try await DeploymentRecoveryService().cleanupFailedDeployment(
                     request: request,
                     backupName: backupName
@@ -884,7 +1027,7 @@ final class DeploymentStore: ObservableObject {
     }
 
     func refreshLatestMaintenanceBackup() {
-        guard profileIsInstalled, !isMaintaining else { return }
+        guard profileIsInstalled, !isDeploying, !isMaintaining, !isRemovingDeployment else { return }
         if targetKind == .ssh, !ensureSSHKeyMaterial() { return }
 
         let request = currentExecutionRequest
@@ -893,6 +1036,10 @@ final class DeploymentStore: ObservableObject {
 
         Task { [weak self] in
             do {
+                if request.target == .ssh {
+                    guard let store = self else { return }
+                    try await store.ensureSSHHostKeyTrust(for: request, retryAction: nil)
+                }
                 let backup = try await DeploymentMaintenanceService().latestBackup(request: request)
                 guard let self, self.maintenanceRequestID == requestID else { return }
                 self.latestMaintenanceBackup = backup
@@ -924,6 +1071,7 @@ final class DeploymentStore: ObservableObject {
         }
 
         let request = currentExecutionRequest
+        activeOperationRequest = request
         stopHealthMonitor()
         isMaintaining = true
         maintenanceError = nil
@@ -933,7 +1081,12 @@ final class DeploymentStore: ObservableObject {
         statusMessage = action == .upgrade ? OasesLocalization.localized("正在下载并切换到最新运行时…") : OasesLocalization.localized("正在恢复上一版运行时…")
 
         Task { [weak self] in
+            defer { self?.activeOperationRequest = nil }
             do {
+                if request.target == .ssh {
+                    guard let store = self else { return }
+                    try await store.ensureSSHHostKeyTrust(for: request, retryAction: nil)
+                }
                 let service = DeploymentMaintenanceService()
                 let result: DeploymentMaintenanceResult
                 switch action {
@@ -945,10 +1098,11 @@ final class DeploymentStore: ObservableObject {
 
                 guard let self else { return }
                 if request.target == .ssh {
-                    try await self.startTunnel()
+                    try await self.startTunnel(for: request)
                 }
+                let managementKey = self.managementKey
                 try await RuntimeLifecycleService().waitForConnectionHealth(
-                    cpaManagementKey: self.managementKey
+                    cpaManagementKey: managementKey
                 )
                 self.isMaintaining = false
                 self.stage = .attached
@@ -965,6 +1119,10 @@ final class DeploymentStore: ObservableObject {
                 self.stage = .failed
                 self.setHealthState(.degraded, error: error.localizedDescription)
                 self.maintenanceError = error.localizedDescription
+                if self.isSSHHostKeyConfirmationRequired(error) {
+                    self.statusMessage = OasesLocalization.localized("请先确认 SSH 主机指纹，然后重新执行维护操作")
+                    return
+                }
                 self.statusMessage = "\(action.title)失败；App 已尝试恢复原运行时，请查看目标日志"
                 self.refreshDeploymentLog()
                 self.startHealthMonitor()
@@ -975,7 +1133,7 @@ final class DeploymentStore: ObservableObject {
     var hasInstalledDeployment: Bool { profileIsInstalled }
 
     func stopServices() {
-        guard profileIsInstalled, !isDeploying else { return }
+        guard profileIsInstalled, !isDeploying, !isMaintaining, !isRemovingDeployment else { return }
         if targetKind == .ssh, !ensureSSHKeyMaterial() {
             deploymentError = OasesLocalization.localized("SSH 私钥无法读取，请重新导入后再停止服务")
             stage = .failed
@@ -993,9 +1151,24 @@ final class DeploymentStore: ObservableObject {
         let port = remotePort
         let keyPath = privateKeyPath
         let root = installDirectory
+        let request = DeploymentExecutionRequest(
+            target: target,
+            method: method,
+            host: host,
+            user: user.isEmpty ? "root" : user,
+            port: port,
+            privateKeyPath: keyPath,
+            installDirectory: root
+        )
+        activeOperationRequest = request
 
         Task { [weak self] in
+            defer { self?.activeOperationRequest = nil }
             do {
+                if target == .ssh {
+                    guard let store = self else { return }
+                    try await store.ensureSSHHostKeyTrust(for: request, retryAction: nil)
+                }
                 try await RuntimeLifecycleService().stop(
                     target: target,
                     method: method,
@@ -1011,6 +1184,15 @@ final class DeploymentStore: ObservableObject {
                 self?.resetHealthState()
                 self?.statusMessage = OasesLocalization.localized("服务已停止；部署文件和凭据已保留")
         } catch {
+                if let self, self.isSSHHostKeyConfirmationRequired(error) {
+                    self.stopTunnel()
+                    self.isDeploying = false
+                    self.stage = .failed
+                    self.setHealthState(.degraded, error: error.localizedDescription)
+                    self.deploymentError = error.localizedDescription
+                    self.statusMessage = OasesLocalization.localized("请先确认 SSH 主机指纹，然后重新停止服务")
+                    return
+                }
                 self?.stopTunnel()
                 self?.isDeploying = false
                 self?.stage = .failed
@@ -1023,7 +1205,7 @@ final class DeploymentStore: ObservableObject {
     }
 
     func forgetCurrentDeployment() {
-        guard profileIsInstalled, !isDeploying else { return }
+        guard profileIsInstalled, !isDeploying, !isMaintaining, !isRemovingDeployment else { return }
         if targetKind == .ssh, !ensureSSHKeyMaterial() {
             deploymentError = OasesLocalization.localized("SSH 私钥无法读取，无法安全停止并解除远程目标绑定")
             stage = .failed
@@ -1032,6 +1214,7 @@ final class DeploymentStore: ObservableObject {
 
         let request = currentExecutionRequest
         let shouldStop = stage == .attached || wantsRunning
+        activeOperationRequest = request
         stopHealthMonitor()
         wantsRunning = false
         setWantsRunningPreference(false)
@@ -1040,7 +1223,12 @@ final class DeploymentStore: ObservableObject {
         statusMessage = shouldStop ? OasesLocalization.localized("正在停止服务并解除当前目标绑定…") : OasesLocalization.localized("正在解除当前目标绑定…")
 
         Task { [weak self] in
+            defer { self?.activeOperationRequest = nil }
             do {
+                if request.target == .ssh {
+                    guard let store = self else { return }
+                    try await store.ensureSSHHostKeyTrust(for: request, retryAction: nil)
+                }
                 if shouldStop {
                     try await RuntimeLifecycleService().stop(
                         target: request.target,
@@ -1091,7 +1279,7 @@ final class DeploymentStore: ObservableObject {
     }
 
     func resumeServices() {
-        guard profileIsInstalled, !isDeploying else { return }
+        guard profileIsInstalled, !isDeploying, !isMaintaining, !isRemovingDeployment else { return }
         if managementKey.isEmpty {
             do {
                 try loadActiveCredentials()
@@ -1123,17 +1311,23 @@ final class DeploymentStore: ObservableObject {
         }
     }
 
-    private func startTunnel() async throws {
+    private func startTunnel(for request: DeploymentExecutionRequest) async throws {
+        try await ensureSSHHostKeyTrust(
+            for: request,
+            retryAction: .reconnect
+        )
         stopTunnel()
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = try SSHConnectionService.tunnelArguments(
-            host: remoteHost,
-            user: remoteUser,
-            port: remotePort,
-            privateKeyPath: privateKeyPath
+        let arguments = try SSHConnectionService.tunnelArguments(
+            host: request.host,
+            user: request.user,
+            port: request.port,
+            privateKeyPath: request.privateKeyPath
         )
+        try SSHConnectionService.verifyKnownHostsFileForConnection()
+        process.arguments = arguments
         let nullDevice = FileHandle(forWritingAtPath: "/dev/null")
         process.standardOutput = nullDevice
         process.standardError = nullDevice
@@ -1156,6 +1350,7 @@ final class DeploymentStore: ObservableObject {
     }
 
     func importSSHKey(from url: URL) {
+        guard activeOperationRequest == nil else { return }
         do {
             if activeProfileID == nil {
                 activeProfileID = UUID()
@@ -1182,6 +1377,42 @@ final class DeploymentStore: ObservableObject {
         return FileManager.default.isReadableFile(atPath: privateKeyPath)
     }
 
+    private func ensureSSHHostKeyTrust(
+        for request: DeploymentExecutionRequest,
+        retryAction: SSHHostKeyRetryAction?
+    ) async throws {
+        guard request.target == .ssh else { return }
+        if let pendingSSHHostKeyConfirmation {
+            if pendingSSHHostKeyRetryAction == nil {
+                pendingSSHHostKeyRetryAction = retryAction
+            }
+            throw SSHConnectionError.hostKeyConfirmationRequired(pendingSSHHostKeyConfirmation)
+        }
+
+        let host = request.host
+        let port = request.port
+        let inspection = try await Task.detached(priority: .userInitiated) {
+            try SSHConnectionService.inspectHostKey(host: host, port: port)
+        }.value
+
+        switch inspection {
+        case .trusted:
+            return
+        case .needsConfirmation(let confirmation):
+            pendingSSHHostKeyConfirmation = confirmation
+            pendingSSHHostKeyRetryAction = retryAction
+            throw SSHConnectionError.hostKeyConfirmationRequired(confirmation)
+        }
+    }
+
+    private func isSSHHostKeyConfirmationRequired(_ error: Error) -> Bool {
+        if let sshError = error as? SSHConnectionError,
+           case .hostKeyConfirmationRequired = sshError {
+            return true
+        }
+        return false
+    }
+
     private func bindPersistence() {
         $targetKind.dropFirst().sink { [weak self] _ in self?.configurationDidChange() }.store(in: &cancellables)
         $deploymentMethod.dropFirst().sink { [weak self] _ in self?.configurationDidChange() }.store(in: &cancellables)
@@ -1206,11 +1437,35 @@ final class DeploymentStore: ObservableObject {
         return nil
     }
 
+    private func enforceOperationSnapshot() {
+        guard !isApplyingProfileConfiguration,
+              let activeOperationRequest else { return }
+        restoreConfiguration(from: activeOperationRequest)
+    }
+
     private func configurationDidChange() {
         guard !isApplyingProfileConfiguration else { return }
+        if let activeOperationRequest {
+            restoreConfiguration(from: activeOperationRequest)
+            return
+        }
+        pendingSSHHostKeyConfirmation = nil
+        pendingSSHHostKeyRetryAction = nil
         invalidateProbe()
         invalidateDeploymentLog()
         saveProfile()
+    }
+
+    private func restoreConfiguration(from request: DeploymentExecutionRequest) {
+        isApplyingProfileConfiguration = true
+        defer { isApplyingProfileConfiguration = false }
+        targetKind = request.target
+        deploymentMethod = request.method
+        remoteHost = request.host
+        remoteUser = request.user
+        remotePort = request.port
+        privateKeyPath = request.privateKeyPath
+        installDirectory = request.installDirectory
     }
 
     private func invalidateProbe() {
@@ -1274,6 +1529,7 @@ final class DeploymentStore: ObservableObject {
 
     private func adoptExistingDeployment(request: DeploymentExecutionRequest, requestID: UUID) {
         guard !isDeploying else { return }
+        activeOperationRequest = request
         isDeploying = true
         deploymentError = nil
         planPresented = false
@@ -1282,12 +1538,14 @@ final class DeploymentStore: ObservableObject {
 
         Task { [weak self] in
             guard let self else { return }
+            defer { self.activeOperationRequest = nil }
             do {
+                try await self.ensureSSHHostKeyTrust(for: request, retryAction: .probe)
                 let credentials = try await ExistingDeploymentAdoptionService().readCredentials(request: request)
                 guard self.probeRequestID == requestID else { return }
 
                 if request.target == .ssh {
-                    try await self.startTunnel()
+                    try await self.startTunnel(for: request)
                 }
                 try await RuntimeLifecycleService().ensureRunning(
                     target: request.target,
@@ -1307,7 +1565,7 @@ final class DeploymentStore: ObservableObject {
                 if self.activeProfileID == nil {
                     self.activeProfileID = UUID()
                 }
-                self.saveActiveCredentials(
+                try self.saveActiveCredentials(
                     managementKey: credentials.cpaManagementKey,
                     adminKey: credentials.cpampAdminKey
                 )
@@ -1336,6 +1594,10 @@ final class DeploymentStore: ObservableObject {
                 self.stage = .failed
                 self.setHealthState(.degraded, error: error.localizedDescription)
                 self.deploymentError = error.localizedDescription
+                if self.isSSHHostKeyConfirmationRequired(error) {
+                    self.statusMessage = OasesLocalization.localized("请先确认 SSH 主机指纹，然后重新接管目标")
+                    return
+                }
                 self.statusMessage = OasesLocalization.localized("发现现有部署，但自动接管失败；部署文件未被修改。")
                 self.refreshDeploymentLog()
             }
@@ -1369,12 +1631,15 @@ final class DeploymentStore: ObservableObject {
         hasLoadedSavedCredentials = true
     }
 
-    private func saveActiveCredentials(managementKey: String, adminKey: String) {
+    private func saveActiveCredentials(managementKey: String, adminKey: String) throws {
         self.managementKey = managementKey
         self.cpampAdminKey = adminKey
         hasLoadedSavedCredentials = true
-        try? KeychainStore.save(managementKey, account: credentialAccount("cpa-management-key"))
-        try? KeychainStore.save(adminKey, account: credentialAccount("cpamp-admin-key"))
+        // Propagate Keychain write failures instead of `try?` so callers'
+        // existing catch blocks can surface `deploymentError` to the user
+        // rather than silently proceeding as if credentials were persisted.
+        try KeychainStore.save(managementKey, account: credentialAccount("cpa-management-key"))
+        try KeychainStore.save(adminKey, account: credentialAccount("cpamp-admin-key"))
     }
 
     private func deleteActiveCredentials() {
@@ -1476,13 +1741,15 @@ final class DeploymentStore: ObservableObject {
     }
 
     private func performHealthCheck() async {
-        guard profileIsInstalled, wantsRunning, !isDeploying, !isMaintaining else { return }
+        guard profileIsInstalled, wantsRunning, !isDeploying, !isMaintaining, !isRemovingDeployment else { return }
         guard !managementKey.isEmpty else {
             setHealthState(.degraded, error: OasesLocalization.localized("缺少 CLIProxyAPI 管理密钥，无法进行后台健康检查。"))
             return
         }
 
         setHealthState(.checking)
+        let request = currentExecutionRequest
+        let managementKey = self.managementKey
         let isHealthy = await RuntimeLifecycleService().checkConnectionHealth(
             cpaManagementKey: managementKey
         )
@@ -1500,14 +1767,18 @@ final class DeploymentStore: ObservableObject {
         }
 
         setHealthState(.degraded, error: OasesLocalization.localized("CLIProxyAPI 或 CPAMP 健康检查未通过。"))
-        await attemptAutomaticRecovery()
+        await attemptAutomaticRecovery(for: request, managementKey: managementKey)
     }
 
-    private func attemptAutomaticRecovery() async {
+    private func attemptAutomaticRecovery(
+        for request: DeploymentExecutionRequest,
+        managementKey: String
+    ) async {
         guard profileIsInstalled,
               wantsRunning,
               !isDeploying,
               !isMaintaining,
+              !isRemovingDeployment,
               !managementKey.isEmpty,
               !Task.isCancelled else { return }
 
@@ -1518,17 +1789,17 @@ final class DeploymentStore: ObservableObject {
         defer { isAutoRecovering = false }
 
         do {
-            if targetKind == .ssh {
-                try await startTunnel()
+            if request.target == .ssh {
+                try await startTunnel(for: request)
             }
             try await RuntimeLifecycleService().ensureRunning(
-                target: targetKind,
-                method: deploymentMethod,
-                host: remoteHost,
-                user: remoteUser,
-                port: remotePort,
-                privateKeyPath: privateKeyPath,
-                installDirectory: installDirectory,
+                target: request.target,
+                method: request.method,
+                host: request.host,
+                user: request.user,
+                port: request.port,
+                privateKeyPath: request.privateKeyPath,
+                installDirectory: request.installDirectory,
                 cpaManagementKey: managementKey
             )
             guard !Task.isCancelled, profileIsInstalled, wantsRunning else { return }
@@ -1537,7 +1808,7 @@ final class DeploymentStore: ObservableObject {
             setHealthState(.healthy)
             deploymentError = nil
             lastHealthCheckAt = Date()
-            statusMessage = targetKind == .local ? OasesLocalization.localized("本机服务已自动恢复") : OasesLocalization.localized("SSH 隧道与远程服务已自动恢复")
+            statusMessage = request.target == .local ? OasesLocalization.localized("本机服务已自动恢复") : OasesLocalization.localized("SSH 隧道与远程服务已自动恢复")
         } catch {
             guard !Task.isCancelled, profileIsInstalled, wantsRunning else { return }
             stopTunnel()
@@ -1550,23 +1821,25 @@ final class DeploymentStore: ObservableObject {
 
     private func restoreConnection() async {
         guard profileIsInstalled, wantsRunning else { return }
+        let request = currentExecutionRequest
+        let managementKey = self.managementKey
         setHealthState(.checking)
         do {
-            if targetKind == .ssh {
-                try await startTunnel()
+            if request.target == .ssh {
+                try await startTunnel(for: request)
             }
             guard !managementKey.isEmpty else {
                 throw DeploymentExecutionError.missingResult
             }
             let runtime = RuntimeLifecycleService()
             try await runtime.ensureRunning(
-                target: targetKind,
-                method: deploymentMethod,
-                host: remoteHost,
-                user: remoteUser,
-                port: remotePort,
-                privateKeyPath: privateKeyPath,
-                installDirectory: installDirectory,
+                target: request.target,
+                method: request.method,
+                host: request.host,
+                user: request.user,
+                port: request.port,
+                privateKeyPath: request.privateKeyPath,
+                installDirectory: request.installDirectory,
                 cpaManagementKey: managementKey
             )
             guard !Task.isCancelled, profileIsInstalled, wantsRunning else {
@@ -1576,7 +1849,7 @@ final class DeploymentStore: ObservableObject {
             stage = .attached
             setHealthState(.healthy)
             lastHealthCheckAt = Date()
-        statusMessage = targetKind == .local ? OasesLocalization.localized("已恢复本机服务连接") : OasesLocalization.localized("已恢复 SSH 隧道与远程服务连接")
+        statusMessage = request.target == .local ? OasesLocalization.localized("已恢复本机服务连接") : OasesLocalization.localized("已恢复 SSH 隧道与远程服务连接")
             steps = steps.map { step in
                 var updated = step
                 updated.status = .complete

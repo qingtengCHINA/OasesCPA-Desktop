@@ -4,6 +4,8 @@
 " ] || { printf 'checksums.txt 中没有找到 %s。\n' " = "] || { printf '%s not found in checksums.txt. \n'";
 " 个模型。" = "model.";
 "%.1f 秒" = "%.1f seconds";
+"%@：%@ App 会继续尝试自动恢复。" = "%@: %@ The app will continue to attempt automatic recovery.";
+"%@：CLIProxyAPI、CPAMP 和连接通道已重新可用。" = "%@: CLIProxyAPI, CPAMP, and connection channels are available again.";
 "%@ 次请求" = "%@ requests";
 "失败 %@ 次" = "%@ failed";
 "总 Token %@" = "Total Tokens %@";
@@ -13,8 +15,6 @@
 "(excludedModelCount) 个模型不会对外暴露" = "(excludedModelCount) models will not be exposed";
 "(excludedModelCount) 个模型排除 · (aliasCount) 条模型别名" = "(excludedModelCount) model exclusions · (aliasCount) model aliases";
 "(normalizedExcludedModels.count) 个模型" = "(normalizedExcludedModels.count) models";
-"(target)：(detail) App 会继续尝试自动恢复。" = "(target): (detail) The app will continue to attempt automatic recovery.";
-"(target)：CLIProxyAPI、CPAMP 和连接通道已重新可用。" = "(target): CLIProxyAPI, CPAMP, and connection channels are available again.";
 ") \(entry.displayTitle) 失败：\(error.localizedDescription)" = ") \(entry.displayTitle) failed: \(error.localizedDescription)";
 ") 凭证池中移除此条目，无法自动恢复。" = ") This entry is removed from the credential pool and cannot be automatically restored.";
 ") 凭证？" = ") Credentials?";

@@ -24,7 +24,7 @@ final class HealthNotificationService: NSObject, UNUserNotificationCenterDelegat
         guard await isAuthorized() else { return }
         let content = UNMutableNotificationContent()
         content.title = OasesLocalization.localized("Oases CPA：目标服务不可用")
-        content.body = "\(target)：\(detail) App 会继续尝试自动恢复。"
+        content.body = OasesLocalization.localizedFormat("%@：%@ App 会继续尝试自动恢复。", target, detail)
         content.sound = .default
         await add(content: content, identifier: "oases-cpa-health-degraded")
     }
@@ -33,7 +33,7 @@ final class HealthNotificationService: NSObject, UNUserNotificationCenterDelegat
         guard await isAuthorized() else { return }
         let content = UNMutableNotificationContent()
         content.title = OasesLocalization.localized("Oases CPA：目标服务已恢复")
-        content.body = "\(target)：CLIProxyAPI、CPAMP 和连接通道已重新可用。"
+        content.body = OasesLocalization.localizedFormat("%@：CLIProxyAPI、CPAMP 和连接通道已重新可用。", target)
         content.sound = .default
         await add(content: content, identifier: "oases-cpa-health-recovered")
     }

@@ -14,25 +14,36 @@ struct DeploymentRecoveryService {
             installDirectory: request.installDirectory,
             backupName: backupName
         )
-        switch request.target {
-        case .local:
-            _ = try await runProcess(
-                executable: "/bin/bash",
-                arguments: ["-s"],
-                standardInput: script
-            )
-        case .ssh:
-            let sshArguments = try SSHConnectionService.connectionArguments(
-                port: request.port,
-                privateKeyPath: request.privateKeyPath
-            )
-            _ = try await runProcess(
-                executable: "/usr/bin/ssh",
-                arguments: sshArguments + [
-                    "\(request.user)@\(request.host)",
-                    "bash -s"
-                ],
-                standardInput: script
+        do {
+            switch request.target {
+            case .local:
+                _ = try await BoundedProcessRunner.run(
+                    executable: "/bin/bash",
+                    arguments: ["-s"],
+                    standardInput: script,
+                    timeout: 5 * 60
+                )
+            case .ssh:
+                let sshArguments = try SSHConnectionService.connectionArguments(
+                    port: request.port,
+                    privateKeyPath: request.privateKeyPath
+                )
+                _ = try await BoundedProcessRunner.run(
+                    executable: "/usr/bin/ssh",
+                    arguments: sshArguments + [
+                        "\(request.user)@\(request.host)",
+                        "bash -s"
+                    ],
+                    standardInput: script,
+                    timeout: 5 * 60
+                )
+            }
+        } catch let error as BoundedProcessError {
+            throw DeploymentExecutionError.commandFailed(
+                BoundedProcessRunner.userFacingMessage(
+                    for: error,
+                    fallback: OasesLocalization.localized("清理失败部署失败。")
+                )
             )
         }
         return DeploymentRecoveryResult(backupName: backupName)
@@ -94,7 +105,14 @@ struct DeploymentRecoveryService {
                   *) expected_root="$ROOT" ;;
                 esac
                 if managed_process "$pid" "$expected_root"; then
-                  kill "$pid" >/dev/null 2>&1 || true
+                  kill -TERM "$pid" >/dev/null 2>&1 || true
+                  for _ in $(seq 1 25); do
+                    managed_process "$pid" "$expected_root" || break
+                    sleep 0.2
+                  done
+                  if managed_process "$pid" "$expected_root"; then
+                    kill -KILL "$pid" >/dev/null 2>&1 || true
+                  fi
                 fi
               fi
             done
@@ -165,42 +183,6 @@ struct DeploymentRecoveryService {
             printf 'OASES_CPA_BACKUP=%s\n' "$BACKUP_ROOT"
             """
         }
-    }
-
-    private func runProcess(
-        executable: String,
-        arguments: [String],
-        standardInput: String
-    ) async throws -> String {
-        try await Task.detached(priority: .userInitiated) {
-            let process = Process()
-            let outputPipe = Pipe()
-            let errorPipe = Pipe()
-            let inputPipe = Pipe()
-            process.executableURL = URL(fileURLWithPath: executable)
-            process.arguments = arguments
-            process.standardInput = inputPipe
-            process.standardOutput = outputPipe
-            process.standardError = errorPipe
-
-            do {
-                try process.run()
-                inputPipe.fileHandleForWriting.write(Data(standardInput.utf8))
-                inputPipe.fileHandleForWriting.closeFile()
-            } catch {
-                throw DeploymentExecutionError.commandFailed(error.localizedDescription)
-            }
-
-            process.waitUntilExit()
-            let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            let errorOutput = String(data: errorPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            guard process.terminationStatus == 0 else {
-                throw DeploymentExecutionError.commandFailed(
-                    SSHConnectionService.userFacingError(errorOutput, fallback: OasesLocalization.localized("清理失败部署失败。"))
-                )
-            }
-            return output
-        }.value
     }
 
     private func shellQuote(_ value: String) -> String {

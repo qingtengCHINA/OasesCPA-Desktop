@@ -960,7 +960,8 @@ final class RuntimeDecodingTests: XCTestCase {
         let native = lifecycle.stopScriptForVerification(method: .native, installDirectory: "~/.oases-cpa")
         let docker = lifecycle.stopScriptForVerification(method: .docker, installDirectory: "~/.oases-cpa")
 
-        XCTAssertTrue(native.contains("kill \"$pid\""))
+        XCTAssertTrue(native.contains("kill -TERM \"$pid\""))
+        XCTAssertTrue(native.contains("kill -KILL \"$pid\""))
         XCTAssertTrue(native.contains("ps -p \"$pid\" -o command="))
         XCTAssertTrue(native.contains("expected_root=\"$ROOT/cli-proxy-api\""))
         XCTAssertTrue(native.contains("rm -f \"$pid_file\""))
@@ -974,6 +975,8 @@ final class RuntimeDecodingTests: XCTestCase {
             backupName: "failed-test"
         )
         XCTAssertTrue(recovery.contains("managed_process()"))
+        XCTAssertTrue(recovery.contains("kill -TERM \"$pid\""))
+        XCTAssertTrue(recovery.contains("kill -KILL \"$pid\""))
         XCTAssertTrue(recovery.contains("ps -p \"$pid\" -o command="))
         XCTAssertTrue(recovery.contains("expected_root=\"$ROOT/cli-proxy-api\""))
     }

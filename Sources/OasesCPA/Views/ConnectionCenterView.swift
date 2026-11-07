@@ -87,6 +87,7 @@ struct ConnectionCenterView: View {
         } message: {
             Text("后续执行器会在你选择的目标终端中运行下载、配置和启动命令。已有配置不会被静默覆盖。")
         }
+        .modifier(SSHHostKeyConfirmationDialog(deploymentStore: deploymentStore))
         .confirmationDialog(
             "停止目标环境服务？",
             isPresented: $confirmStop,
@@ -353,7 +354,7 @@ struct ConnectionCenterView: View {
                 } label: {
                     Label(LocalizedStringKey(primaryActionTitle), systemImage: primaryActionImage)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.oasesPrimary)
                 .controlSize(.large)
                 .disabled(primaryActionDisabled)
 
@@ -367,7 +368,7 @@ struct ConnectionCenterView: View {
                     Button("继续", systemImage: "play.fill") {
                         deploymentStore.resumeDeployment()
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.oasesPrimary)
                     .controlSize(.large)
                 }
 
@@ -892,7 +893,7 @@ struct ConnectionCenterView: View {
                 Button("升级运行时", systemImage: "arrow.down.circle") {
                     confirmUpgrade = true
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.oasesPrimary)
                 .controlSize(.large)
                 .disabled(deploymentStore.isDeploying || deploymentStore.isMaintaining)
 
@@ -926,7 +927,7 @@ struct TargetOptionCard: View {
                 .font(.title2)
                 .foregroundStyle(isSelected ? Color.oasesBlue : Color.secondary)
                 .frame(width: 42, height: 42)
-                .background((isSelected ? Color.oasesBlue : Color.secondary).opacity(0.11), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(LocalizedStringKey(kind.title))
@@ -943,7 +944,7 @@ struct TargetOptionCard: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Oases.Color.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(isSelected ? Color.oasesBlue.opacity(0.58) : Color.primary.opacity(0.08), lineWidth: isSelected ? 1.5 : 1)
@@ -990,6 +991,41 @@ struct SavedTargetRow: View {
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(isActive ? Color.oasesBlue.opacity(0.35) : Color.primary.opacity(0.07), lineWidth: 1)
+        }
+    }
+}
+
+private struct SSHHostKeyConfirmationDialog: ViewModifier {
+    @ObservedObject var deploymentStore: DeploymentStore
+
+    func body(content: Content) -> some View {
+        content.confirmationDialog(
+            "确认 SSH 主机指纹？",
+            isPresented: Binding<Bool>(
+                get: { deploymentStore.pendingSSHHostKeyConfirmation != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        deploymentStore.rejectPendingSSHHostKey()
+                    }
+                }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("确认并记录此指纹") {
+                deploymentStore.confirmPendingSSHHostKey()
+            }
+            Button("拒绝", role: .cancel) {
+                deploymentStore.rejectPendingSSHHostKey()
+            }
+        } message: {
+            if let confirmation = deploymentStore.pendingSSHHostKeyConfirmation {
+                let changeDescription = confirmation.reason == .changed
+                    ? "当前记录：\(confirmation.previousFingerprint ?? "未知")；替换必须再次明确确认。"
+                    : "这是该主机的首次记录。"
+                Text("主机：\(confirmation.host):\(confirmation.port)\n算法：\(confirmation.algorithm)\nSHA-256：\(confirmation.fingerprint)\n\(changeDescription)")
+            } else {
+                Text("未发现待确认的 SSH 主机指纹。")
+            }
         }
     }
 }
