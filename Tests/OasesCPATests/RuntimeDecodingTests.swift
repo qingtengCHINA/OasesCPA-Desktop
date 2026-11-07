@@ -1393,9 +1393,6 @@ final class RuntimeDecodingTests: XCTestCase {
                 port: String(port),
                 privateKeyPath: clientKey.path
             )
-            let target = "\(user)@127.0.0.1"
-            try await waitForSSHConnection(
-                process: sshdProcess,
             let hostKeyInspection = try SSHConnectionService.inspectHostKey(
                 host: "127.0.0.1",
                 port: String(port)
@@ -1403,6 +1400,9 @@ final class RuntimeDecodingTests: XCTestCase {
             if case .needsConfirmation(let confirmation) = hostKeyInspection {
                 try SSHConnectionService.confirmHostKey(confirmation)
             }
+            let target = "\(user)@127.0.0.1"
+            try await waitForSSHConnection(
+                process: sshdProcess,
                 arguments: sshArguments,
                 target: target,
                 logURL: sshdLog
