@@ -1396,6 +1396,13 @@ final class RuntimeDecodingTests: XCTestCase {
             let target = "\(user)@127.0.0.1"
             try await waitForSSHConnection(
                 process: sshdProcess,
+            let hostKeyInspection = try SSHConnectionService.inspectHostKey(
+                host: "127.0.0.1",
+                port: String(port)
+            )
+            if case .needsConfirmation(let confirmation) = hostKeyInspection {
+                try SSHConnectionService.confirmHostKey(confirmation)
+            }
                 arguments: sshArguments,
                 target: target,
                 logURL: sshdLog
@@ -1663,7 +1670,11 @@ final class RuntimeDecodingTests: XCTestCase {
             privateKeyPath: "/tmp/oases-cpa-test-key"
         )
 
-        XCTAssertTrue(arguments.contains("StrictHostKeyChecking=accept-new"))
+        XCTAssertEqual(
+            arguments.filter { $0.hasPrefix("StrictHostKeyChecking=") },
+            ["StrictHostKeyChecking=yes"]
+        )
+        XCTAssertFalse(arguments.contains("StrictHostKeyChecking=accept-new"))
         XCTAssertTrue(arguments.contains(where: { $0.hasPrefix("UserKnownHostsFile=") }))
         XCTAssertTrue(arguments.contains("-p"))
         XCTAssertTrue(arguments.contains("2222"))

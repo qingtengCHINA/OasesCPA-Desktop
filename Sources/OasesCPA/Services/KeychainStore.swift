@@ -27,9 +27,13 @@ enum KeychainStore {
 
     static func saveData(_ data: Data, account: String) throws {
         let query = baseQuery(account: account)
+        // High-value secrets (SSH private keys, CPA/CPAMP admin keys) must
+        // not sync to iCloud Keychain or be restorable on a different
+        // device from a backup, so this is intentionally more restrictive
+        // than `kSecAttrAccessibleAfterFirstUnlock`.
         let attributes: [String: Any] = [
             kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         ]
 
         let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
@@ -42,9 +46,18 @@ enum KeychainStore {
         attributes.forEach { addQuery[$0.key] = $0.value }
         addQuery[kSecAttrLabel as String] = "Oases CPA"
         let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
-        guard addStatus == errSecSuccess else {
-            throw KeychainStoreError.unexpectedStatus(addStatus)
+        if addStatus == errSecSuccess { return }
+        if addStatus == errSecDuplicateItem {
+            // Another writer raced us between the update and add above and
+            // has since created the item; retry the update instead of
+            // failing so this remains correct without a broader lock.
+            let retryStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+            guard retryStatus == errSecSuccess else {
+                throw KeychainStoreError.unexpectedStatus(retryStatus)
+            }
+            return
         }
+        throw KeychainStoreError.unexpectedStatus(addStatus)
     }
 
     static func load(account: String) throws -> String? {
