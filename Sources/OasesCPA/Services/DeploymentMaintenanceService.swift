@@ -63,54 +63,35 @@ struct DeploymentMaintenanceService {
     }
 
     private func execute(request: DeploymentExecutionRequest, script: String) async throws -> String {
-        switch request.target {
-        case .local:
-            return try await runProcess(executable: "/bin/bash", arguments: ["-s"], standardInput: script)
-        case .ssh:
-            let sshArguments = try SSHConnectionService.connectionArguments(
-                port: request.port,
-                privateKeyPath: request.privateKeyPath
-            )
-            return try await runProcess(
-                executable: "/usr/bin/ssh",
-                arguments: sshArguments + ["\(request.user)@\(request.host)", "bash -s"],
-                standardInput: script
+        do {
+            switch request.target {
+            case .local:
+                return try await BoundedProcessRunner.run(
+                    executable: "/bin/bash",
+                    arguments: ["-s"],
+                    standardInput: script,
+                    timeout: 45 * 60
+                ).standardOutput
+            case .ssh:
+                let sshArguments = try SSHConnectionService.connectionArguments(
+                    port: request.port,
+                    privateKeyPath: request.privateKeyPath
+                )
+                return try await BoundedProcessRunner.run(
+                    executable: "/usr/bin/ssh",
+                    arguments: sshArguments + ["\(request.user)@\(request.host)", "bash -s"],
+                    standardInput: script,
+                    timeout: 45 * 60
+                ).standardOutput
+            }
+        } catch let error as BoundedProcessError {
+            throw DeploymentExecutionError.commandFailed(
+                BoundedProcessRunner.userFacingMessage(
+                    for: error,
+                    fallback: OasesLocalization.localized("目标终端维护命令失败。")
+                )
             )
         }
-    }
-
-    private func runProcess(
-        executable: String,
-        arguments: [String],
-        standardInput: String
-    ) async throws -> String {
-        try await Task.detached(priority: .userInitiated) {
-            let process = Process()
-            let outputPipe = Pipe()
-            let errorPipe = Pipe()
-            let inputPipe = Pipe()
-            process.executableURL = URL(fileURLWithPath: executable)
-            process.arguments = arguments
-            process.standardInput = inputPipe
-            process.standardOutput = outputPipe
-            process.standardError = errorPipe
-            do {
-                try process.run()
-                inputPipe.fileHandleForWriting.write(Data(standardInput.utf8))
-                inputPipe.fileHandleForWriting.closeFile()
-            } catch {
-                throw DeploymentExecutionError.commandFailed(error.localizedDescription)
-            }
-            process.waitUntilExit()
-            let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            let errorOutput = String(data: errorPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            guard process.terminationStatus == 0 else {
-                throw DeploymentExecutionError.commandFailed(
-                    SSHConnectionService.userFacingError(errorOutput, fallback: OasesLocalization.localized("目标终端维护命令失败。"))
-                )
-            }
-            return output
-        }.value
     }
 
     private func upgradeScript(method: DeploymentMethod, installDirectory: String) -> String {
@@ -234,20 +215,16 @@ struct DeploymentMaintenanceService {
           done
         }
 
-        latest_tag() {
-          location="$(curl_retry -fsSLI -o /dev/null -w '%{url_effective}' "$1")"
-          basename "$location"
-        }
-        verify_archive() {
-          repository="$1"
-          version_tag="$2"
-          archive_name="$3"
-          archive_path="$4"
-          checksums="$(curl_retry -fsSL "https://github.com/$repository/releases/download/$version_tag/checksums.txt")"
-          expected="$(printf '%s\n' "$checksums" | awk -v file="$archive_name" '{name=$NF; sub(/^\\.\\//, "", name); if (name == file) {print $1; exit}}')"
-          [ -n "$expected" ] || { printf 'checksums.txt 中没有找到 %s。\n' "$archive_name" >&2; exit 17; }
+        verify_fixed_archive() {
+          expected="$1"
+          archive_name="$2"
+          archive_path="$3"
+          case "$expected" in
+            ''|*[!0-9a-fA-F]*) printf '%s\n' '固定发布摘要格式无效。' >&2; return 17 ;;
+          esac
+          [ "${#expected}" -eq 64 ] || { printf '%s\n' '固定发布摘要长度无效。' >&2; return 17; }
           if [ "$SHA256_COMMAND" = "shasum" ]; then actual="$(shasum -a 256 "$archive_path" | awk '{print $1}')"; else actual="$(sha256sum "$archive_path" | awk '{print $1}')"; fi
-          [ "$actual" = "$expected" ] || { printf 'SHA-256 校验失败：%s。\n' "$archive_name" >&2; exit 17; }
+          [ "$actual" = "$expected" ] || { printf '固定 SHA-256 校验失败：%s。\n' "$archive_name" >&2; return 17; }
         }
 
         case "$(uname -s)" in
@@ -261,14 +238,15 @@ struct DeploymentMaintenanceService {
           *) printf '%s\n' '目标架构不在官方原生包支持范围内。' >&2; exit 14 ;;
         esac
 
-        CLI_VERSION_TAG="$(latest_tag 'https://github.com/router-for-me/CLIProxyAPI/releases/latest')"
+        \(DeploymentSupplyChainPins.nativePinSelectionScript())
+
         CLI_VERSION="$(printf '%s' "$CLI_VERSION_TAG" | sed 's/^v//')"
         CLI_PACKAGE="CLIProxyAPI_${CLI_VERSION}_${RELEASE_OS}_${CLI_ARCH}"
         CLI_TEMP_DIR="$TEMP_ROOT/cli-proxy-api/runtime/$CLI_PACKAGE"
         CLI_ARCHIVE="$TEMP_ROOT/cli-proxy-api/$CLI_PACKAGE.tar.gz"
         mkdir -p "$CLI_TEMP_DIR" "$TEMP_ROOT/cli-proxy-api"
-        curl_retry -fsSL "https://github.com/router-for-me/CLIProxyAPI/releases/download/$CLI_VERSION_TAG/$CLI_PACKAGE.tar.gz" -o "$CLI_ARCHIVE"
-        verify_archive "router-for-me/CLIProxyAPI" "$CLI_VERSION_TAG" "$CLI_PACKAGE.tar.gz" "$CLI_ARCHIVE"
+        curl_retry --fail --silent --show-error --location --max-redirs 3 --proto '=https' --proto-redir '=https' --max-filesize \(DeploymentSupplyChainPins.nativeArchiveMaxBytes) "https://github.com/router-for-me/CLIProxyAPI/releases/download/$CLI_VERSION_TAG/$CLI_PACKAGE.tar.gz" -o "$CLI_ARCHIVE"
+        verify_fixed_archive "$CLI_EXPECTED_SHA256" "$CLI_PACKAGE.tar.gz" "$CLI_ARCHIVE"
         tar -xzf "$CLI_ARCHIVE" -C "$CLI_TEMP_DIR"
         [ -f "$CLI_TEMP_DIR/cli-proxy-api" ] || { printf '%s\n' 'CLIProxyAPI 升级包中没有找到 cli-proxy-api。' >&2; exit 15; }
         chmod 755 "$CLI_TEMP_DIR/cli-proxy-api"
@@ -284,13 +262,12 @@ struct DeploymentMaintenanceService {
         EOF
         chmod 755 "$ROOT/cli-proxy-api/run.sh"
 
-        CPAMP_VERSION_TAG="$(latest_tag 'https://github.com/seakee/CPA-Manager-Plus/releases/latest')"
         CPAMP_PACKAGE="cpa-manager-plus_${CPAMP_VERSION_TAG}_${RELEASE_OS}_${CPAMP_ARCH}"
         CPAMP_TEMP_DIR="$TEMP_ROOT/cpamp/runtime"
         CPAMP_ARCHIVE="$TEMP_ROOT/cpamp/$CPAMP_PACKAGE.tar.gz"
         mkdir -p "$CPAMP_TEMP_DIR" "$TEMP_ROOT/cpamp"
-        curl_retry -fsSL "https://github.com/seakee/CPA-Manager-Plus/releases/download/$CPAMP_VERSION_TAG/$CPAMP_PACKAGE.tar.gz" -o "$CPAMP_ARCHIVE"
-        verify_archive "seakee/CPA-Manager-Plus" "$CPAMP_VERSION_TAG" "$CPAMP_PACKAGE.tar.gz" "$CPAMP_ARCHIVE"
+        curl_retry --fail --silent --show-error --location --max-redirs 3 --proto '=https' --proto-redir '=https' --max-filesize \(DeploymentSupplyChainPins.nativeArchiveMaxBytes) "https://github.com/seakee/CPA-Manager-Plus/releases/download/$CPAMP_VERSION_TAG/$CPAMP_PACKAGE.tar.gz" -o "$CPAMP_ARCHIVE"
+        verify_fixed_archive "$CPAMP_EXPECTED_SHA256" "$CPAMP_PACKAGE.tar.gz" "$CPAMP_ARCHIVE"
         tar -xzf "$CPAMP_ARCHIVE" -C "$CPAMP_TEMP_DIR"
         [ -f "$CPAMP_TEMP_DIR/$CPAMP_PACKAGE/cpa-manager-plus" ] || { printf '%s\n' 'CPA Manager Plus 升级包中没有找到 cpa-manager-plus。' >&2; exit 16; }
         chmod 755 "$CPAMP_TEMP_DIR/$CPAMP_PACKAGE/cpa-manager-plus"
@@ -411,14 +388,15 @@ struct DeploymentMaintenanceService {
         command -v docker >/dev/null 2>&1 || { printf '%s\n' '目标环境缺少 Docker。' >&2; exit 13; }
         docker compose version >/dev/null 2>&1 || { printf '%s\n' '目标环境缺少 Docker Compose。' >&2; exit 13; }
         docker info >/dev/null 2>&1 || { printf '%s\n' 'Docker daemon 不可用，请先启动 Docker。' >&2; exit 13; }
+        \(DeploymentSupplyChainPins.dockerImageEnvironmentScript())
         BACKUP_NAME="upgrade-$(date -u '+%Y%m%d-%H%M%S')"
         BACKUP_ROOT="$ROOT/backups/$BACKUP_NAME"
         mkdir -p "$BACKUP_ROOT" "$ROOT/logs"
         cp -p "$ROOT/compose.yaml" "$BACKUP_ROOT/compose.yaml"
         [ ! -e "$ROOT/.env" ] || cp -p "$ROOT/.env" "$BACKUP_ROOT/.env"
         cd "$ROOT"
-        docker compose pull > "$ROOT/logs/docker-upgrade-pull.log" 2>&1
-        docker compose up -d > "$ROOT/logs/docker-upgrade-up.log" 2>&1
+        CPAMP_IMAGE="$CPAMP_DOCKER_IMAGE" CPA_IMAGE="$CLI_DOCKER_IMAGE" docker compose pull > "$ROOT/logs/docker-upgrade-pull.log" 2>&1
+        CPAMP_IMAGE="$CPAMP_DOCKER_IMAGE" CPA_IMAGE="$CLI_DOCKER_IMAGE" docker compose up -d > "$ROOT/logs/docker-upgrade-up.log" 2>&1
         for _ in $(seq 1 60); do
           if curl -fsS http://127.0.0.1:18317/health >/dev/null 2>&1; then break; fi
           sleep 1
@@ -443,6 +421,7 @@ struct DeploymentMaintenanceService {
         command -v docker >/dev/null 2>&1 || { printf '%s\n' '目标环境缺少 Docker。' >&2; exit 13; }
         docker compose version >/dev/null 2>&1 || { printf '%s\n' '目标环境缺少 Docker Compose。' >&2; exit 13; }
         docker info >/dev/null 2>&1 || { printf '%s\n' 'Docker daemon 不可用，请先启动 Docker。' >&2; exit 13; }
+        \(DeploymentSupplyChainPins.dockerImageEnvironmentScript())
         BACKUP_ROOT=""
         if [ -d "$ROOT/backups" ]; then
           BACKUP_ROOT="$(find "$ROOT/backups" -mindepth 1 -maxdepth 1 -type d -name 'upgrade-*' -print 2>/dev/null | sort | tail -n 1 || true)"
@@ -452,7 +431,7 @@ struct DeploymentMaintenanceService {
         cp -p "$BACKUP_ROOT/compose.yaml" "$ROOT/compose.yaml"
         if [ -f "$BACKUP_ROOT/.env" ]; then cp -p "$BACKUP_ROOT/.env" "$ROOT/.env"; fi
         cd "$ROOT"
-        docker compose up -d > "$ROOT/logs/docker-rollback-up.log" 2>&1
+        CPAMP_IMAGE="$CPAMP_DOCKER_IMAGE" CPA_IMAGE="$CLI_DOCKER_IMAGE" docker compose up -d > "$ROOT/logs/docker-rollback-up.log" 2>&1
         for _ in $(seq 1 60); do
           if curl -fsS http://127.0.0.1:18317/health >/dev/null 2>&1; then break; fi
           sleep 1

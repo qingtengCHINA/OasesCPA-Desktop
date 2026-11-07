@@ -15,6 +15,50 @@ struct DeploymentExecutionResult: Sendable {
     let cpampAdminKey: String
 }
 
+enum DeploymentSupplyChainPins {
+    static let cliReleaseTag = "v7.2.141"
+    static let cpampReleaseTag = "v1.11.10"
+    static let cliDockerImage = "eceasy/cli-proxy-api@sha256:7f598ce64478a8a5f90ed76875e0e9b0e7d77b80e17184b13df18c3d5bdb3def"
+    static let cpampDockerImage = "seakee/cpa-manager-plus@sha256:9a9715cc0849ee2feb553983713e70a197a5272a73b7a6f969fcff4dc26ab465"
+    static let nativeArchiveMaxBytes = 536_870_912
+
+    static func nativePinSelectionScript() -> String {
+        """
+        CLI_VERSION_TAG="\(cliReleaseTag)"
+        CPAMP_VERSION_TAG="\(cpampReleaseTag)"
+        case "$RELEASE_OS/$CLI_ARCH" in
+          darwin/aarch64)
+            CLI_EXPECTED_SHA256="728fb56a1a45dc3590ddb94ada247393ee2d464b089170562482cf584fa27bc2"
+            CPAMP_EXPECTED_SHA256="62676783a3d181a406828d3295dffc7e043f96704baaaf5346df8bb43e0081db"
+            ;;
+          darwin/amd64)
+            CLI_EXPECTED_SHA256="fa88dbabf5000e04095ce7b2c1a7babbc579a58755c6ef3b94e6013c1daae50a"
+            CPAMP_EXPECTED_SHA256="b2e8942fb1ea66abe01d5f01141093ee46eb1f8d4aab9a034ee305722e4a64e9"
+            ;;
+          linux/aarch64)
+            CLI_EXPECTED_SHA256="2881c0a6bcbc412c4bbdb2799ffbf1b4bcdd927475e1e42f621b68eae314ef3f"
+            CPAMP_EXPECTED_SHA256="72db0619b1e4fec3d82674b0b80797485eec3c2e5730484a43777b0f953f85f8"
+            ;;
+          linux/amd64)
+            CLI_EXPECTED_SHA256="a70015ee303502e24be64061dd0d5985b2b4600f0605a076b993322d3b7effb"
+            CPAMP_EXPECTED_SHA256="c511e029b34f6f27bec65c2853b47991c1286767371a69d716bea29c8b8cc184"
+            ;;
+          *)
+            printf '%s\\n' '目标平台没有固定的官方发布摘要。' >&2
+            exit 14
+            ;;
+        esac
+        """
+    }
+
+    static func dockerImageEnvironmentScript() -> String {
+        """
+        CLI_DOCKER_IMAGE="\(cliDockerImage)"
+        CPAMP_DOCKER_IMAGE="\(cpampDockerImage)"
+        """
+    }
+}
+
 enum DeploymentExecutionError: LocalizedError {
     case invalidRemotePort
     case invalidRemoteHost
@@ -42,7 +86,9 @@ enum DeploymentExecutionError: LocalizedError {
 }
 
 struct DeploymentExecutor {
-    private static let cpampInstallerURL = "https://raw.githubusercontent.com/seakee/CPA-Manager-Plus/main/bin/install-cpamp.sh"
+    private static let cpampInstallerURL = "https://raw.githubusercontent.com/seakee/CPA-Manager-Plus/931d771344fdd5d95db5ae0adb87259eca133adc/bin/install-cpamp.sh"
+    private static let cpampInstallerSHA256 = "074153b81eebbcb6a9937323a804943508fd99463b746464bd079d8dbb13b289"
+    private static let cpampInstallerMaxBytes = 131_072
 
     func execute(
         request: DeploymentExecutionRequest,
@@ -56,25 +102,36 @@ struct DeploymentExecutor {
             : nativeScript(installDirectory: request.installDirectory, controlToken: controlToken)
 
         let output: String
-        switch request.target {
-        case .local:
-            output = try await runProcess(
-                executable: "/bin/bash",
-                arguments: ["-s"],
-                standardInput: script
-            )
-        case .ssh:
-            let sshArguments = try SSHConnectionService.connectionArguments(
-                port: request.port,
-                privateKeyPath: request.privateKeyPath
-            )
-            output = try await runProcess(
-                executable: "/usr/bin/ssh",
-                arguments: sshArguments + [
-                    "\(request.user)@\(request.host)",
-                    "bash -s"
-                ],
-                standardInput: script
+        do {
+            switch request.target {
+            case .local:
+                output = try await BoundedProcessRunner.run(
+                    executable: "/bin/bash",
+                    arguments: ["-s"],
+                    standardInput: script,
+                    timeout: 45 * 60
+                ).standardOutput
+            case .ssh:
+                let sshArguments = try SSHConnectionService.connectionArguments(
+                    port: request.port,
+                    privateKeyPath: request.privateKeyPath
+                )
+                output = try await BoundedProcessRunner.run(
+                    executable: "/usr/bin/ssh",
+                    arguments: sshArguments + [
+                        "\(request.user)@\(request.host)",
+                        "bash -s"
+                    ],
+                    standardInput: script,
+                    timeout: 45 * 60
+                ).standardOutput
+            }
+        } catch let error as BoundedProcessError {
+            throw DeploymentExecutionError.commandFailed(
+                BoundedProcessRunner.userFacingMessage(
+                    for: error,
+                    fallback: OasesLocalization.localized("目标终端部署命令失败。")
+                )
             )
         }
 
@@ -84,10 +141,19 @@ struct DeploymentExecutor {
     func scriptForVerification(
         method: DeploymentMethod,
         installDirectory: String,
-        controlToken: String = "verification-token"
+        controlToken: String = "verification-token",
+        dockerInstallerURL: String? = nil,
+        dockerInstallerSHA256: String? = nil,
+        dockerInstallerMaxBytes: Int? = nil
     ) -> String {
         method == .docker
-            ? dockerScript(installDirectory: installDirectory, controlToken: controlToken)
+            ? dockerScript(
+                installDirectory: installDirectory,
+                controlToken: controlToken,
+                installerURL: dockerInstallerURL ?? Self.cpampInstallerURL,
+                installerSHA256: dockerInstallerSHA256 ?? Self.cpampInstallerSHA256,
+                installerMaxBytes: dockerInstallerMaxBytes ?? Self.cpampInstallerMaxBytes
+            )
             : nativeScript(installDirectory: installDirectory, controlToken: controlToken)
     }
 
@@ -155,46 +221,6 @@ struct DeploymentExecutor {
             cpaManagementKey: cpaManagementKey,
             cpampAdminKey: cpampAdminKey
         )
-    }
-
-    private func runProcess(
-        executable: String,
-        arguments: [String],
-        standardInput: String
-    ) async throws -> String {
-        try await Task.detached(priority: .userInitiated) {
-            let process = Process()
-            let outputPipe = Pipe()
-            let errorPipe = Pipe()
-            let inputPipe = Pipe()
-
-            process.executableURL = URL(fileURLWithPath: executable)
-            process.arguments = arguments
-            process.standardInput = inputPipe
-            process.standardOutput = outputPipe
-            process.standardError = errorPipe
-
-            do {
-                try process.run()
-                inputPipe.fileHandleForWriting.write(Data(standardInput.utf8))
-                inputPipe.fileHandleForWriting.closeFile()
-            } catch {
-                throw DeploymentExecutionError.commandFailed(error.localizedDescription)
-            }
-
-            process.waitUntilExit()
-
-            let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            let errorOutput = String(data: errorPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-
-            guard process.terminationStatus == 0 else {
-                throw DeploymentExecutionError.commandFailed(
-                    SSHConnectionService.userFacingError(errorOutput, fallback: OasesLocalization.localized("目标终端部署命令失败。"))
-                )
-            }
-
-            return output
-        }.value
     }
 
     private func nativeScript(installDirectory: String, controlToken: String) -> String {
@@ -388,6 +414,8 @@ struct DeploymentExecutor {
           *) printf '%s\n' '目标架构不在官方原生包支持范围内。' >&2; exit 14 ;;
         esac
 
+        \(DeploymentSupplyChainPins.nativePinSelectionScript())
+
         umask 077
         MANAGEMENT_KEY="cpa_$(openssl rand -hex 32)"
         ADMIN_KEY="cpamp_$(openssl rand -hex 32)"
@@ -405,29 +433,21 @@ struct DeploymentExecutor {
           done
         }
 
-        latest_tag() {
-          local location
-          location="$(curl_retry --max-time 60 -fsSLI -o /dev/null -w '%{url_effective}' "$1")" || return 1
-          [ -n "$location" ] || return 1
-          printf '%s\n' "${location##*/}"
-        }
-
-        verify_archive() {
-          local repository="$1"
-          local version_tag="$2"
-          local archive_name="$3"
-          local archive_path="$4"
-          local checksums expected actual
-
-          checksums="$(curl_retry --max-time 120 -fsSL "https://github.com/$repository/releases/download/$version_tag/checksums.txt")"
-          expected="$(printf '%s\n' "$checksums" | awk -v file="$archive_name" '{name=$NF; sub(/^\\.\\//, "", name); if (name == file) {print $1; exit}}')"
-          [ -n "$expected" ] || { printf 'checksums.txt 中没有找到 %s。\n' "$archive_name" >&2; return 17; }
+        verify_fixed_archive() {
+          local expected="$1"
+          local archive_name="$2"
+          local archive_path="$3"
+          local actual
+          case "$expected" in
+            ''|*[!0-9a-fA-F]*) printf '%s\n' '固定发布摘要格式无效。' >&2; return 17 ;;
+          esac
+          [ "${#expected}" -eq 64 ] || { printf '%s\n' '固定发布摘要长度无效。' >&2; return 17; }
           if [ "$SHA256_COMMAND" = "shasum" ]; then
             actual="$(shasum -a 256 "$archive_path" | awk '{print $1}')"
           else
             actual="$(sha256sum "$archive_path" | awk '{print $1}')"
           fi
-          [ "$actual" = "$expected" ] || { printf 'SHA-256 校验失败：%s。\n' "$archive_name" >&2; return 17; }
+          [ "$actual" = "$expected" ] || { printf '固定 SHA-256 校验失败：%s。\n' "$archive_name" >&2; return 17; }
         }
 
         yaml_escape() {
@@ -435,7 +455,6 @@ struct DeploymentExecutor {
         }
 
         set_stage "resolve-cli-version"
-        CLI_VERSION_TAG="$(latest_tag 'https://github.com/router-for-me/CLIProxyAPI/releases/latest')"
         CLI_VERSION="${CLI_VERSION_TAG#v}"
         CLI_PACKAGE="CLIProxyAPI_${CLI_VERSION}_${RELEASE_OS}_${CLI_ARCH}"
         CLI_DIR="$INSTALL_ROOT/cli-proxy-api"
@@ -445,12 +464,12 @@ struct DeploymentExecutor {
         mkdir -p "$CLI_RUNTIME" "$CLI_DIR/downloads" "$CLI_DIR/auths" "$CLI_DIR/logs"
         rm -f "$CLI_ARCHIVE_PART"
         set_stage "download-cli"
-        if ! curl_retry -fsSL "https://github.com/router-for-me/CLIProxyAPI/releases/download/$CLI_VERSION_TAG/$CLI_PACKAGE.tar.gz" -o "$CLI_ARCHIVE_PART"; then
+        if ! curl_retry --fail --silent --show-error --location --max-redirs 3 --proto '=https' --proto-redir '=https' --max-filesize \(DeploymentSupplyChainPins.nativeArchiveMaxBytes) "https://github.com/router-for-me/CLIProxyAPI/releases/download/$CLI_VERSION_TAG/$CLI_PACKAGE.tar.gz" -o "$CLI_ARCHIVE_PART"; then
           rm -f "$CLI_ARCHIVE_PART"
           exit 18
         fi
         set_stage "verify-cli"
-        if ! verify_archive "router-for-me/CLIProxyAPI" "$CLI_VERSION_TAG" "$CLI_PACKAGE.tar.gz" "$CLI_ARCHIVE_PART"; then
+        if ! verify_fixed_archive "$CLI_EXPECTED_SHA256" "$CLI_PACKAGE.tar.gz" "$CLI_ARCHIVE_PART"; then
           rm -f "$CLI_ARCHIVE_PART"
           exit 17
         fi
@@ -493,7 +512,6 @@ struct DeploymentExecutor {
         chmod 755 "$CLI_DIR/run.sh"
 
         set_stage "resolve-cpamp-version"
-        CPAMP_VERSION_TAG="$(latest_tag 'https://github.com/seakee/CPA-Manager-Plus/releases/latest')"
         CPAMP_PACKAGE="cpa-manager-plus_${CPAMP_VERSION_TAG}_${RELEASE_OS}_${CPAMP_ARCH}"
         CPAMP_DIR="$INSTALL_ROOT/cpamp"
         CPAMP_RUNTIME="$CPAMP_DIR/runtime"
@@ -503,12 +521,12 @@ struct DeploymentExecutor {
         mkdir -p "$CPAMP_RUNTIME" "$CPAMP_DIR/downloads" "$CPAMP_DIR/data"
         rm -f "$CPAMP_ARCHIVE_PART"
         set_stage "download-cpamp"
-        if ! curl_retry -fsSL "https://github.com/seakee/CPA-Manager-Plus/releases/download/$CPAMP_VERSION_TAG/$CPAMP_PACKAGE.tar.gz" -o "$CPAMP_ARCHIVE_PART"; then
+        if ! curl_retry --fail --silent --show-error --location --max-redirs 3 --proto '=https' --proto-redir '=https' --max-filesize \(DeploymentSupplyChainPins.nativeArchiveMaxBytes) "https://github.com/seakee/CPA-Manager-Plus/releases/download/$CPAMP_VERSION_TAG/$CPAMP_PACKAGE.tar.gz" -o "$CPAMP_ARCHIVE_PART"; then
           rm -f "$CPAMP_ARCHIVE_PART"
           exit 18
         fi
         set_stage "verify-cpamp"
-        if ! verify_archive "seakee/CPA-Manager-Plus" "$CPAMP_VERSION_TAG" "$CPAMP_PACKAGE.tar.gz" "$CPAMP_ARCHIVE_PART"; then
+        if ! verify_fixed_archive "$CPAMP_EXPECTED_SHA256" "$CPAMP_PACKAGE.tar.gz" "$CPAMP_ARCHIVE_PART"; then
           rm -f "$CPAMP_ARCHIVE_PART"
           exit 17
         fi
@@ -584,7 +602,13 @@ struct DeploymentExecutor {
         """
     }
 
-    private func dockerScript(installDirectory: String, controlToken: String) -> String {
+    private func dockerScript(
+        installDirectory: String,
+        controlToken: String,
+        installerURL: String = Self.cpampInstallerURL,
+        installerSHA256: String = Self.cpampInstallerSHA256,
+        installerMaxBytes: Int = Self.cpampInstallerMaxBytes
+    ) -> String {
         let root = shellQuote(installDirectory)
         let token = shellQuote(controlToken)
 
@@ -695,6 +719,20 @@ struct DeploymentExecutor {
         ATTEMPT_MARKER="$INSTALL_ROOT/.oases-cpa-installing"
         FAILURE_MARKER="$INSTALL_ROOT/.oases-cpa-failed"
         PAUSE_MARKER="$INSTALL_ROOT/.oases-cpa-paused"
+        INSTALLER=""
+        INSTALLER_URL_RESULT=""
+        CPAMP_INSTALLER_URL=\(shellQuote(installerURL))
+        INSTALLER_EXPECTED_SHA256=\(shellQuote(installerSHA256))
+        INSTALLER_MAX_BYTES=\(installerMaxBytes)
+        \(DeploymentSupplyChainPins.dockerImageEnvironmentScript())
+        cleanup_installer() {
+          if [ -n "${INSTALLER:-}" ]; then
+            rm -f "$INSTALLER" || true
+          fi
+          if [ -n "${INSTALLER_URL_RESULT:-}" ]; then
+            rm -f "$INSTALLER_URL_RESULT" || true
+          fi
+        }
         CURRENT_STAGE="prepare"
         set_stage() {
           CURRENT_STAGE="$1"
@@ -707,7 +745,7 @@ struct DeploymentExecutor {
         deployment_exit_status() {
           local status="$?"
           set +e
-          rm -f "${INSTALLER:-}" || true
+          cleanup_installer
           if [ "$status" -eq 0 ]; then
             rm -f "$ATTEMPT_MARKER" "$FAILURE_MARKER" "$PAUSE_MARKER"
           else
@@ -737,11 +775,79 @@ struct DeploymentExecutor {
         command -v docker >/dev/null 2>&1 || { printf '%s\n' '目标环境缺少 Docker。' >&2; exit 13; }
         docker compose version >/dev/null 2>&1 || { printf '%s\n' '目标环境缺少 Docker Compose。' >&2; exit 13; }
         docker info >/dev/null 2>&1 || { printf '%s\n' 'Docker daemon 不可用，请先启动 Docker。' >&2; exit 13; }
+        if command -v shasum >/dev/null 2>&1; then
+          SHA256_COMMAND="shasum"
+        elif command -v sha256sum >/dev/null 2>&1; then
+          SHA256_COMMAND="sha256sum"
+        else
+          printf '%s\n' '目标环境缺少 shasum 或 sha256sum。' >&2
+          exit 13
+        fi
 
-        curl_retry() {
-          local attempt
+        constant_time_hex_equal() {
+          local expected="$1"
+          local actual="$2"
+          local diff=0
+          local i left right
+          [ "${#expected}" -eq "${#actual}" ] || return 1
+          for ((i = 0; i < ${#expected}; i++)); do
+            printf -v left '%d' "'${expected:i:1}"
+            printf -v right '%d' "'${actual:i:1}"
+            diff=$((diff | (left ^ right)))
+          done
+          [ "$diff" -eq 0 ]
+        }
+        verify_installer() {
+          local installer_size actual
+          installer_size="$(wc -c < "$INSTALLER" | tr -d '[:space:]')"
+          case "$installer_size" in
+            ''|*[!0-9]*) printf '%s\n' '安装脚本大小无法验证。' >&2; return 1 ;;
+          esac
+          if [ "$installer_size" -gt "$INSTALLER_MAX_BYTES" ]; then
+            printf '安装脚本超过大小上限（%s bytes）。\n' "$INSTALLER_MAX_BYTES" >&2
+            return 1
+          fi
+          if [ "$SHA256_COMMAND" = "shasum" ]; then
+            actual="$(shasum -a 256 "$INSTALLER" | awk '{print $1}')"
+          else
+            actual="$(sha256sum "$INSTALLER" | awk '{print $1}')"
+          fi
+          case "$actual" in
+            ''|*[!0-9a-fA-F]*) printf '%s\n' '安装脚本 SHA-256 格式无效。' >&2; return 1 ;;
+          esac
+          [ "${#actual}" -eq 64 ] || {
+            printf '%s\n' '安装脚本 SHA-256 长度无效。' >&2
+            return 1
+          }
+          if ! constant_time_hex_equal "$INSTALLER_EXPECTED_SHA256" "$actual"; then
+            printf '%s\n' '安装脚本 SHA-256 校验失败。' >&2
+            return 1
+          fi
+        }
+        download_installer() {
+          local attempt final_url
           for attempt in 1 2 3 4; do
-            if curl --connect-timeout 20 --speed-limit 1024 --speed-time 60 --max-time 1800 "$@"; then
+            : > "$INSTALLER"
+            : > "$INSTALLER_URL_RESULT"
+            if curl \
+              --connect-timeout 20 \
+              --speed-limit 1024 \
+              --speed-time 60 \
+              --max-time 1800 \
+              --fail --silent --show-error \
+              --location \
+              --proto '=https' \
+              --proto-redir '=https' \
+              --max-redirs 0 \
+              --max-filesize "$INSTALLER_MAX_BYTES" \
+              --write-out '%{url_effective}\n' \
+              "$CPAMP_INSTALLER_URL" \
+              -o "$INSTALLER" > "$INSTALLER_URL_RESULT"; then
+              final_url="$(cat "$INSTALLER_URL_RESULT")"
+              if [ "$final_url" != "$CPAMP_INSTALLER_URL" ]; then
+                printf '%s\n' '安装脚本 URL 发生了非 allowlist 重定向。' >&2
+                return 17
+              fi
               return 0
             fi
             [ "$attempt" -lt 4 ] || return 1
@@ -751,7 +857,17 @@ struct DeploymentExecutor {
 
         set_stage "download-installer"
         INSTALLER="$(mktemp -t oases-cpa-installer.XXXXXX)"
-        curl_retry -fsSL "\(Self.cpampInstallerURL)" -o "$INSTALLER"
+        INSTALLER_URL_RESULT="$(mktemp -t oases-cpa-installer-url.XXXXXX)"
+        chmod 600 "$INSTALLER" "$INSTALLER_URL_RESULT"
+        if ! download_installer; then
+          cleanup_installer
+          exit 18
+        fi
+        set_stage "verify-installer"
+        if ! verify_installer; then
+          cleanup_installer
+          exit 17
+        fi
         chmod 755 "$INSTALLER"
 
         set_stage "run-installer"
@@ -764,6 +880,8 @@ struct DeploymentExecutor {
           CPAMP_PROJECT_NAME=oasescpa \
           CPAMP_PORT=18317 \
           CPAMP_CPA_PORT=8317 \
+          CPAMP_IMAGE="$CPAMP_DOCKER_IMAGE" \
+          CPAMP_CPA_IMAGE="$CLI_DOCKER_IMAGE" \
           CPAMP_SKIP_EXECUTE=1 \
           bash "$INSTALLER" > "$INSTALL_ROOT/logs/installer.log" 2>&1; then
           tail -n 120 "$INSTALL_ROOT/logs/installer.log" || true
@@ -778,12 +896,12 @@ struct DeploymentExecutor {
         rm -f "$INSTALL_ROOT/compose.yaml.bak"
 
         set_stage "pull-containers"
-        if ! (cd "$INSTALL_ROOT" && docker compose pull > "$INSTALL_ROOT/logs/docker-pull.log" 2>&1); then
+        if ! (cd "$INSTALL_ROOT" && CPAMP_IMAGE="$CPAMP_DOCKER_IMAGE" CPA_IMAGE="$CLI_DOCKER_IMAGE" docker compose pull > "$INSTALL_ROOT/logs/docker-pull.log" 2>&1); then
           tail -n 120 "$INSTALL_ROOT/logs/docker-pull.log" || true
           exit 16
         fi
         set_stage "start-containers"
-        if ! (cd "$INSTALL_ROOT" && docker compose up -d > "$INSTALL_ROOT/logs/docker-up.log" 2>&1); then
+        if ! (cd "$INSTALL_ROOT" && CPAMP_IMAGE="$CPAMP_DOCKER_IMAGE" CPA_IMAGE="$CLI_DOCKER_IMAGE" docker compose up -d > "$INSTALL_ROOT/logs/docker-up.log" 2>&1); then
           tail -n 120 "$INSTALL_ROOT/logs/docker-up.log" || true
           exit 16
         fi
