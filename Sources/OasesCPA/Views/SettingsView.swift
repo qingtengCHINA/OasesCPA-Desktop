@@ -30,6 +30,27 @@ struct AppVersionInfo {
     }
 }
 
+/// The optional author line of the About section, from the `OasesAuthorName` and
+/// `OasesAuthorURL` Info.plist keys (build-time configuration). Empty values hide it.
+struct AppAuthorInfo {
+    let name: String?
+    let url: URL?
+
+    init(infoDictionary: [String: Any]? = Bundle.main.infoDictionary) {
+        name = Self.cleanedValue(infoDictionary?["OasesAuthorName"] as? String)
+        url = Self.cleanedValue(infoDictionary?["OasesAuthorURL"] as? String)
+            .flatMap(URL.init(string:))
+            .flatMap { $0.scheme?.lowercased() == "https" && $0.host?.isEmpty == false ? $0 : nil }
+    }
+
+    private static func cleanedValue(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.hasPrefix("$(") else { return nil }
+        return trimmed
+    }
+}
+
 struct SettingsView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var deploymentStore: DeploymentStore
@@ -42,6 +63,7 @@ struct SettingsView: View {
     @StateObject private var launchAtLogin = LaunchAtLoginService()
 
     private var appVersion: AppVersionInfo { AppVersionInfo() }
+    private var appAuthor: AppAuthorInfo { AppAuthorInfo() }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -161,51 +183,53 @@ struct SettingsView: View {
             }
 
             #if !APP_STORE
-            Section("软件更新") {
-                LabeledContent("当前版本") {
-                    Text(appVersion.marketingVersion)
-                        .monospacedDigit()
-                }
-
-                LabeledContent("最新版本") {
-                    Text(appUpdateService.latestTag ?? OasesLocalization.localized("尚未检查"))
-                        .monospacedDigit()
-                }
-
-                LabeledContent("更新状态") {
-                    Text(updateStatusTitle)
-                        .foregroundStyle(updateStatusColor)
-                }
-
-                HStack {
-                    Button("检查更新", systemImage: "arrow.clockwise") {
-                        Task { await appUpdateService.checkForUpdates() }
+            if appUpdateService.isEnabled {
+                Section("软件更新") {
+                    LabeledContent("当前版本") {
+                        Text(appVersion.marketingVersion)
+                            .monospacedDigit()
                     }
-                    .disabled(appUpdateService.status == .checking || appUpdateService.status == .downloading)
 
-                    if appUpdateService.isUpdateAvailable {
-                        Button(updateActionTitle, systemImage: "arrow.down.circle") {
-                            if appUpdateService.status == .downloaded {
-                                appUpdateService.openDownloadedUpdate()
-                            } else {
-                                Task { await appUpdateService.downloadAvailableUpdate() }
-                            }
+                    LabeledContent("最新版本") {
+                        Text(appUpdateService.latestTag ?? OasesLocalization.localized("尚未检查"))
+                            .monospacedDigit()
+                    }
+
+                    LabeledContent("更新状态") {
+                        Text(updateStatusTitle)
+                            .foregroundStyle(updateStatusColor)
+                    }
+
+                    HStack {
+                        Button("检查更新", systemImage: "arrow.clockwise") {
+                            Task { await appUpdateService.checkForUpdates() }
                         }
-                        .disabled(appUpdateService.status == .downloading)
-                    }
-                }
+                        .disabled(appUpdateService.status == .checking || appUpdateService.status == .downloading)
 
-                if let errorMessage = appUpdateService.errorMessage {
-                    Text(errorMessage)
+                        if appUpdateService.isUpdateAvailable {
+                            Button(updateActionTitle, systemImage: "arrow.down.circle") {
+                                if appUpdateService.status == .downloaded {
+                                    appUpdateService.openDownloadedUpdate()
+                                } else {
+                                    Task { await appUpdateService.downloadAvailableUpdate() }
+                                }
+                            }
+                            .disabled(appUpdateService.status == .downloading)
+                        }
+                    }
+
+                    if let errorMessage = appUpdateService.errorMessage {
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundStyle(Color.oasesRed)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Text("Oases CPA 会定期读取官方 GitHub Releases。发现新版本后，下载的 DMG 会保存到“下载”文件夹并自动打开。")
                         .font(.caption)
-                        .foregroundStyle(Color.oasesRed)
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-
-                Text("Oases CPA 会定期读取官方 GitHub Releases。发现新版本后，下载的 DMG 会保存到“下载”文件夹并自动打开。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
             #endif
 
@@ -222,8 +246,14 @@ struct SettingsView: View {
                     Label("隐私声明", systemImage: "hand.raised")
                 }
 
-                Link(destination: URL(string: "https://qingtengstudio.com/")!) {
-                    Label("作者 · QingTeng Studio", systemImage: "person.crop.circle")
+                if let authorName = appAuthor.name {
+                    if let authorURL = appAuthor.url {
+                        Link(destination: authorURL) {
+                            Label("作者 · \(authorName)", systemImage: "person.crop.circle")
+                        }
+                    } else {
+                        Label("作者 · \(authorName)", systemImage: "person.crop.circle")
+                    }
                 }
 
                 Text("Oases CPA 独立开发，不隶属 CLIProxyAPI 或 CPA Manager Plus；完整 MIT 许可证和上游链接可在“开源许可与致谢”中查看。")

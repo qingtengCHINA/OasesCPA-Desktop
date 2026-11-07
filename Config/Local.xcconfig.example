@@ -1,0 +1,11 @@
+// Copy to Config/Local.xcconfig (git-ignored) and fill in your own values.
+// Config/Base.xcconfig includes it last, so every value here overrides the neutral default.
+// Write URLs as https:/$()/host/ because "//" starts a comment in .xcconfig files.
+
+DEVELOPMENT_TEAM = YOUR_TEAM_ID
+OASES_BUNDLE_ID_PREFIX = com.example
+OASES_UPDATE_REPOSITORY = owner/repo
+// Defaults to DEVELOPMENT_TEAM; set it only when releases are signed by another team.
+// OASES_UPDATE_TEAM_ID = YOUR_TEAM_ID
+OASES_AUTHOR_NAME = Your Name
+OASES_AUTHOR_URL = https:/$()/example.com/

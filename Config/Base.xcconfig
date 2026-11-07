@@ -1,0 +1,19 @@
+// Build-time identity of Oases CPA. Every target and configuration includes this file
+// (project.yml, configFiles). The committed values are neutral: a build from a fresh
+// checkout signs with no team, uses the com.example bundle prefix and ships with the
+// updater disabled and no author line.
+//
+// Put your own values in Config/Local.xcconfig (git-ignored); start from
+// Config/Local.xcconfig.example. Write URLs as https:/$()/host/ because "//" starts a
+// comment in .xcconfig files.
+
+DEVELOPMENT_TEAM =
+OASES_BUNDLE_ID_PREFIX = com.example
+// GitHub repository "owner/name" whose releases the updater reads; empty disables it.
+OASES_UPDATE_REPOSITORY =
+// Team identifier the downloaded app must be signed with.
+OASES_UPDATE_TEAM_ID = $(DEVELOPMENT_TEAM)
+OASES_AUTHOR_NAME =
+OASES_AUTHOR_URL =
+
+#include? "Local.xcconfig"

@@ -33,5 +33,13 @@
 	<string>Copyright © 2026 Oases CPA contributors. See Open Source Notices.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>OasesAuthorName</key>
+	<string>$(OASES_AUTHOR_NAME)</string>
+	<key>OasesAuthorURL</key>
+	<string>$(OASES_AUTHOR_URL)</string>
+	<key>OasesUpdateRepository</key>
+	<string>$(OASES_UPDATE_REPOSITORY)</string>
+	<key>OasesUpdateTeamIdentifier</key>
+	<string>$(OASES_UPDATE_TEAM_ID)</string>
 </dict>
 </plist>

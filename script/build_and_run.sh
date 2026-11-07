@@ -3,7 +3,9 @@ set -euo pipefail
 
 MODE="${1:-run}"
 APP_NAME="OasesCPA"
-BUNDLE_ID="dev.oases.cpa.macos"
+# Bundle identifier of this unsigned development build (override with OASES_BUNDLE_ID).
+# The generated Info.plist leaves the update channel and author empty: no updater.
+BUNDLE_ID="${OASES_BUNDLE_ID:-com.example.cpa.macos}"
 MIN_SYSTEM_VERSION="14.0"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -15,6 +17,11 @@ APP_RESOURCES="$APP_CONTENTS/Resources"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
 ICON_SOURCE="$ROOT_DIR/Sources/OasesCPA/Resources/OasesCPA.icns"
+
+if [[ ! "$BUNDLE_ID" =~ ^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$ ]]; then
+  echo "OASES_BUNDLE_ID must be a reverse-DNS bundle identifier." >&2
+  exit 2
+fi
 
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
@@ -64,6 +71,14 @@ cat >"$INFO_PLIST" <<PLIST
   </dict>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
+  <key>OasesAuthorName</key>
+  <string></string>
+  <key>OasesAuthorURL</key>
+  <string></string>
+  <key>OasesUpdateRepository</key>
+  <string></string>
+  <key>OasesUpdateTeamIdentifier</key>
+  <string></string>
 </dict>
 </plist>
 PLIST

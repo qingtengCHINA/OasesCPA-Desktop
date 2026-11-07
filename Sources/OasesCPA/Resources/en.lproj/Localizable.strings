@@ -2122,3 +2122,4 @@
 "输入 %@ · 输出 %@" = "Input %@ · Output %@";
 "每次 %@" = "%@ per request";
 "平均 %@" = "%@ average";
+"作者 · %@" = "Author · %@";

@@ -1,12 +1,45 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Build identity comes from the environment, never from this file:
+#   OASES_BUNDLE_ID  bundle identifier of the release (default com.example.cpa.macos)
+#   OASES_TEAM_ID    Apple team identifier; required for an official release and for
+#                    --render-export-options, and it must match CODESIGN_IDENTITY's team.
+VALIDATE_POLICY_ONLY=0
+RENDER_EXPORT_OPTIONS=""
+case "${1:-}" in
+  "")
+    ;;
+  --validate-policy)
+    VALIDATE_POLICY_ONLY=1
+    shift
+    ;;
+  --render-export-options)
+    if [[ "$#" -lt 2 || -z "${2:-}" ]]; then
+      echo "Error: --render-export-options needs an output path." >&2
+      exit 2
+    fi
+    RENDER_EXPORT_OPTIONS="$2"
+    shift 2
+    ;;
+  *)
+    echo "Error: unknown option: ${1}" >&2
+    exit 2
+    ;;
+esac
+if [[ "$#" -ne 0 ]]; then
+  echo "Error: unexpected positional arguments." >&2
+  exit 2
+fi
+
 APP_NAME="OasesCPA"
 DISPLAY_NAME="Oases CPA"
-BUNDLE_ID="dev.oases.cpa.macos"
+BUNDLE_ID="${OASES_BUNDLE_ID:-com.example.cpa.macos}"
+TEAM_ID="${OASES_TEAM_ID:-}"
 MIN_SYSTEM_VERSION="14.0"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-}"
 NOTARIZE="${NOTARIZE:-0}"
+ALLOW_UNTRUSTED_LOCAL_RELEASE="${ALLOW_UNTRUSTED_LOCAL_RELEASE:-0}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-}"
 NOTARY_APPLE_ID="${NOTARY_APPLE_ID:-}"
 NOTARY_TEAM_ID="${NOTARY_TEAM_ID:-}"
@@ -43,11 +76,87 @@ fi
 if [[ ! "$APP_BUILD" =~ ^[0-9A-Za-z._-]+$ ]]; then
   die "APP_BUILD may contain only letters, numbers, '.', '_' and '-'."
 fi
+if [[ ! "$BUNDLE_ID" =~ ^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$ ]]; then
+  die "OASES_BUNDLE_ID must be a reverse-DNS bundle identifier."
+fi
+if [[ -n "$TEAM_ID" && ! "$TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]; then
+  die "OASES_TEAM_ID must be ten upper-case letters or digits."
+fi
+
+# Writes an ExportOptions.plist for an App Store archive export from the committed
+# template. The output (for example script/ExportOptions.plist) is git-ignored and an
+# existing file is never overwritten.
+if [[ -n "$RENDER_EXPORT_OPTIONS" ]]; then
+  EXPORT_TEMPLATE="$ROOT_DIR/script/ExportOptions.plist.example"
+  [[ -n "$TEAM_ID" ]] || die "--render-export-options requires OASES_TEAM_ID."
+  [[ -f "$EXPORT_TEMPLATE" ]] || die "Missing template: script/ExportOptions.plist.example"
+  if [[ -e "$RENDER_EXPORT_OPTIONS" || -L "$RENDER_EXPORT_OPTIONS" ]]; then
+    die "Refusing to overwrite an existing ExportOptions file."
+  fi
+  [[ "$(/usr/bin/grep -c 'YOUR_TEAM_ID' "$EXPORT_TEMPLATE")" == "1" ]] || die "The ExportOptions template must hold one YOUR_TEAM_ID placeholder."
+  (
+    umask 077
+    /usr/bin/sed "s/YOUR_TEAM_ID/$TEAM_ID/" "$EXPORT_TEMPLATE" > "$RENDER_EXPORT_OPTIONS"
+  ) || die "Cannot write the ExportOptions file."
+  if [[ -x /usr/bin/plutil ]]; then
+    /usr/bin/plutil -lint -s "$RENDER_EXPORT_OPTIONS" || die "The rendered ExportOptions file is not a valid property list."
+  fi
+  echo "Rendered ExportOptions for the configured team."
+  exit 0
+fi
+
+if [[ "$ALLOW_UNTRUSTED_LOCAL_RELEASE" != "0" && "$ALLOW_UNTRUSTED_LOCAL_RELEASE" != "1" ]]; then
+  die "ALLOW_UNTRUSTED_LOCAL_RELEASE must be 0 or 1."
+fi
 if [[ "$NOTARIZE" != "0" && "$NOTARIZE" != "1" ]]; then
   die "NOTARIZE must be 0 or 1."
 fi
-if [[ "$NOTARIZE" == "1" && -z "$CODESIGN_IDENTITY" ]]; then
-  die "NOTARIZE=1 requires a Developer ID Application CODESIGN_IDENTITY."
+
+RELEASE_MODE="official"
+if [[ "$ALLOW_UNTRUSTED_LOCAL_RELEASE" == "1" ]]; then
+  if [[ "$NOTARIZE" != "0" ]]; then
+    die "ALLOW_UNTRUSTED_LOCAL_RELEASE=1 requires NOTARIZE=0."
+  fi
+  if [[ -n "$CODESIGN_IDENTITY" ]]; then
+    die "ALLOW_UNTRUSTED_LOCAL_RELEASE=1 is only for an ad-hoc local release."
+  fi
+  if [[ -n "$NOTARY_PROFILE" || -n "$NOTARY_APPLE_ID" || -n "$NOTARY_TEAM_ID" || -n "$NOTARY_PASSWORD" ]]; then
+    die "Local release mode cannot be combined with notarization configuration."
+  fi
+  RELEASE_MODE="local"
+else
+  if [[ "$NOTARIZE" != "1" ]]; then
+    die "Official release requires NOTARIZE=1."
+  fi
+  if [[ -z "$CODESIGN_IDENTITY" ]]; then
+    die "Official release requires a Developer ID Application CODESIGN_IDENTITY."
+  fi
+  DEVELOPER_ID_PATTERN='^Developer[[:space:]]ID[[:space:]]Application:[[:space:]]+.+[[:space:]]\([A-Z0-9]{10}\)$'
+  if [[ ! "$CODESIGN_IDENTITY" =~ $DEVELOPER_ID_PATTERN ]]; then
+    die "CODESIGN_IDENTITY must be a Developer ID Application identity."
+  fi
+  if [[ -z "$TEAM_ID" ]]; then
+    die "Official release requires OASES_TEAM_ID (the team the updater accepts)."
+  fi
+  if [[ "$CODESIGN_IDENTITY" != *"($TEAM_ID)" ]]; then
+    die "CODESIGN_IDENTITY does not belong to OASES_TEAM_ID."
+  fi
+  if [[ -z "$NOTARY_PROFILE" && ( -z "$NOTARY_APPLE_ID" || -z "$NOTARY_TEAM_ID" || -z "$NOTARY_PASSWORD" ) ]]; then
+    die "Official notarization requires NOTARY_PROFILE or Apple ID/team/password configuration."
+  fi
+fi
+
+announce_release_mode() {
+  if [[ "$RELEASE_MODE" == "local" ]]; then
+    echo "!!! LOCAL UNTRUSTED RELEASE ONLY: this artifact is not publishable. !!!" >&2
+  else
+    echo "OFFICIAL RELEASE POLICY: Developer ID Application signing and notarization are required." >&2
+  fi
+}
+
+if [[ "$VALIDATE_POLICY_ONLY" -eq 1 ]]; then
+  announce_release_mode
+  exit 0
 fi
 if [[ ! -x /usr/bin/hdiutil || ! -x /usr/bin/codesign || ! -x /usr/bin/ditto || ! -x /usr/bin/sips || ! -x /usr/bin/osascript ]]; then
   die "This packaging script must run on macOS with hdiutil, codesign, ditto, sips and osascript."
@@ -56,6 +165,7 @@ if [[ -e "$RELEASE_DIR" ]]; then
   die "Refusing to overwrite existing release directory: $RELEASE_DIR"
 fi
 
+announce_release_mode
 TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/oases-cpa-package.XXXXXX")"
 TEMP_DMG="$TEMP_ROOT/$APP_NAME-rw.dmg"
 MOUNT_POINT=""
@@ -69,6 +179,10 @@ trap cleanup EXIT
 
 cd "$ROOT_DIR"
 XCODE_DERIVED="$TEMP_ROOT/xcode-derived"
+IDENTITY_SETTINGS=(PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID")
+if [[ -n "$TEAM_ID" ]]; then
+  IDENTITY_SETTINGS+=(OASES_UPDATE_TEAM_ID="$TEAM_ID")
+fi
 /usr/bin/xcodebuild \
   -project "$ROOT_DIR/OasesCPA.xcodeproj" \
   -scheme "Oases CPA" \
@@ -79,6 +193,7 @@ XCODE_DERIVED="$TEMP_ROOT/xcode-derived"
   MARKETING_VERSION="$APP_VERSION" \
   CURRENT_PROJECT_VERSION="$APP_BUILD" \
   CODE_SIGNING_ALLOWED=NO \
+  "${IDENTITY_SETTINGS[@]}" \
   build
 
 BUILT_APP="$XCODE_DERIVED/Build/Products/Release/$DISPLAY_NAME.app"
@@ -86,8 +201,10 @@ BUILT_APP="$XCODE_DERIVED/Build/Products/Release/$DISPLAY_NAME.app"
 mkdir -p "$RELEASE_DIR"
 /usr/bin/ditto "$BUILT_APP" "$APP_BUNDLE"
 [[ -x "$APP_BINARY" ]] || die "Built app executable is missing: $APP_BINARY"
+BUILT_BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO_PLIST" 2>/dev/null || true)"
+[[ "$BUILT_BUNDLE_ID" == "$BUNDLE_ID" ]] || die "Built app bundle identifier does not match OASES_BUNDLE_ID."
 
-if [[ -n "$CODESIGN_IDENTITY" ]]; then
+if [[ "$RELEASE_MODE" == "official" ]]; then
   /usr/bin/codesign \
     --force \
     --options runtime \

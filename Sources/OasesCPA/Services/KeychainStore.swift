@@ -14,7 +14,12 @@ enum KeychainStoreError: LocalizedError {
 
 enum KeychainStore {
     private static let service = "Oases CPA Credentials"
-    private static let legacyService = "dev.oases.cpa.macos.credentials"
+    /// Service name early builds wrote entries under: "<bundle identifier>.credentials".
+    /// Derived at run time so the source carries no build identity; it is only read.
+    private static var legacyService: String? {
+        guard let identifier = Bundle.main.bundleIdentifier, !identifier.isEmpty else { return nil }
+        return "\(identifier).credentials"
+    }
 
     static func save(_ value: String, account: String) throws {
         try saveData(Data(value.utf8), account: account)
@@ -52,7 +57,8 @@ enum KeychainStore {
     }
 
     static func loadLegacyData(account: String) throws -> Data? {
-        try loadData(account: account, service: legacyService)
+        guard let legacyService else { return nil }
+        return try loadData(account: account, service: legacyService)
     }
 
     static func loadLegacy(account: String) throws -> String? {
