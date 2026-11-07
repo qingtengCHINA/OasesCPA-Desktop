@@ -14,17 +14,17 @@ Oases CPA 是一个原生 macOS 控制台，用来部署、连接并管理用户
 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 与
 [CPA Manager Plus](https://github.com/seakee/CPA-Manager-Plus)。默认可直接部署到当前 Mac，也可以通过 SSH 管理 Linux/macOS VPS；日常的 Provider、模型、API Key、用量、成本和运行状态都在一个 App 内完成。
 
-> 当前版本为 `0.1.3` 预发布版本，最低支持 macOS 14。发行构建同时支持 Apple Silicon 与 Intel Mac。
+> 当前版本为 `0.1.4` 预发布版本，最低支持 macOS 14。发行构建同时支持 Apple Silicon 与 Intel Mac。
 
 ## 它解决什么问题
 
-CLIProxyAPI 能把多个 AI Provider 汇聚为统一的 OpenAI 兼容接口，但对初次接触终端、配置文件、SSH 隧道和服务进程的用户并不轻松。Oases CPA 把这条链路整理成可见、可恢复的 macOS 工作流：
+CLIProxyAPI 能把多个 AI Provider 汇聚为统一的兼容 /v1 接口，但对初次接触终端、配置文件、SSH 隧道和服务进程的用户并不轻松。Oases CPA 把这条链路整理成可见、可恢复的 macOS 工作流：
 
 | 目标 | Oases CPA 提供的体验 |
 | --- | --- |
 | 快速开始 | 本机优先的一键部署；环境检测、下载、校验、配置和启动归入一条进度流程 |
 | 管理远程机器 | 保存多个本机或 SSH/VPS 目标，通过本机回环隧道访问管理 API 和 CPAMP 面板 |
-| 接入 AI 服务 | 原生管理 OpenAI-compatible、Gemini、Claude、Codex、xAI、Vertex 等凭证与路由配置 |
+| 接入 AI 服务 | 原生管理标准兼容接口、Gemini、Claude、Codex、xAI、Vertex 等凭证与路由配置 |
 | 找到可用模型 | 显式请求上游 `/models`，展示模型 ID，并提供不会自动改写配置的连通性检查 |
 | 交付调用凭据 | 创建、轮换、删除调用 API Key，直接给出带 `/v1` 的 Base URL |
 | 观察真实运行 | 实时仪表盘、六维用量分析、请求事件、配额、账号待办、日志与凭证健康巡检 |
@@ -41,7 +41,7 @@ CLIProxyAPI 能把多个 AI Provider 汇聚为统一的 OpenAI 兼容接口，�
 ```text
 Base URL   http://127.0.0.1:8317/v1
 API Key    在「调用 API Key」页面创建
-API 格式   OpenAI Compatible / Chat Completions
+API 格式   兼容 /v1 / Chat Completions
 Model ID   从仪表盘或 Provider 的 /models 结果中选择
 ```
 
@@ -76,7 +76,7 @@ cd OasesCPA-Desktop
 1. 打开「连接与部署」，保持默认的“本机 Mac”，然后点击部署。
 2. 部署完成后，在「AI 提供商」添加自己的 AI 服务，可按需获取 `/models` 并测试连通性。
 3. 在「调用 API Key」创建调用密钥。
-4. 将 App 给出的 `/v1` Base URL、API Key 和 Model ID 填入支持 OpenAI 格式的 AI IDE 或 SDK。
+4. 将 App 给出的 `/v1` Base URL、API Key 和 Model ID 填入支持兼容 /v1 格式的 AI IDE 或 SDK。
 
 ## 原生管理能力
 
@@ -90,7 +90,7 @@ cd OasesCPA-Desktop
 
 ### Provider、模型与认证
 
-- 原生管理 OpenAI-compatible Provider 及内置 Provider 凭证池。
+- 原生管理兼容 Provider 及内置 Provider 凭证池。
 - API Key 权重、优先级、冷却策略、独立代理、Headers、模型别名/映射、输入/输出模态与未知高级字段保真。
 - Codex、Anthropic、Antigravity、Kimi、xAI 与 OpenRouter PKCE OAuth。
 - 认证文件可按 Provider、状态和搜索词筛选，支持排序、紧凑显示、模型清单、额度证据、字段编辑、批量启停与批量删除。
@@ -132,7 +132,7 @@ Oases CPA 会执行下载、安装、进程管理和远程 SSH 操作，因此�
 
 - CPA/CPAMP 管理密钥与每个目标的 SSH 私钥存放在 macOS Keychain。
 - 启动 App 或切换目标不会自动读取钥匙串；只有用户点击连接后才会访问凭据。
-- SSH 使用 App 专属 `known_hosts`、`StrictHostKeyChecking=accept-new` 与 `BatchMode`，不会修改用户全局 SSH 主机记录。
+- SSH 使用 App 专属 `known_hosts`、首次连接时确认并固定的主机密钥（`StrictHostKeyChecking=yes`）与 `BatchMode`，不会修改用户全局 SSH 主机记录。
 - Provider 连通性检查需要确认，只读取安全摘要，不展示密钥、请求头、响应正文或原始元数据。
 - 远程管理 API 和面板默认通过 SSH 隧道绑定本机回环地址。
 - 停止生命周期操作前会确认 PID 对应进程确实属于 Oases CPA 安装目录。
@@ -147,7 +147,9 @@ xcodegen generate
 open "OasesCPA.xcodeproj"
 ```
 
-`OasesCPA.xcodeproj` 由 `project.yml` 生成，包含 Debug、Release 与 AppStore 配置。请在 Xcode 的 Signing & Capabilities 中选择自己的 Apple Developer Team；不要把 Team ID、证书或 App Store Connect 凭据提交到仓库。
+`OasesCPA.xcodeproj` 由 `project.yml` 生成，包含 Debug、Release 与 AppStore 配置。不要把 Team ID、证书或 App Store Connect 凭据提交到仓库。
+
+构建身份在构建时配置：`Config/Base.xcconfig` 给出中性的默认值（不签名团队、`com.example` 包名前缀、不启用自动更新、不显示作者）。把 `Config/Local.xcconfig.example` 复制为 `Config/Local.xcconfig`（已被 git 忽略），填入自己的 `DEVELOPMENT_TEAM`、`OASES_BUNDLE_ID_PREFIX`、`OASES_UPDATE_REPOSITORY`（`owner/name`，留空即关闭自动更新）与作者信息，再运行 `xcodegen generate`。
 
 ### 生成 DMG
 
@@ -157,26 +159,32 @@ open "OasesCPA.xcodeproj"
 ./script/bump_patch_version.sh
 ```
 
-例如 `0.1.2 (38)` 会变为 `0.1.3 (39)`。然后生成发行包：
+例如 `0.1.4 (40)` 会变为 `0.1.5 (41)`。然后生成发行包：
 
 ```bash
 ./script/package_release.sh
 ```
 
-默认使用 ad hoc 签名，只适合本机测试。Developer ID 分发示例：
+打包脚本从环境变量读取包标识 `OASES_BUNDLE_ID`（默认 `com.example.cpa.macos`）与团队 `OASES_TEAM_ID`。只用于本机测试的 ad hoc 包需要显式声明：
 
 ```bash
-CODESIGN_IDENTITY="Developer ID Application: Your Company (TEAMID)" \
-APP_VERSION="0.1.3" APP_BUILD="39" \
-./script/package_release.sh
+ALLOW_UNTRUSTED_LOCAL_RELEASE=1 NOTARIZE=0 ./script/package_release.sh
 ```
 
-如已配置 `notarytool` 钥匙串凭据，可让脚本完成公证、stapling 和重新校验：
+正式分发要求 Developer ID 签名与公证，且签名身份必须属于 `OASES_TEAM_ID`：
 
 ```bash
 CODESIGN_IDENTITY="Developer ID Application: Your Company (TEAMID)" \
+OASES_TEAM_ID="TEAMID" OASES_BUNDLE_ID="com.example.cpa.macos" \
+APP_VERSION="0.1.5" APP_BUILD="41" \
 NOTARIZE=1 NOTARY_PROFILE="oases-cpa-notary" \
 ./script/package_release.sh
+```
+
+App Store 导出所需的 `ExportOptions.plist` 由模板生成（输出文件已被 git 忽略，已存在时不会覆盖）：
+
+```bash
+OASES_TEAM_ID="TEAMID" ./script/package_release.sh --render-export-options script/ExportOptions.plist
 ```
 
 产物位于 `dist/release/<version>-<build>/`。DMG 包含 App、Applications 快捷方式、背景图和 Finder 拖拽布局。
