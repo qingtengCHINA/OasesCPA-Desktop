@@ -43,7 +43,7 @@ enum KeychainStore {
 
     /// The same for asynchronous store-level tests (main actor, so no other test swaps it).
     @MainActor
-    static func withInMemoryKeychainForTesting<T>(_ operation: () async throws -> T) async rethrows -> T {
+    static func withInMemoryKeychainForTesting<T>(_ operation: @MainActor () async throws -> T) async rethrows -> T {
         let previous = testBackend
         testBackend = TestBackend()
         defer { testBackend = previous }

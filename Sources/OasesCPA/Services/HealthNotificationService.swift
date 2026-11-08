@@ -66,9 +66,20 @@ final class HealthNotificationService: NSObject, UNUserNotificationCenterDelegat
         completionHandler([.banner, .sound])
     }
 
+    /// Reads only the authorization status. `UNNotificationSettings` is not Sendable, so the
+    /// settings object stays inside the completion handler and only the status leaves it (the
+    /// async `notificationSettings()` does not compile on Swift 6.1, the toolchain of Xcode 16).
+    private func authorizationStatus() async -> UNAuthorizationStatus {
+        await withCheckedContinuation { continuation in
+            center.getNotificationSettings { settings in
+                continuation.resume(returning: settings.authorizationStatus)
+            }
+        }
+    }
+
     private func isAuthorized() async -> Bool {
-        let settings = await center.notificationSettings()
-        switch settings.authorizationStatus {
+        let status = await authorizationStatus()
+        switch status {
         case .authorized, .provisional, .ephemeral:
             return true
         case .notDetermined, .denied:

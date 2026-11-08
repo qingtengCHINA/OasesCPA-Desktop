@@ -128,7 +128,7 @@ enum DeploymentProfileStore {
     /// Runs `operation` with profiles and run preferences in `suite` instead of the standard
     /// defaults (store-level tests never write the process's real profile list).
     @MainActor
-    static func withDefaultsForTesting<T>(_ suite: UserDefaults, _ operation: () async throws -> T) async rethrows -> T {
+    static func withDefaultsForTesting<T>(_ suite: UserDefaults, _ operation: @MainActor () async throws -> T) async rethrows -> T {
         let previous = defaultsOverride
         defaultsOverride = suite
         defer { defaultsOverride = previous }
