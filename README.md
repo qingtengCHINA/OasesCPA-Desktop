@@ -171,6 +171,7 @@ open "OasesCPA.xcodeproj"
   ```
 
 - 不要在本机运行 `xcodebuild … test`：它会把 App 作为测试宿主启动；用 `swift test` 与 `xcodebuild … build-for-testing`；
+- 设置 `HOME` 和 `CFFIXED_USER_HOME` 不会改变 App 的偏好设置位置：偏好文件 `~/Library/Preferences/<包标识>.plist` 仍写在真实的用户目录里。使用单独的包标识时它只属于这个调试包；每次图形界面走查之前和之后，把这个文件移到废纸篓（`mv` 到 `~/.Trash/`），这样上一次运行留下的内容不会带进下一次；
 - 钥匙串服务名 `Oases CPA Credentials` 不随包标识区分，最彻底的隔离是使用一个临时的 macOS 用户账户。
 
 ### 生成 DMG

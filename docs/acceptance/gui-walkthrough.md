@@ -16,7 +16,11 @@ write a key, host name or user name into this file; write paths as `<scratch>` a
 | 0.5 | Launch the app from a shell with the isolation from README "本机运行的隔离": `HOME="$SCRATCH_HOME" CFFIXED_USER_HOME="$SCRATCH_HOME" "<scratch>/gui-dd/Build/Products/Debug/Oases CPA.app/Contents/MacOS/Oases CPA" -OasesDisableAutoProbe` | the app opens. | |
 | 0.6 | FIRST check after launch: open 连接与部署 | the connection centre shows NO saved target. If it shows one, quit the app at once and report (it would be the owner's profile). | |
 
-Note: the Keychain service name is shared between builds; profiles are separate per target, but
+Note: setting `HOME` / `CFFIXED_USER_HOME` does not move the app's preferences: the debug app
+still writes `~/Library/Preferences/<bundle id>.plist` in the real home (window frame, possibly a
+saved target from an earlier run of the same bundle id). Move that file to `~/.Trash/` before
+step 0.5 and again after section 3 (only the file of the separate e2e bundle id, never another
+app's). The Keychain service name is shared between builds; profiles are separate per target, but
 the most complete isolation is a temporary macOS user account. The deployment in step 1
 downloads the pinned packages from GitHub and nodejs.org (SHA-256 checked by the scripts).
 
