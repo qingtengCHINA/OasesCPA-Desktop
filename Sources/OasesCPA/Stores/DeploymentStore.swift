@@ -94,6 +94,26 @@ final class DeploymentStore: ObservableObject {
 
     private let tunnelProcessOwner = TunnelProcessOwner()
     private var healthMonitorTask: Task<Void, Never>?
+    /// False in test processes and in runs launched with `-OasesDisableAutoProbe`: no automatic
+    /// probe of the default install directory, no automatic adoption, and no 30 s patrol (which
+    /// calls `ensureRunning`). Explicit user actions still work.
+    let automaticActivityEnabled: Bool
+
+    /// Whether this process may run automatic deployment activity at all.
+    nonisolated static var automaticActivityAllowed: Bool {
+        automaticActivityAllowed(
+            environment: ProcessInfo.processInfo.environment,
+            arguments: ProcessInfo.processInfo.arguments
+        )
+    }
+
+    nonisolated static func automaticActivityAllowed(environment: [String: String], arguments: [String]) -> Bool {
+        environment["XCTestConfigurationFilePath"] == nil && !arguments.contains("-OasesDisableAutoProbe")
+    }
+
+    var isHealthMonitorRunningForTesting: Bool {
+        healthMonitorTask != nil
+    }
     private var tunnelAttached = false
     private var cancellables = Set<AnyCancellable>()
     private var profileIsInstalled = false
@@ -137,7 +157,10 @@ final class DeploymentStore: ObservableObject {
         tunnelProcessOwner.stop()
     }
 
-    init() {
+    /// - Parameter autoProbe: run automatic deployment activity (see `automaticActivityEnabled`);
+    ///   defaults to what the process allows. Tests pass `false`.
+    init(autoProbe: Bool = DeploymentStore.automaticActivityAllowed) {
+        automaticActivityEnabled = autoProbe
         savedProfiles = DeploymentProfileStore.loadAll()
         if let profile = DeploymentProfileStore.load() {
             activeProfileID = profile.id
@@ -158,7 +181,7 @@ final class DeploymentStore: ObservableObject {
         }
 
         bindPersistence()
-        if targetKind == .local {
+        if automaticActivityEnabled, targetKind == .local {
             // Local probing is read-only, so make the common first-run path
             // auto-adopt or reconnect a managed deployment without an early
             // Keychain read prompt.
@@ -263,7 +286,7 @@ final class DeploymentStore: ObservableObject {
         wantsRunning = true
         setWantsRunningPreference(true)
         saveProfile()
-        if kind == .local {
+        if automaticActivityEnabled, kind == .local {
             Task { [weak self] in
                 self?.probeTarget()
             }
@@ -301,8 +324,10 @@ final class DeploymentStore: ObservableObject {
         invalidateMaintenanceState()
         invalidateDeploymentLog()
         resetHealthState()
-        Task { [weak self] in
-            self?.probeTarget()
+        if automaticActivityEnabled {
+            Task { [weak self] in
+                self?.probeTarget()
+            }
         }
     }
 
@@ -345,7 +370,7 @@ final class DeploymentStore: ObservableObject {
         } else {
             stage = .idle
             statusMessage = "已切换到 \(profile.displayName)，可重新检测环境"
-            if targetKind == .local {
+            if automaticActivityEnabled, targetKind == .local {
                 Task { [weak self] in
                     self?.probeTarget()
                 }
@@ -474,6 +499,12 @@ final class DeploymentStore: ObservableObject {
                             : OasesLocalization.localized("检测到现有部署，但管理凭据不完整；请查看日志后使用修复功能。")
                         self.deploymentError = detail
                         self.statusMessage = detail
+                        return
+                    }
+                    guard self.automaticActivityEnabled else {
+                        self.stage = .idle
+                        self.planPresented = false
+                        self.statusMessage = OasesLocalization.localized("检测到现有部署；此次运行已停用自动接管与后台巡检。")
                         return
                     }
                     self.adoptExistingDeployment(request: self.currentExecutionRequest, requestID: requestID)
@@ -1725,7 +1756,7 @@ final class DeploymentStore: ObservableObject {
     }
 
     private func startHealthMonitor() {
-        guard profileIsInstalled, wantsRunning else { return }
+        guard automaticActivityEnabled, profileIsInstalled, wantsRunning else { return }
         healthMonitorTask?.cancel()
         healthMonitorTask = Task { [weak self] in
             while !Task.isCancelled {

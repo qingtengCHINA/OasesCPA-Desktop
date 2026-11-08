@@ -125,24 +125,60 @@ final class DeploymentLifecycleServiceTests: XCTestCase {
 
     func testRemovalRejectsRootHomeUnmanagedAndSymlink() throws {
         let service = DeploymentRemovalService()
-        let rootResult = try run(script: service.scriptForVerification(method: .native, installDirectory: "/"))
-        XCTAssertNotEqual(rootResult.status, 0)
-        let homeResult = try run(script: service.scriptForVerification(method: .native, installDirectory: NSHomeDirectory()))
-        XCTAssertNotEqual(homeResult.status, 0)
+        // The removal script ends in `rm -rf -- "$ROOT"`. Every run here gets a scratch HOME
+        // under $OASES_SCRATCH and a PATH whose `rm` only records its arguments, so a regressed
+        // guard can reach neither `/` nor the real home directory.
+        let sandbox = try makeRemovalSandbox()
+        let probe = try run(script: "command -v rm\nprintf '%s\\n' \"$HOME\"\n", environment: sandbox.environment)
+        let resolved = probe.stdout.split(separator: "\n").map(String.init)
+        guard resolved == [sandbox.fakeRM.path, sandbox.home.path] else {
+            return XCTFail("refusing to run the removal script outside its sandbox: \(probe.stdout) \(probe.stderr)")
+        }
 
-        let unmanaged = try makeDirectory()
+        let unmanaged = sandbox.root.appendingPathComponent("unmanaged", isDirectory: true)
         try write("data", to: unmanaged.appendingPathComponent("keep.txt"))
-        let unmanagedResult = try run(script: service.scriptForVerification(method: .native, installDirectory: unmanaged.path))
-        XCTAssertNotEqual(unmanagedResult.status, 0)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: unmanaged.path))
-
-        let managed = try makeDirectory()
+        let managed = sandbox.root.appendingPathComponent("managed", isDirectory: true)
         writeManagedRoot(at: managed)
-        let link = temporaryRoot().appendingPathComponent("link")
+        let link = sandbox.root.appendingPathComponent("link")
         try FileManager.default.createSymbolicLink(at: link, withDestinationURL: managed)
-        let symlinkResult = try run(script: service.scriptForVerification(method: .native, installDirectory: link.path))
-        XCTAssertNotEqual(symlinkResult.status, 0)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: managed.path))
+
+        // "/" is refused by the script's first guard; the fake rm is the backstop. Every other
+        // case must resolve inside the sandbox before the script may run at all.
+        let cases: [(String, URL?)] = [
+            ("/", nil),
+            ("~", sandbox.home),
+            ("$HOME", sandbox.home),
+            (sandbox.home.path, sandbox.home),
+            (sandbox.home.path + "/", sandbox.home),
+            (unmanaged.path, unmanaged),
+            (link.path, link)
+        ]
+        for (directory, target) in cases {
+            if let target {
+                guard isInside(target, sandbox.root) else {
+                    return XCTFail("refusing to run the removal script for a root outside the sandbox: \(directory)")
+                }
+            }
+            let result = try run(
+                script: service.scriptForVerification(method: .native, installDirectory: directory),
+                environment: sandbox.environment
+            )
+            XCTAssertNotEqual(result.status, 0, directory)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: sandbox.rmLog.path), "rm must not run for \(directory)")
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sandbox.home.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: unmanaged.appendingPathComponent("keep.txt").path))
+
+        // Positive control: a valid managed root inside the sandbox does reach rm, and it is
+        // the recording fake (it deletes nothing), so the assertions above are not vacuous.
+        guard isInside(managed, sandbox.root) else { return XCTFail("managed root left the sandbox") }
+        _ = try run(
+            script: service.scriptForVerification(method: .native, installDirectory: managed.path),
+            environment: sandbox.environment
+        )
+        let calls = (try? String(contentsOf: sandbox.rmLog, encoding: .utf8)) ?? ""
+        XCTAssertEqual(calls.trimmingCharacters(in: .whitespacesAndNewlines), "-rf -- \(physicalPath(managed))")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: managed.appendingPathComponent(".oases-cpa-managed").path))
     }
 
     func testRemovalNativeStopsVerifiedProcessAndDeletesOnlyRoot() throws {
@@ -267,6 +303,54 @@ final class DeploymentLifecycleServiceTests: XCTestCase {
         process.waitUntilExit()
         return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private struct RemovalSandbox {
+        let root: URL
+        let home: URL
+        let fakeRM: URL
+        let rmLog: URL
+        var environment: [String: String] {
+            ["HOME": home.path, "PATH": "\(fakeRM.deletingLastPathComponent().path):/usr/bin:/bin"]
+        }
+    }
+
+    /// A scratch directory under $OASES_SCRATCH (default $TMPDIR/oases-b-scratch) with a home
+    /// directory and a `rm` that records its arguments and deletes nothing.
+    private func makeRemovalSandbox() throws -> RemovalSandbox {
+        let scratch = ProcessInfo.processInfo.environment["OASES_SCRATCH"].map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? FileManager.default.temporaryDirectory.appendingPathComponent("oases-b-scratch", isDirectory: true)
+        let root = scratch.appendingPathComponent("removal-guard-\(UUID().uuidString)", isDirectory: true)
+            .resolvingSymlinksInPath()
+        let home = root.appendingPathComponent("home", isDirectory: true)
+        let bin = root.appendingPathComponent("bin", isDirectory: true)
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        let resolvedRoot = root.resolvingSymlinksInPath()
+        temporaryDirectories.append(resolvedRoot)
+        let rmLog = resolvedRoot.appendingPathComponent("rm-calls")
+        let fakeRM = resolvedRoot.appendingPathComponent("bin/rm")
+        try write("#!/bin/sh\nprintf '%s\\n' \"$*\" >> '\(rmLog.path)'\nexit 1\n", to: fakeRM)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeRM.path)
+        return RemovalSandbox(
+            root: resolvedRoot,
+            home: resolvedRoot.appendingPathComponent("home", isDirectory: true),
+            fakeRM: fakeRM,
+            rmLog: rmLog
+        )
+    }
+
+    /// The path the shell's `pwd -P` reports (Foundation drops the /private prefix).
+    private func physicalPath(_ url: URL) -> String {
+        guard let resolved = realpath(url.path, nil) else { return url.path }
+        defer { free(resolved) }
+        return String(cString: resolved)
+    }
+
+    private func isInside(_ url: URL, _ root: URL) -> Bool {
+        let path = url.standardizedFileURL.path
+        let rootPath = root.standardizedFileURL.path
+        return path == rootPath || path.hasPrefix(rootPath + "/")
     }
 
     @discardableResult

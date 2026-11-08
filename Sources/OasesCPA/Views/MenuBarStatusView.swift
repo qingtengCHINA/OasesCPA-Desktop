@@ -191,6 +191,6 @@ private struct ServiceStatus {
 #Preview {
     MenuBarStatusView()
         .environmentObject(AppStore())
-        .environmentObject(DeploymentStore())
+        .environmentObject(DeploymentStore(autoProbe: false))
         .environmentObject(RuntimeDataStore())
 }

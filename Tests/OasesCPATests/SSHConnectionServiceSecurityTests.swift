@@ -508,7 +508,7 @@ final class SSHConnectionServiceSecurityTests: XCTestCase {
 
     @MainActor
     func testActiveDeploymentKeepsOriginalTargetAndPrivateKeySnapshot() throws {
-        let store = DeploymentStore()
+        let store = DeploymentStore(autoProbe: false)
         let original = DeploymentExecutionRequest(
             target: .ssh,
             method: .native,

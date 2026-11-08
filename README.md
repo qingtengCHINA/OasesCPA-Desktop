@@ -151,6 +151,22 @@ open "OasesCPA.xcodeproj"
 
 构建身份在构建时配置：`Config/Base.xcconfig` 给出中性的默认值（不签名团队、`com.example` 包名前缀、不启用自动更新、不显示作者）。把 `Config/Local.xcconfig.example` 复制为 `Config/Local.xcconfig`（已被 git 忽略），填入自己的 `DEVELOPMENT_TEAM`、`OASES_BUNDLE_ID_PREFIX`、`OASES_UPDATE_REPOSITORY`（`owner/name`，留空即关闭自动更新）与作者信息，再运行 `xcodegen generate`。
 
+### 本机运行的隔离
+
+开发机上若已有一套在用的部署（默认目录 `~/.oases-cpa`），App 一启动就可能检测并接管它：首次运行时会自动检测默认安装目录，接管后的 30 秒巡检会调用 `ensureRunning` 重启服务。测试进程（环境变量 `XCTestConfigurationFilePath`）或带启动参数 `-OasesDisableAutoProbe` 运行时，`DeploymentStore` 不做自动检测、不自动接管、也不启动巡检。图形界面调试请同时做到：
+
+- 使用单独的包标识（`Config/Local.xcconfig` 中的 `OASES_BUNDLE_ID_PREFIX`，或构建时在命令行传入 `OASES_BUNDLE_ID_PREFIX=dev.example.oases-e2e OASES_UPDATE_REPOSITORY=`），这样不会读到正式构建保存的目标；
+- 同时把 `HOME` 和 `CFFIXED_USER_HOME` 设为一个临时目录（子 shell 通过 `$HOME` 展开 `~`），并加上 `-OasesDisableAutoProbe`：
+
+  ```bash
+  SCRATCH_HOME="$(mktemp -d "${TMPDIR:-/tmp}/oases-gui.XXXXXX")"
+  HOME="$SCRATCH_HOME" CFFIXED_USER_HOME="$SCRATCH_HOME" \
+    "<DerivedData>/Build/Products/Debug/Oases CPA.app/Contents/MacOS/Oases CPA" -OasesDisableAutoProbe
+  ```
+
+- 不要在本机运行 `xcodebuild … test`：它会把 App 作为测试宿主启动；用 `swift test` 与 `xcodebuild … build-for-testing`；
+- 钥匙串服务名 `Oases CPA Credentials` 不随包标识区分，最彻底的隔离是使用一个临时的 macOS 用户账户。
+
 ### 生成 DMG
 
 每次准备新版本时，先自动递增 patch 版本号与 build 号，并同步重新生成 Xcode 工程：

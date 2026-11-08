@@ -2159,3 +2159,4 @@
 "打开%@" = "Open %@";
 "已接入 · %@" = "Connected · %@";
 "作者 · %@" = "Author · %@";
+"检测到现有部署；此次运行已停用自动接管与后台巡检。" = "An existing deployment was found; automatic adoption and the background patrol are off for this run.";
