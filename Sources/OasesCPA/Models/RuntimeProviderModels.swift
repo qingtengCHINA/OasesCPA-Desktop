@@ -312,6 +312,13 @@ struct RuntimeOpenAICompatibilityPatch: Encodable, Sendable {
         self.headers = headers
     }
 
+    /// Whether the PATCH changes anything besides `priority` (which the engine's PATCH may
+    /// ignore; the priority is then written separately).
+    var changesOtherThanPriority: Bool {
+        name != nil || prefix != nil || disabled != nil || disableCooling != nil || baseURL != nil
+            || apiKeyEntries != nil || models != nil || headers != nil
+    }
+
     private enum CodingKeys: String, CodingKey {
         case name
         case prefix

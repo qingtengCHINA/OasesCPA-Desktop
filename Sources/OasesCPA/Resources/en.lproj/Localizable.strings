@@ -2519,3 +2519,5 @@
 "认证文件导入、JSON 替换、下载、删除、启停，以及 OAuth 模型排除和别名规则都会直接调用当前目标的 Management API；OAuth 授权在“OAuth 登录”中完成。" = "Importing, replacing, downloading, deleting, enabling and disabling auth files, and the OAuth model exclusion and alias rules, call the current target's Management API directly; OAuth authorization happens in \"OAuth\".";
 "已保存脱敏后的 %@。" = "Saved a redacted copy of %@.";
 "保存 %@ 失败：%@" = "Failed to save %1$@: %2$@";
+"该服务的其他设置已保存，但优先级没有保存：%@ 列表已刷新，请重新设置优先级。" = "The provider's other settings were saved, but its priority was not: %@ The list was refreshed; set the priority again.";
+"优先级没有保存：%@ 其他设置没有改动，请重新设置优先级。" = "The priority was not saved: %@ Nothing else was changed; set the priority again.";

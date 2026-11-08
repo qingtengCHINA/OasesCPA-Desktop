@@ -17,6 +17,10 @@ enum RuntimeDataStoreError: LocalizedError {
     case accountActionCandidateNotPending
     case codexInspectionRunAlreadyActive
     case codexInspectionRunNotCancellable
+    /// A provider edit is a PATCH and then a whole-list write of the priority: the PATCH was
+    /// stored (`otherChangesSaved`: it carried more than the priority) and the second write
+    /// failed with `reason`.
+    case providerPriorityNotSaved(otherChangesSaved: Bool, reason: String)
 
     var errorDescription: String? {
         switch self {
@@ -50,12 +54,21 @@ enum RuntimeDataStoreError: LocalizedError {
             OasesLocalization.localized("当前目标已有正在运行的凭证健康巡检；请等待完成或先取消该任务。")
         case .codexInspectionRunNotCancellable:
             OasesLocalization.localized("该巡检已结束或当前 Manager Server 不允许取消；请刷新后再试。")
+        case .providerPriorityNotSaved(let otherChangesSaved, let reason):
+            otherChangesSaved
+                ? OasesLocalization.localizedFormat("该服务的其他设置已保存，但优先级没有保存：%@ 列表已刷新，请重新设置优先级。", reason)
+                : OasesLocalization.localizedFormat("优先级没有保存：%@ 其他设置没有改动，请重新设置优先级。", reason)
         }
     }
 }
 
 @MainActor
 final class RuntimeDataStore: ObservableObject {
+    /// Makes the engine management client for the `config.yaml` and provider writes (tests
+    /// inject a stubbed session; every other read still builds its own default client).
+    var makeManagementClient: () -> ManagementAPIClient = { ManagementAPIClient() }
+    /// Serialises this app's writes to one provider section of the engine configuration.
+    let providerSectionWrites = ProviderSectionWriteQueue()
     @Published private(set) var dashboard: RuntimeDashboardSummary?
     @Published private(set) var analyticsDashboard: RuntimeDashboardSummary?
     @Published private(set) var monitoringDashboard: RuntimeDashboardSummary?
@@ -2314,7 +2327,9 @@ final class RuntimeDataStore: ObservableObject {
         }
     }
 
-    func refreshProviders(using deploymentStore: DeploymentStore) {
+    /// `keepingErrorMessage`: a write that stored only part of an edit reloads the list and
+    /// keeps its message saying what was stored.
+    func refreshProviders(using deploymentStore: DeploymentStore, keepingErrorMessage: Bool = false) {
         providerTask?.cancel()
         resetProviderConnectivity()
         hasLoadedOpenAICompatibility = false
@@ -2327,11 +2342,12 @@ final class RuntimeDataStore: ObservableObject {
 
         let baseURL = deploymentStore.engineBaseURL
         let managementKey = deploymentStore.managementKey
+        let client = makeManagementClient()
         isLoadingProviders = true
-        providerErrorMessage = nil
+        if !keepingErrorMessage { providerErrorMessage = nil }
         providerTask = Task { [weak self] in
             do {
-                let response = try await ManagementAPIClient().openAICompatibility(
+                let response = try await client.openAICompatibility(
                     baseURL: baseURL,
                     managementKey: managementKey
                 )
@@ -2340,12 +2356,12 @@ final class RuntimeDataStore: ObservableObject {
                       deploymentStore.managementKey == managementKey else { return }
                 self?.openAICompatibility = response.providers
                 self?.hasLoadedOpenAICompatibility = true
-                self?.providerErrorMessage = nil
+                if !keepingErrorMessage { self?.providerErrorMessage = nil }
                 self?.isLoadingProviders = false
             } catch {
                 guard !Task.isCancelled else { return }
                 self?.isLoadingProviders = false
-                self?.providerErrorMessage = error.localizedDescription
+                if !keepingErrorMessage { self?.providerErrorMessage = error.localizedDescription }
             }
         }
     }
@@ -2558,12 +2574,16 @@ final class RuntimeDataStore: ObservableObject {
         defer { isSavingDirectProviders = false }
 
         do {
-            try await ManagementAPIClient().appendDirectProviderCredential(
-                draft.newPayload(for: kind),
-                kind: kind,
-                baseURL: baseURL,
-                managementKey: managementKey
-            )
+            let client = makeManagementClient()
+            let payload = draft.newPayload(for: kind)
+            try await providerSectionWrites.run(section: kind.managementSection) {
+                try await client.appendDirectProviderCredential(
+                    payload,
+                    kind: kind,
+                    baseURL: baseURL,
+                    managementKey: managementKey
+                )
+            }
         } catch {
             directProviderErrors[kind] = error.localizedDescription
             throw error
@@ -2590,12 +2610,15 @@ final class RuntimeDataStore: ObservableObject {
         defer { isSavingDirectProviders = false }
 
         do {
-            try await ManagementAPIClient().updateDirectProviderCredential(
-                credential,
-                patch: patch,
-                baseURL: baseURL,
-                managementKey: managementKey
-            )
+            let client = makeManagementClient()
+            try await providerSectionWrites.run(section: credential.kind.managementSection) {
+                try await client.updateDirectProviderCredential(
+                    credential,
+                    patch: patch,
+                    baseURL: baseURL,
+                    managementKey: managementKey
+                )
+            }
         } catch {
             directProviderErrors[credential.kind] = error.localizedDescription
             throw error
@@ -2616,12 +2639,17 @@ final class RuntimeDataStore: ObservableObject {
         defer { isSavingDirectProviders = false }
 
         do {
-            try await ManagementAPIClient().deleteDirectProviderCredential(
-                kind: credential.kind,
-                index: credential.index,
-                baseURL: baseURL,
-                managementKey: managementKey
-            )
+            let client = makeManagementClient()
+            let kind = credential.kind
+            let index = credential.index
+            try await providerSectionWrites.run(section: kind.managementSection) {
+                try await client.deleteDirectProviderCredential(
+                    kind: kind,
+                    index: index,
+                    baseURL: baseURL,
+                    managementKey: managementKey
+                )
+            }
         } catch {
             directProviderErrors[credential.kind] = error.localizedDescription
             throw error
@@ -2645,28 +2673,39 @@ final class RuntimeDataStore: ObservableObject {
 
         let baseURL = deploymentStore.engineBaseURL
         let managementKey = deploymentStore.managementKey
+        let client = makeManagementClient()
+        let queue = providerSectionWrites
         isSavingProviders = true
         providerErrorMessage = nil
         Task { [weak self] in
             do {
-                let client = ManagementAPIClient()
-                try await client.patchOpenAICompatibility(
-                    name: name,
-                    index: index,
-                    value: value,
-                    baseURL: baseURL,
-                    managementKey: managementKey
-                )
-                // The engine's PATCH may not know `priority`: the priority is then written by
-                // a read-modify-write of the whole list (only that field of that entry changes).
-                if let priority = value.priority {
-                    try await client.setOpenAICompatibilityPriority(
-                        priority,
-                        providerNamed: value.name ?? name,
+                try await queue.run(section: Self.openAICompatibilitySection) {
+                    try await client.patchOpenAICompatibility(
+                        name: name,
                         index: index,
+                        value: value,
                         baseURL: baseURL,
                         managementKey: managementKey
                     )
+                    // The engine's PATCH may not know `priority`: the priority is then written
+                    // by a read-modify-write of the whole list (only that field of that entry
+                    // changes). The PATCH is already stored when this second write fails.
+                    if let priority = value.priority {
+                        do {
+                            try await client.setOpenAICompatibilityPriority(
+                                priority,
+                                providerNamed: value.name ?? name,
+                                index: index,
+                                baseURL: baseURL,
+                                managementKey: managementKey
+                            )
+                        } catch {
+                            throw RuntimeDataStoreError.providerPriorityNotSaved(
+                                otherChangesSaved: value.changesOtherThanPriority,
+                                reason: error.localizedDescription
+                            )
+                        }
+                    }
                 }
                 guard !Task.isCancelled,
                       deploymentStore.stage == .attached,
@@ -2677,9 +2716,18 @@ final class RuntimeDataStore: ObservableObject {
                 guard !Task.isCancelled else { return }
                 self?.isSavingProviders = false
                 self?.providerErrorMessage = error.localizedDescription
+                // Part of the edit may be stored: show the list as it is now.
+                if case RuntimeDataStoreError.providerPriorityNotSaved = error,
+                   deploymentStore.stage == .attached,
+                   deploymentStore.managementKey == managementKey {
+                    self?.refreshProviders(using: deploymentStore, keepingErrorMessage: true)
+                }
             }
         }
     }
+
+    /// The engine-configuration section of the OpenAI-compatible providers (the queue key).
+    static let openAICompatibilitySection = "openai-compatibility"
 
     /// Saves the dedicated OpenRouter OAuth provider without persisting the
     /// OAuth key in app state. Existing provider fields (including user-edited
@@ -2693,71 +2741,31 @@ final class RuntimeDataStore: ObservableObject {
         let (baseURL, managementKey) = try cpaManagementContext(using: deploymentStore)
         let models = modelCatalog.models
         let shouldReplaceModels = modelCatalog.didLoad
-        let client = ManagementAPIClient()
+        let client = makeManagementClient()
+        // A new provider gets an internal routing prefix like every other new one.
+        let directPrefixes = hasLoadedDirectProviderCredentials
+            ? RuntimeDirectProviderKind.allCases.flatMap { (directProviderCredentials[$0] ?? []).map(\.prefix) }
+            : []
 
         isSavingProviders = true
         providerErrorMessage = nil
         defer { isSavingProviders = false }
 
         do {
-            let current = try await client.openAICompatibility(
-                baseURL: baseURL,
-                managementKey: managementKey
-            )
-            let existing = current.providers.enumerated().first { _, provider in
-                provider.name.trimmingCharacters(in: .whitespacesAndNewlines)
-                    .lowercased() == RuntimeOpenRouterOAuth.providerName
-            }
+            let result = try await providerSectionWrites.run(section: Self.openAICompatibilitySection) { () async throws -> RuntimeOpenRouterProviderSaveResult in
+                let current = try await client.openAICompatibility(
+                    baseURL: baseURL,
+                    managementKey: managementKey
+                )
+                let existing = current.providers.enumerated().first { _, provider in
+                    provider.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                        .lowercased() == RuntimeOpenRouterOAuth.providerName
+                }
 
-            let result: RuntimeOpenRouterProviderSaveResult
-            if let (index, provider) = existing {
-                try await client.patchOpenAICompatibility(
-                    name: provider.name,
-                    index: index,
-                    value: RuntimeOpenAICompatibilityPatch(
-                        name: nil,
-                        prefix: nil,
-                        disabled: nil,
-                        disableCooling: nil,
-                        baseURL: RuntimeOpenRouterOAuth.apiBaseURL.absoluteString,
-                        apiKeyEntries: [RuntimeProviderAPIKey(apiKey: apiKey)],
-                        models: shouldReplaceModels ? models : nil,
-                        headers: nil
-                    ),
-                    baseURL: baseURL,
-                    managementKey: managementKey
-                )
-                result = RuntimeOpenRouterProviderSaveResult(
-                    disposition: .updated,
-                    modelCount: models.count,
-                    preservedExistingModels: !shouldReplaceModels
-                )
-            } else {
-                // A new provider gets an internal routing prefix like every other new one.
-                let directPrefixes = hasLoadedDirectProviderCredentials
-                    ? RuntimeDirectProviderKind.allCases.flatMap { (directProviderCredentials[$0] ?? []).map(\.prefix) }
-                    : []
-                let appendOutcome = try await RuntimeOpenRouterOAuth.appendNewProvider(
-                    apiKey: apiKey,
-                    models: models,
-                    directPrefixes: directPrefixes,
-                    client: client,
-                    baseURL: baseURL,
-                    managementKey: managementKey
-                )
-                switch appendOutcome {
-                case .appended:
-                    result = RuntimeOpenRouterProviderSaveResult(
-                        disposition: .created,
-                        modelCount: models.count,
-                        preservedExistingModels: false
-                    )
-                case .existing(let index):
-                    // A second client added the dedicated provider after our
-                    // initial read. Patch that exact current entry rather than
-                    // replacing the whole list a second time.
+                let result: RuntimeOpenRouterProviderSaveResult
+                if let (index, provider) = existing {
                     try await client.patchOpenAICompatibility(
-                        name: nil,
+                        name: provider.name,
                         index: index,
                         value: RuntimeOpenAICompatibilityPatch(
                             name: nil,
@@ -2777,7 +2785,50 @@ final class RuntimeDataStore: ObservableObject {
                         modelCount: models.count,
                         preservedExistingModels: !shouldReplaceModels
                     )
+                } else {
+                    let appendOutcome = try await RuntimeOpenRouterOAuth.appendNewProvider(
+                        apiKey: apiKey,
+                        models: models,
+                        directPrefixes: directPrefixes,
+                        client: client,
+                        baseURL: baseURL,
+                        managementKey: managementKey
+                    )
+                    switch appendOutcome {
+                    case .appended:
+                        result = RuntimeOpenRouterProviderSaveResult(
+                            disposition: .created,
+                            modelCount: models.count,
+                            preservedExistingModels: false
+                        )
+                    case .existing(let index):
+                        // A second client added the dedicated provider after our
+                        // initial read. Patch that exact current entry rather than
+                        // replacing the whole list a second time.
+                        try await client.patchOpenAICompatibility(
+                            name: nil,
+                            index: index,
+                            value: RuntimeOpenAICompatibilityPatch(
+                                name: nil,
+                                prefix: nil,
+                                disabled: nil,
+                                disableCooling: nil,
+                                baseURL: RuntimeOpenRouterOAuth.apiBaseURL.absoluteString,
+                                apiKeyEntries: [RuntimeProviderAPIKey(apiKey: apiKey)],
+                                models: shouldReplaceModels ? models : nil,
+                                headers: nil
+                            ),
+                            baseURL: baseURL,
+                            managementKey: managementKey
+                        )
+                        result = RuntimeOpenRouterProviderSaveResult(
+                            disposition: .updated,
+                            modelCount: models.count,
+                            preservedExistingModels: !shouldReplaceModels
+                        )
+                    }
                 }
+                return result
             }
 
             guard deploymentStore.stage == .attached,
@@ -2808,16 +2859,20 @@ final class RuntimeDataStore: ObservableObject {
 
         let baseURL = deploymentStore.engineBaseURL
         let managementKey = deploymentStore.managementKey
+        let client = makeManagementClient()
+        let queue = providerSectionWrites
         isSavingProviders = true
         providerErrorMessage = nil
         Task { [weak self] in
             do {
-                let outcome = try await ManagementAPIClient().appendOpenAICompatibility(
-                    provider,
-                    allocatePrefixAgainst: directPrefixes,
-                    baseURL: baseURL,
-                    managementKey: managementKey
-                )
+                let outcome = try await queue.run(section: Self.openAICompatibilitySection) {
+                    try await client.appendOpenAICompatibility(
+                        provider,
+                        allocatePrefixAgainst: directPrefixes,
+                        baseURL: baseURL,
+                        managementKey: managementKey
+                    )
+                }
                 guard case .appended = outcome else {
                     throw RuntimeDataStoreError.openAICompatibilityProviderAlreadyExists
                 }
@@ -2845,13 +2900,16 @@ final class RuntimeDataStore: ObservableObject {
         defer { isSavingProviders = false }
 
         do {
-            let client = ManagementAPIClient()
-            try await client.deleteOpenAICompatibility(
-                name: provider.name,
-                index: nil,
-                baseURL: baseURL,
-                managementKey: managementKey
-            )
+            let client = makeManagementClient()
+            let name = provider.name
+            try await providerSectionWrites.run(section: Self.openAICompatibilitySection) {
+                try await client.deleteOpenAICompatibility(
+                    name: name,
+                    index: nil,
+                    baseURL: baseURL,
+                    managementKey: managementKey
+                )
+            }
             let response = try await client.openAICompatibility(
                 baseURL: baseURL,
                 managementKey: managementKey
@@ -3022,11 +3080,12 @@ final class RuntimeDataStore: ObservableObject {
 
         let baseURL = deploymentStore.engineBaseURL
         let managementKey = deploymentStore.managementKey
+        let client = makeManagementClient()
         isLoadingCPAConfig = true
         cpaConfigErrorMessage = nil
         cpaConfigTask = Task { [weak self] in
             do {
-                let snapshot = try await ManagementAPIClient().configYAML(
+                let snapshot = try await client.configYAML(
                     baseURL: baseURL,
                     managementKey: managementKey
                 )
@@ -3058,16 +3117,46 @@ final class RuntimeDataStore: ObservableObject {
         isSavingCPAConfig = true
         cpaConfigErrorMessage = nil
         defer { isSavingCPAConfig = false }
-        let newETag = try await ManagementAPIClient().saveConfigYAML(
+        let client = makeManagementClient()
+        let readETag = cpaConfigETag
+        let newETag = try await client.saveConfigYAML(
             Data(normalized.utf8),
-            etag: cpaConfigETag,
+            etag: readETag,
             baseURL: baseURL,
             managementKey: managementKey
         )
         guard deploymentStore.stage == .attached,
               deploymentStore.managementKey == managementKey else { return }
-        cpaConfigETag = newETag
-        cpaConfigYAML = normalized
+        let after = await Self.snapshotAfterSave(
+            saved: normalized,
+            read: readETag,
+            written: newETag,
+            reread: { try await client.configYAML(baseURL: baseURL, managementKey: managementKey) }
+        )
+        guard deploymentStore.stage == .attached,
+              deploymentStore.managementKey == managementKey else { return }
+        cpaConfigYAML = after.yaml
+        cpaConfigETag = after.etag
+    }
+
+    /// What the editor holds after a successful `config.yaml` save. The answer's own ETag when
+    /// it has one. When the read had one and the answer has none (an engine that tags GET but
+    /// not PUT), taking the answer's nil would make the next save silently unconditional: the
+    /// file is read again and its content and tag are taken; when that read fails (or carries no
+    /// tag) the read's tag is kept, so the next save is refused as a conflict (412) instead of
+    /// overwriting. Without a tag on the read (CLIProxyAPI v8.0.51) nothing is re-read.
+    static func snapshotAfterSave(
+        saved: String,
+        read: String?,
+        written: String?,
+        reread: () async throws -> RuntimeConfigYAMLSnapshot
+    ) async -> (yaml: String, etag: String?) {
+        if let written { return (saved, written) }
+        guard ManagementAPIClient.configYAMLWritesAreChecked(etag: read) else { return (saved, nil) }
+        guard let current = try? await reread(), ManagementAPIClient.configYAMLWritesAreChecked(etag: current.etag) else {
+            return (saved, read)
+        }
+        return (String(decoding: current.data, as: UTF8.self), current.etag)
     }
 
     private func cpaManagementContext(using deploymentStore: DeploymentStore) throws -> (URL, String) {

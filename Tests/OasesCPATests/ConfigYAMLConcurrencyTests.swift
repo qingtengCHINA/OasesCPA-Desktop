@@ -91,6 +91,70 @@ final class ConfigYAMLConcurrencyTests: XCTestCase {
         XCTAssertEqual(put.0.value(forHTTPHeaderField: "If-Match"), "\"v7\"")
     }
 
+    /// An engine that tags its GET but not its PUT: after a save the editor must not fall back
+    /// to an unconditional write. It reads the file again (content and tag); when that read
+    /// fails it keeps the old tag, so the next save is refused instead of overwriting.
+    @MainActor
+    func testSaveWithoutAnswerETagKeepsTheNextWriteConditional() async throws {
+        final class Counter: @unchecked Sendable {
+            private let lock = NSLock()
+            private var value = 0
+            func next() -> Int { lock.lock(); defer { lock.unlock() }; value += 1; return value }
+        }
+        func install(rereadFails: Bool) {
+            let reads = Counter()
+            URLProtocolStub.install { request, _ in
+                if request.httpMethod == "GET" {
+                    let read = reads.next()
+                    if read > 1 && rereadFails { return .json(500, #"{"error":"busy"}"#, for: request) }
+                    return Self.yamlResult(200, body: "port: 18316\n# read \(read)\n", headers: ["ETag": "\"v\(read)\""], for: request)
+                }
+                // The PUT answer carries no ETag.
+                return .json(200, #"{"changed":["config"],"ok":true}"#, for: request)
+            }
+        }
+        let deploymentStore = DeploymentStore(autoProbe: false)
+        deploymentStore.attachForTesting(topology: .gateway, managementKey: key, adminKey: "cpamp-test-key")
+
+        for rereadFails in [false, true] {
+            install(rereadFails: rereadFails)
+            let store = RuntimeDataStore()
+            store.makeManagementClient = { ManagementAPIClient(session: URLProtocolStub.makeSession()) }
+            store.refreshCPAConfig(using: deploymentStore)
+            for _ in 0..<200 where store.cpaConfigETag == nil {
+                try await Task.sleep(nanoseconds: 10_000_000)
+            }
+            XCTAssertEqual(store.cpaConfigETag, "\"v1\"")
+
+            try await store.saveCPAConfig("port: 18316\n# edited\n", using: deploymentStore)
+            if rereadFails {
+                XCTAssertEqual(store.cpaConfigETag, "\"v1\"", "the read's tag is kept, never nil")
+                XCTAssertEqual(store.cpaConfigYAML, "port: 18316\n# edited\n")
+            } else {
+                XCTAssertEqual(store.cpaConfigETag, "\"v2\"", "the tag of the file as it is now")
+                XCTAssertEqual(store.cpaConfigYAML, "port: 18316\n# read 2\n", "the editor shows what is stored")
+            }
+
+            try await store.saveCPAConfig("port: 18316\n# again\n", using: deploymentStore)
+            let puts = URLProtocolStub.recordedRequests.filter { $0.0.httpMethod == "PUT" }
+            XCTAssertEqual(puts.count, 2)
+            XCTAssertEqual(puts.last?.0.value(forHTTPHeaderField: "If-Match"), rereadFails ? "\"v1\"" : "\"v2\"", "the next save stays conditional")
+        }
+
+        // Without a tag on the read (CLIProxyAPI v8.0.51) nothing is read again.
+        let unchecked = await RuntimeDataStore.snapshotAfterSave(saved: "a\n", read: nil, written: nil) {
+            XCTFail("no re-read without a tag")
+            return RuntimeConfigYAMLSnapshot(data: Data(), etag: nil)
+        }
+        XCTAssertEqual(unchecked.yaml, "a\n")
+        XCTAssertNil(unchecked.etag)
+        let tagged = await RuntimeDataStore.snapshotAfterSave(saved: "a\n", read: "\"v1\"", written: "\"v9\"") {
+            XCTFail("the answer's tag is used as it is")
+            return RuntimeConfigYAMLSnapshot(data: Data(), etag: nil)
+        }
+        XCTAssertEqual(tagged.etag, "\"v9\"")
+    }
+
     func testPreconditionFailuresMapToConfigConflict() async {
         for status in [412, 428] {
             URLProtocolStub.install { request, _ in
