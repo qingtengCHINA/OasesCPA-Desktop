@@ -209,6 +209,10 @@ OASES_CPA_RUN_DOCKER_INTEGRATION=1 swift test \
 
 </details>
 
+### 参与贡献
+
+CI 的私有字符串扫描（`.github/workflows/private-scan.yml`）会拒绝作者或提交者邮箱不在 `script/private-allowlist.txt` 中的提交，以免私人邮箱进入历史；因此外部提交的 Pull Request 会先失败，squash 合并也会让默认分支变红。请使用 GitHub 的 noreply 地址提交（`<id>+<name>@users.noreply.github.com`，可在 GitHub 的邮箱设置中查看）；维护者合并时把该地址连同理由加入 `script/private-allowlist.txt`。在 GitHub 网页上完成的合并与 squash 提交由 GitHub 自己的地址提交，允许清单中已有的仅限提交者的条目已经覆盖它。
+
 ## App Store 状态
 
 当前完整版会下载、安装并执行 CLIProxyAPI 与 CPA Manager Plus，因此不能把现有构建描述为已经满足 Mac App Store 审核要求。仓库保留了 AppStore 配置，但正式提交前应先阅读 [APP_STORE_READINESS.md](./APP_STORE_READINESS.md)，并按文档拆分不包含本机组件部署的商店版本。
@@ -259,3 +263,5 @@ cd OasesCPA-Desktop
 ```
 
 Requires macOS 14+ and a Swift 6 Xcode toolchain. See [App Store readiness](./APP_STORE_READINESS.md) and [third-party notices](./THIRD_PARTY_NOTICES.md) before distribution.
+
+Contributing: the private-string scan in CI rejects every commit whose author or committer e-mail address is not listed in `script/private-allowlist.txt`, so that no private address reaches the history; a pull request from outside fails it, and a squash merge would leave the default branch red. Commit with your GitHub noreply address (`<id>+<name>@users.noreply.github.com`, shown in GitHub's e-mail settings); the maintainer adds that address to `script/private-allowlist.txt`, with a reason, when merging. Merge and squash commits made in GitHub's web UI are committed by GitHub's own address, which the existing committer-only row of the allowlist already covers.

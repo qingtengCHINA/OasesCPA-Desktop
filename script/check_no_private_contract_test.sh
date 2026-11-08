@@ -143,5 +143,29 @@ g "$R3" add settings.conf
 out=$(gate "$R3"); st=$?
 expect_status "an allowlisted fixture passes the gate on <stdin>" 0 "$st"
 
+# 7. GitHub's web-UI committer address is allowed as committer only, in both forms CI and
+#    --history use; a contributor's own noreply address needs a row of its own.
+GH_WEB=$(printf '%s@%s' noreply github.com)
+CONTRIB=$(printf '%s+%s@%s' 1234567 contributor users.noreply.github.com)
+R4="$WORK/identities"
+new_repo "$R4" >/dev/null 2>&1 || not_ok "create a scratch repository"
+cp "$REPO/script/private-allowlist.txt" "$R4/script/private-allowlist.txt"
+out=$(printf 'author: %s\ncommitter: %s\n' "$NOREPLY" "$GH_WEB" | (cd "$R4" && bash "$SCANNER" --stdin 2>&1)); st=$?
+expect_status "GitHub's web-UI address passes on a committer line" 0 "$st"
+out=$(printf 'author: %s\n' "$GH_WEB" | (cd "$R4" && bash "$SCANNER" --stdin 2>&1)); st=$?
+expect_status "GitHub's web-UI address fails on an author line" 1 "$st"
+expect_contains "the author line is an email finding" "$out" "<stdin>:1: email:"
+out=$(printf 'committer: %s\n' "$CONTRIB" | (cd "$R4" && bash "$SCANNER" --stdin 2>&1)); st=$?
+expect_status "a contributor noreply address is not allowed without its own row" 1 "$st"
+GIT_COMMITTER_EMAIL="$GH_WEB" git -C "$R4" -c user.name=Contract -c "user.email=$NOREPLY" \
+  -c commit.gpgsign=false -c core.hooksPath=/dev/null commit -q --allow-empty -m "web merge" >/dev/null 2>&1
+out=$(cd "$R4" && bash "$SCANNER" --history 2>&1); st=$?
+expect_status "--history allows GitHub's address as committer" 0 "$st"
+GIT_AUTHOR_EMAIL="$GH_WEB" git -C "$R4" -c user.name=Contract -c "user.email=$NOREPLY" \
+  -c commit.gpgsign=false -c core.hooksPath=/dev/null commit -q --allow-empty -m "bad author" >/dev/null 2>&1
+out=$(cd "$R4" && bash "$SCANNER" --history 2>&1); st=$?
+expect_status "--history rejects GitHub's address as author" 1 "$st"
+expect_contains "the author is an author-email finding" "$out" ":author:1: author-email:"
+
 printf '\n%d passed, %d failed (scratch: %s)\n' "$PASS" "$FAIL" "$WORK"
 [ "$FAIL" -eq 0 ]
