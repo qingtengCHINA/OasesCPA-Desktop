@@ -135,6 +135,7 @@ Oases CPA 会执行下载、安装、进程管理和远程 SSH 操作，因此�
 - Provider 连通性检查需要确认，只读取安全摘要，不展示密钥、请求头、响应正文或原始元数据。
 - 远程管理 API 默认通过 SSH 隧道绑定本机回环地址。
 - 停止生命周期操作前会确认 PID 对应进程确实属于 Oases CPA 安装目录。
+- 每次升级都会在安装目录下留下一份 `backups/upgrade-*`，没有完成的备份会移到 `backups/incomplete-*`。每份备份都含有一份 `gateway-data`（包括客户端 Key 和搜索服务商 Key），目录权限为 0700；升级和回滚都不会删除它们（只有彻底移除整个部署时才会一并删除），不再需要回滚到对应版本时，可以手动删除旧的备份目录。
 
 ### 部署的程序会联网做什么
 
@@ -287,5 +288,7 @@ cd OasesCPA-Desktop
 Requires macOS 14+ and a Swift 6 Xcode toolchain. See [App Store readiness](./APP_STORE_READINESS.md) and [third-party notices](./THIRD_PARTY_NOTICES.md) before distribution. Maintainers: the steps before making the repository public (build configuration, private-string scanning, history rewrite) are in [docs/open-source-release.md](./docs/open-source-release.md).
 
 Network and privacy: the engine (CLIProxyAPI v8.0.51) contacts `registry.npmjs.org` and an Antigravity version service at start and every 3 hours, and has no setting to turn that off. The gateway fetches the public model catalog `MODEL_CATALOG_URL` (default `https://openrouter.ai/api/v1/models`) in the background when `/v1/models` is called and its cache is older than 12 hours, without sending any key; `MODEL_CATALOG_URL=off` disables it, but the app does not offer that switch yet. The gateway's `gateway/run.sh` is regenerated on every install and upgrade, so manual edits are lost, except that an `export MODEL_CATALOG_URL=…` line (`off` or an `https://` URL) is carried over. Every record in the engine's usage queue (`/v0/management/usage-queue`, which CPA Manager Plus collects) carries the client API key in plain text and the upstream credential in `source` (CPA Manager Plus masks `source` on import), so keep the engine (`18316`), CPA Manager Plus (`18317`) and gateway admin (`18320`) ports on loopback and reach remote targets through the SSH tunnel.
+
+Backups: every upgrade leaves a `backups/upgrade-*` directory in the install directory, and an unfinished one is moved to `backups/incomplete-*`. Each holds a copy of `gateway-data`, including client keys and search-provider keys, in 0700 directories. Upgrades and rollbacks never delete them (only removing the whole deployment does); remove old ones by hand once you no longer need to roll back to them.
 
 Contributing: the private-string scan in CI rejects every commit whose author or committer e-mail address is not listed in `script/private-allowlist.txt`, so that no private address reaches the history; a pull request from outside fails it, and a squash merge would leave the default branch red. Commit with your GitHub noreply address (`<id>+<name>@users.noreply.github.com`, shown in GitHub's e-mail settings); the maintainer adds that address to `script/private-allowlist.txt`, with a reason, when merging. Merge and squash commits made in GitHub's web UI are committed by GitHub's own address, which the existing committer-only row of the allowlist already covers.
