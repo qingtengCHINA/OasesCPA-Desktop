@@ -223,6 +223,7 @@
 		EA36856F6B0F5D835132D12F /* RuntimeCodexInspectionContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E4DB17E2E9370B2FA386010 /* RuntimeCodexInspectionContractTests.swift */; };
 		EAC5E2335D37882AFC78595D /* ManagementAPIClient+AuthFilesWorkbench.swift in Sources */ = {isa = PBXBuildFile; fileRef = F66854F06669C9D4AF1D6E3E /* ManagementAPIClient+AuthFilesWorkbench.swift */; };
 		EC4ACABE9AA5368D850BA55A /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70168752BA6AE6F2D4804B0C /* KeychainStore.swift */; };
+		ECB85E512BB702360B2B5B82 /* ProvidersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28F586D6C5FD761AA8C53066 /* ProvidersView.swift */; };
 		F10061B168633361A0CBF50F /* RuntimeCPAQuickConfigModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E3C98FA2803373A2E4AFB59 /* RuntimeCPAQuickConfigModels.swift */; };
 		F17803E741D5EE26459BB164 /* DeploymentLifecycleServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33598341B509506D16443FAF /* DeploymentLifecycleServiceTests.swift */; };
 		F2A891920268C5023862B460 /* LimitFields.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98E22F138D312088812824E0 /* LimitFields.swift */; };
@@ -289,6 +290,7 @@
 		246F32A2ABD823698783FA88 /* ModelPacksStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPacksStoreTests.swift; sourceTree = "<group>"; };
 		25D08CDE5099C6ADC4B7F0D6 /* RuntimeRequestErrorLogModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeRequestErrorLogModels.swift; sourceTree = "<group>"; };
 		2895163A583DA362E7B3E86A /* LogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogsView.swift; sourceTree = "<group>"; };
+		28F586D6C5FD761AA8C53066 /* ProvidersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvidersView.swift; sourceTree = "<group>"; };
 		2A08962309C315022E2D5588 /* AppExperienceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppExperienceTests.swift; sourceTree = "<group>"; };
 		2A304A69D401303D0B3E791A /* RequestErrorLogsContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestErrorLogsContractTests.swift; sourceTree = "<group>"; };
 		2B5B0A9432979EAE37842435 /* AppSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSection.swift; sourceTree = "<group>"; };
@@ -673,6 +675,7 @@
 				2CFA6EDC2F75C3EA74A91181 /* PluginsView.swift */,
 				DE0E12FC1F4DE45B8BE4D70C /* ProviderConnectivityView.swift */,
 				0A6FB20C748487C8265DE941 /* ProviderEditorWindow.swift */,
+				28F586D6C5FD761AA8C53066 /* ProvidersView.swift */,
 				3B2E1B4E4F71F6F7643B811D /* SearchProvidersView.swift */,
 				042EAC68E099F9D326AFE146 /* SettingsView.swift */,
 				4AC44BC2E10C12464F9E8030 /* SidebarView.swift */,
@@ -1054,6 +1057,7 @@
 				86411ADC3BB4ED125B56C957 /* ProviderPinEditor.swift in Sources */,
 				231C8F7A96154C7819F047C9 /* ProviderPrefixAllocator.swift in Sources */,
 				8ECD2EDD11489CA49358D69C /* ProviderSectionWriteQueue.swift in Sources */,
+				ECB85E512BB702360B2B5B82 /* ProvidersView.swift in Sources */,
 				D29526A8EEA1D8CCBE256551 /* ReorderableProviderList.swift in Sources */,
 				A7559B91EC84ECC10C3B15A8 /* RequestErrorLogsStore.swift in Sources */,
 				CE6DF04D04C1502E1A34C51A /* ResetScheduleEditor.swift in Sources */,

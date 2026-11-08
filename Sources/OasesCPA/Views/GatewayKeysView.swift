@@ -1,9 +1,9 @@
 import AppKit
 import SwiftUI
 
-/// The API key page (#2): client keys with per-key policies, through the gateway admin API.
-/// Keys are masked everywhere; the full key appears only in the one-time sheet after creating it
-/// and on the pasteboard after "copy".
+/// The API key page (#2): the call address on top, then the client keys with per-key policies
+/// as a table, through the gateway admin API. Keys are masked everywhere; the full key appears
+/// only in the one-time sheet after creating it and on the pasteboard after "copy".
 struct GatewayKeysView: View {
     @EnvironmentObject private var deploymentStore: DeploymentStore
     @ObservedObject var store: GatewayKeysStore
@@ -14,7 +14,7 @@ struct GatewayKeysView: View {
     @State private var keyToDelete: GatewayKeyRow?
     @State private var keyToRename: GatewayKeyRow?
     @State private var renameText = ""
-    @State private var copiedMessage: String?
+    @State private var selection = Set<GatewayKeyRow.ID>()
 
     private struct EditorTarget: Identifiable {
         let id = UUID()
@@ -27,15 +27,28 @@ struct GatewayKeysView: View {
         let key: String
     }
 
+    private var baseURL: String { deploymentStore.endpoints.clientAPIBaseURL.absoluteString }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: Oases.Space.l) {
-            header
-            GatewayEndpointCard(
-                baseURL: deploymentStore.endpoints.clientAPIBaseURL.absoluteString,
+        VStack(alignment: .leading, spacing: 0) {
+            GatewayEndpointHero(
+                baseURL: baseURL,
                 targetKind: deploymentStore.targetKind,
-                onCopy: { copy($0, message: OasesLocalization.localized("Base URL 已复制")) }
+                isAvailable: deploymentStore.stage == .attached
             )
+            .padding(Oases.Space.page)
+            Divider()
             content
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { openCreate() } label: {
+                    Label("创建 Key", systemImage: "plus")
+                }
+                .disabled(store.phase != .loaded || store.isMutating)
+                .help(createHelp)
+            }
         }
         .sheet(item: $editorTarget, onDismiss: {
             if let pending = pendingCreatedKey {
@@ -48,7 +61,7 @@ struct GatewayKeysView: View {
             }
         }
         .sheet(item: $createdKey) { created in
-            GatewayNewKeySheet(key: created.key)
+            GatewayNewKeySheet(key: created.key, baseURL: baseURL)
         }
         .confirmationDialog(
             OasesLocalization.localizedFormat("删除 %@？", keyToDelete?.maskedKey ?? ""),
@@ -80,26 +93,13 @@ struct GatewayKeysView: View {
         }
     }
 
-    // MARK: - Header
-
-    private var header: some View {
-        HStack(alignment: .bottom) {
-            Spacer()
-            if store.phase == .loading || store.isMutating {
-                ProgressView().controlSize(.small)
-            }
-            Button("刷新", systemImage: "arrow.clockwise") { store.refreshNow() }
-                .buttonStyle(.bordered)
-                .disabled(!isReady || store.phase == .loading)
-            Button("新建 API Key", systemImage: "plus") { openCreate() }
-                .buttonStyle(.oasesPrimary)
-                .disabled(store.phase != .loaded || store.isMutating)
+    private var createHelp: String {
+        switch store.phase {
+        case .loaded: OasesLocalization.localized("创建一把新的调用 API Key")
+        case .loading: OasesLocalization.localized("正在读取 API Key…")
+        case .failed: OasesLocalization.localized("读取网关数据失败")
+        case .unavailable(let availability): GatewayAccessSummaryCard.unavailableText(availability)
         }
-    }
-
-    private var isReady: Bool {
-        if case .unavailable = store.phase { return false }
-        return true
     }
 
     // MARK: - Content
@@ -109,132 +109,136 @@ struct GatewayKeysView: View {
         switch store.phase {
         case .unavailable(let availability):
             GatewayUnavailableView(availability: availability) { store.retryAuthentication() }
+                .padding(Oases.Space.page)
         case .loading:
-            ProgressView("正在读取 API Key…")
-                .frame(maxWidth: .infinity, minHeight: 200)
+            GatewayLoadingView(title: "正在读取 API Key…")
         case .failed(let message):
             GatewayLoadFailedView(message: message) { store.refreshNow() }
+                .padding(Oases.Space.page)
         case .loaded:
-            statusStrip
-            if let error = store.actionError {
-                InfoBanner(title: "操作未完成", message: error, systemImage: "exclamationmark.triangle", tint: Oases.Color.danger)
-            }
-            keysCard
+            loaded
         }
     }
 
-    private var statusStrip: some View {
-        HStack(spacing: Oases.Space.m) {
-            StatusPill(
-                title: OasesLocalization.localizedFormat("%lld 个调用 Key", store.rows.count),
-                tint: store.rows.isEmpty ? Oases.Color.neutral : Oases.Color.success,
-                systemImage: "key.horizontal"
+    @ViewBuilder
+    private var loaded: some View {
+        if store.rows.isEmpty {
+            // The gateway hides its internal engine key, so an empty list is a normal state.
+            OasesEmptyState(
+                systemImage: "key.horizontal",
+                title: "还没有 API Key",
+                message: "客户端（Cursor、Claude Code 等）需要一个 Key 才能调用网关。",
+                actionTitle: "创建 Key",
+                action: { openCreate() }
             )
-            let expired = store.rows.filter { $0.policy.isExpired() }.count
-            if expired > 0 {
-                StatusPill(title: OasesLocalization.localizedFormat("%lld 个已过期", expired), tint: Oases.Color.danger)
-            }
-            Spacer()
-            if let copiedMessage {
-                Label(copiedMessage, systemImage: "checkmark")
-                    .font(.caption)
-                    .foregroundStyle(Oases.Color.successText)
-            }
-        }
-    }
-
-    private var keysCard: some View {
-        VStack(alignment: .leading, spacing: Oases.Space.md) {
-            CardTitle(
-                title: "调用 API Key",
-                subtitle: "每把 Key 有自己的模型、接口、限额和到期设置；列表只显示掩码",
-                icon: "key.fill"
-            )
-            if store.rows.isEmpty {
-                // The gateway hides its internal engine key, so an empty list is a normal state.
-                OasesEmptyState(
-                    systemImage: "key.horizontal",
-                    title: "还没有调用 Key",
-                    message: "网关自己使用的内部引擎 Key 不在这里显示。创建一把调用 Key 后，客户端即可通过上面的 Base URL 调用网关。",
-                    actionTitle: "创建第一个 Key",
-                    action: { openCreate() }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                if let error = store.actionError {
+                    InlineProblem(message: error)
+                        .padding(.horizontal, Oases.Space.page)
+                        .padding(.vertical, Oases.Space.sm)
+                    Divider()
+                }
+                GatewayKeysTable(
+                    rows: store.rows,
+                    selection: $selection,
+                    isMutating: store.isMutating,
+                    onCopy: { OasesPasteboard.copySecret($0.key) },
+                    onEdit: { row in editorTarget = EditorTarget(mode: .edit(key: row.key), baseline: row.policy) },
+                    onRename: { row in
+                        renameText = row.label
+                        keyToRename = row
+                    },
+                    onToggleEnabled: { row in toggleEnabled(row) },
+                    onDelete: { row in keyToDelete = row }
                 )
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(store.rows) { row in
-                        keyRow(row)
-                        if row.id != store.rows.last?.id { Divider() }
-                    }
-                }
             }
         }
-        .padding(Oases.Space.l)
-        .oasesCard()
     }
 
-    private func keyRow(_ row: GatewayKeyRow) -> some View {
-        let expired = row.policy.isExpired()
-        return HStack(spacing: Oases.Space.md) {
-            Image(systemName: "key.horizontal.fill")
-                .foregroundStyle(Oases.Color.textSecondary)
-                .frame(width: 32, height: 32)
-                .oasesIconTile()
-            VStack(alignment: .leading, spacing: Oases.Space.xxs) {
-                HStack(spacing: Oases.Space.s) {
-                    Text(row.label.isEmpty ? OasesLocalization.localized("未命名 Key") : row.label)
-                        .font(.headline)
-                    ToneBadge(text: row.policy.enabled ? OasesLocalization.localized("已启用") : OasesLocalization.localized("已停用"), tone: row.policy.enabled ? .success : .neutral)
-                    if expired { ToneBadge(text: "已过期", tone: .danger) }
-                }
+    // MARK: - Actions
+
+    private func openCreate() {
+        editorTarget = EditorTarget(mode: .create, baseline: .newKeyDefault)
+    }
+
+    /// 停用 / 启用 is a policy save like the editor's (re-read first, refused when changed elsewhere).
+    private func toggleEnabled(_ row: GatewayKeyRow) {
+        var draft = GatewayKeyPolicyDraft(baseline: row.policy)
+        draft.policy.enabled.toggle()
+        Task { _ = await store.savePolicy(key: row.key, draft: draft) }
+    }
+}
+
+/// The client keys as a native table: name, masked key, models, today's use, status. Rows have
+/// a context menu (copy, edit, rename, disable, delete); a double click edits.
+struct GatewayKeysTable: View {
+    let rows: [GatewayKeyRow]
+    @Binding var selection: Set<GatewayKeyRow.ID>
+    var isMutating = false
+    var onCopy: (GatewayKeyRow) -> Void = { _ in }
+    var onEdit: (GatewayKeyRow) -> Void = { _ in }
+    var onRename: (GatewayKeyRow) -> Void = { _ in }
+    var onToggleEnabled: (GatewayKeyRow) -> Void = { _ in }
+    var onDelete: (GatewayKeyRow) -> Void = { _ in }
+
+    var body: some View {
+        Table(rows, selection: $selection) {
+            TableColumn("名称") { row in
+                Text(row.label.isEmpty ? OasesLocalization.localized("未命名 Key") : row.label)
+                    .foregroundStyle(row.label.isEmpty ? Oases.Color.textSecondary : Oases.Color.textPrimary)
+                    .lineLimit(1)
+                    .help(row.policy.notes)
+            }
+            .width(min: 120, ideal: 180)
+            TableColumn("Key") { row in
                 Text(row.maskedKey)
-                    .font(.system(.caption, design: .monospaced))
+                    .font(.body.monospaced())
                     .foregroundStyle(Oases.Color.textSecondary)
-                Text(scopeText(row.policy))
-                    .font(.caption)
+                    .privacySensitive()
+            }
+            .width(min: 110, ideal: 130)
+            TableColumn("可用模型") { row in
+                Text(Self.scopeText(row.policy))
+                    .lineLimit(1)
+            }
+            .width(min: 100, ideal: 160)
+            TableColumn("今日用量") { row in
+                Text(Self.usageText(row))
+                    .monospacedDigit()
                     .foregroundStyle(Oases.Color.textSecondary)
                     .lineLimit(1)
             }
-            Spacer(minLength: Oases.Space.m)
-            VStack(alignment: .trailing, spacing: Oases.Space.xxs) {
-                Text(tokensText(row))
-                    .font(.caption.monospacedDigit())
-                Text(rpmText(row))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(Oases.Color.textSecondary)
-                Text(expiryText(row.policy))
-                    .font(.caption2)
-                    .foregroundStyle(expired ? Oases.Color.dangerText : Oases.Color.textTertiary)
+            .width(min: 90, ideal: 150)
+            TableColumn("状态") { row in
+                GatewayKeyStatusLabel(policy: row.policy)
             }
-            Button("复制", systemImage: "doc.on.doc") {
-                copy(row.key, message: OasesLocalization.localized("API Key 已复制"))
-            }
-            .buttonStyle(.bordered)
-            Button("编辑") {
-                editorTarget = EditorTarget(mode: .edit(key: row.key), baseline: row.policy)
-            }
-            .buttonStyle(.bordered)
-            .disabled(store.isMutating)
-            Menu {
-                Button("重命名", systemImage: "pencil") {
-                    renameText = row.label
-                    keyToRename = row
-                }
-                Button("删除", systemImage: "trash", role: .destructive) { keyToDelete = row }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-            }
-            .menuStyle(.borderlessButton)
-            .frame(width: 28)
-            .disabled(store.isMutating)
-            .help(OasesLocalization.localized("更多操作"))
-            .accessibilityLabel(OasesLocalization.localizedFormat("%@ 的更多操作", row.label.isEmpty ? row.maskedKey : row.label))
+            .width(min: 80, ideal: 110)
         }
-        .padding(.vertical, Oases.Space.m)
+        .alternatingRowBackgrounds(.disabled)
+        .contextMenu(forSelectionType: GatewayKeyRow.ID.self) { ids in
+            if let row = single(ids) {
+                Button("复制 Key") { onCopy(row) }
+                Button("编辑…") { onEdit(row) }.disabled(isMutating)
+                Button("重命名…") { onRename(row) }.disabled(isMutating)
+                Button(row.policy.enabled ? "停用 Key" : "启用 Key") { onToggleEnabled(row) }.disabled(isMutating)
+                Divider()
+                Button("删除…", role: .destructive) { onDelete(row) }.disabled(isMutating)
+            }
+        } primaryAction: { ids in
+            if let row = single(ids), !isMutating { onEdit(row) }
+        }
+    }
+
+    private func single(_ ids: Set<GatewayKeyRow.ID>) -> GatewayKeyRow? {
+        guard ids.count == 1, let id = ids.first else { return nil }
+        return rows.first { $0.id == id }
     }
 
     // MARK: - Texts
 
-    private func scopeText(_ policy: GatewayKeyPolicy) -> String {
+    static func scopeText(_ policy: GatewayKeyPolicy) -> String {
         switch policy.mode {
         case .denylist:
             return policy.deniedModels.isEmpty
@@ -251,25 +255,17 @@ struct GatewayKeysView: View {
         }
     }
 
-    private func tokensText(_ row: GatewayKeyRow) -> String {
+    /// Today's tokens (and the daily limit when there is one), and the requests of the last minute
+    /// when a rate limit applies.
+    static func usageText(_ row: GatewayKeyRow) -> String {
         let used = row.usage?.tokens ?? 0
-        if let limit = row.policy.rateLimit.tokensPerDay {
-            return OasesLocalization.localizedFormat("今日 Token %@ / %@", Self.compact(used), Self.compact(limit))
+        var text = row.policy.rateLimit.tokensPerDay.map {
+            OasesLocalization.localizedFormat("%@ / %@ Token", compact(used), compact($0))
+        } ?? OasesLocalization.localizedFormat("%@ Token", compact(used))
+        if let limit = row.policy.rateLimit.requestsPerMinute {
+            text += " · " + OasesLocalization.localizedFormat("RPM %lld / %lld", row.usage?.requestsLastMinute ?? 0, limit)
         }
-        return OasesLocalization.localizedFormat("今日 Token %@", Self.compact(used))
-    }
-
-    private func rpmText(_ row: GatewayKeyRow) -> String {
-        guard let limit = row.policy.rateLimit.requestsPerMinute else { return OasesLocalization.localized("RPM 不限") }
-        return OasesLocalization.localizedFormat("RPM %lld / %lld", row.usage?.requestsLastMinute ?? 0, limit)
-    }
-
-    private func expiryText(_ policy: GatewayKeyPolicy) -> String {
-        guard let date = policy.expiresAt else { return OasesLocalization.localized("不过期") }
-        let formatted = date.formatted(date: .abbreviated, time: .shortened)
-        return policy.isExpired()
-            ? OasesLocalization.localizedFormat("已于 %@ 过期", formatted)
-            : OasesLocalization.localizedFormat("%@ 到期", formatted)
+        return text
     }
 
     static func compact(_ value: Int) -> String {
@@ -279,16 +275,36 @@ struct GatewayKeysView: View {
         default: value.formatted()
         }
     }
+}
 
-    // MARK: - Actions
+/// Status dot and one word: 启用 / 停用 / 已过期 (the expiry date in the tooltip).
+struct GatewayKeyStatusLabel: View {
+    let policy: GatewayKeyPolicy
 
-    private func openCreate() {
-        editorTarget = EditorTarget(mode: .create, baseline: .newKeyDefault)
+    private var tone: Oases.Tone {
+        if policy.isExpired() { return .danger }
+        return policy.enabled ? .success : .neutral
     }
 
-    private func copy(_ value: String, message: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(value, forType: .string)
-        copiedMessage = message
+    private var title: String {
+        if policy.isExpired() { return OasesLocalization.localized("已过期") }
+        return policy.enabled ? OasesLocalization.localized("已启用") : OasesLocalization.localized("已停用")
+    }
+
+    private var expiry: String {
+        guard let date = policy.expiresAt else { return OasesLocalization.localized("不过期") }
+        let formatted = date.oasesShortDateTime
+        return policy.isExpired()
+            ? OasesLocalization.localizedFormat("已于 %@ 过期", formatted)
+            : OasesLocalization.localizedFormat("%@ 到期", formatted)
+    }
+
+    var body: some View {
+        HStack(spacing: Oases.Space.s) {
+            StatusDot(tone: tone)
+            Text(title)
+        }
+        .help(expiry)
+        .accessibilityElement(children: .combine)
     }
 }

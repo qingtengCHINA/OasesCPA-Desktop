@@ -191,3 +191,204 @@ private struct FoundationGalleryView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
+
+/// Offscreen renders of the reworked pages with sample data (the window fixture is offline, so
+/// it only shows the not-connected states): tables, inspectors, sheets and the page states.
+/// Opt-in like `DesignSnapshotTests`; `OASES_SNAPSHOT_ONLY=pages-keys` limits the names.
+@MainActor
+final class PageSnapshotTests: XCTestCase {
+    private var savedLanguage: String?
+    private var directory: URL!
+
+    override func setUp() async throws {
+        directory = try SnapshotSupport.outputDirectory("pages")
+        savedLanguage = UserDefaults.standard.string(forKey: AppLanguage.defaultsKey)
+    }
+
+    override func tearDown() async throws {
+        guard directory != nil else { return }
+        SnapshotSupport.reset(savedLanguage: savedLanguage)
+    }
+
+    /// Renders `make()` in both languages and appearances as `pages-<name>-<language>-<appearance>`.
+    private func renderAll<V: View>(_ name: String, size: CGSize, chrome: Bool = false, _ make: () -> V) throws {
+        for language in SnapshotSupport.languages {
+            for appearance in SnapshotSupport.Appearance.allCases {
+                try SnapshotSupport.render(
+                    make(),
+                    size: size,
+                    appearance: appearance,
+                    language: language,
+                    chrome: chrome,
+                    name: "pages-\(name)-\(language.rawValue)-\(appearance.rawValue)",
+                    directory: directory
+                )
+            }
+        }
+    }
+
+    /// Each reworked page in the window (not connected), with its toolbar.
+    func testReworkedPagesInTheWindow() throws {
+        for section in [AppSection.accessKeys, .models, .aiProviders, .authFiles, .system, .dashboard] {
+            try renderAll("window-\(section.rawValue)", size: DesignSnapshotTests.windowSize, chrome: true) {
+                ContentView().snapshotEnvironment(SnapshotFixture(section: section))
+            }
+        }
+    }
+
+    /// The page bodies alone (no window): on macOS 27 the window capture can leave the detail
+    /// pane blank when the page adds toolbar items, so the body is judged here.
+    func testReworkedPageBodies() throws {
+        for section in [AppSection.accessKeys, .models, .aiProviders, .authFiles, .system, .dashboard] {
+            try renderAll("body-\(section.rawValue)", size: CGSize(width: 950, height: 700)) {
+                DetailWorkspaceView(section: section).snapshotEnvironment(SnapshotFixture(section: section))
+            }
+        }
+    }
+
+    func testKeysPage() throws {
+        let fixture = SnapshotFixture(section: .accessKeys)
+        try renderAll("keys-loaded", size: CGSize(width: 980, height: 360)) {
+            KeysSample(rows: SampleData.keys).snapshotEnvironment(fixture)
+        }
+        try renderAll("keys-legacy", size: CGSize(width: 980, height: 220)) {
+            KeysSample(rows: [], availability: .needsUpgrade).snapshotEnvironment(fixture)
+        }
+        try renderAll("keys-empty", size: CGSize(width: 980, height: 340)) {
+            KeysSample(rows: []).snapshotEnvironment(fixture)
+        }
+        try renderAll("keys-new-key-sheet", size: CGSize(width: 560, height: 380)) {
+            GatewayNewKeySheet(key: SampleData.fullKey, baseURL: "http://127.0.0.1:8317/v1")
+        }
+    }
+
+    func testProvidersPage() throws {
+        let fixture = SnapshotFixture(section: .aiProviders)
+        try renderAll("providers-loaded", size: CGSize(width: 1_040, height: 380)) {
+            ProvidersSample().snapshotEnvironment(fixture)
+        }
+        try renderAll("providers-first", size: CGSize(width: 760, height: 360)) {
+            FirstProviderForm()
+                .padding(Oases.Space.page)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .snapshotEnvironment(fixture)
+        }
+    }
+
+    func testModelsPage() throws {
+        try renderAll("models-loaded", size: CGSize(width: 1_000, height: 380)) {
+            ModelsSample()
+        }
+    }
+}
+
+/// Synthetic page data (no real keys, hosts or accounts).
+@MainActor
+private enum SampleData {
+    static let fullKey = "oases-demo-" + String(repeating: "0", count: 24) + "4f1a"
+
+    static var keys: [GatewayKeyRow] {
+        var cursor = GatewayKeyPolicy.newKeyDefault
+        cursor.label = "Cursor"
+        var claude = GatewayKeyPolicy.newKeyDefault
+        claude.label = "Claude Code"
+        claude.enabled = false
+        claude.allowedModels = ["gpt-5", "claude-sonnet-4", "deepseek-chat", "qwen3-coder"]
+        claude.legacyDefaultAllow = false
+        var ci = GatewayKeyPolicy.newKeyDefault
+        ci.label = "CI"
+        ci.expiresAt = Date(timeIntervalSince1970: 1_700_000_000)
+        ci.rateLimit.requestsPerMinute = 60
+        ci.rateLimit.tokensPerDay = 2_000_000
+        return [
+            GatewayKeyRow(key: "demo-cursor-0000000000009f2c", policy: cursor,
+                          usage: GatewayKeyUsage(day: "2026-11-08", requests: 214, requestsLastMinute: 2, tokens: 1_284_000, tokensPerDay: nil, requestsPerMinute: nil)),
+            GatewayKeyRow(key: "demo-claude-000000000000041aa", policy: claude, usage: nil),
+            GatewayKeyRow(key: "demo-ci-00000000000000007c3d", policy: ci,
+                          usage: GatewayKeyUsage(day: "2026-11-08", requests: 12, requestsLastMinute: 0, tokens: 8_400, tokensPerDay: 2_000_000, requestsPerMinute: 60)),
+        ]
+    }
+
+    static var models: [GatewayModelRow] {
+        let now = Date()
+        return [
+            GatewayModelRow(id: "claude-sonnet-4", groups: ["Claude"], health: GatewayHealthResult(status: .up, latencyMs: 812, error: nil, testedAt: now.addingTimeInterval(-180))),
+            GatewayModelRow(id: "deepseek-chat", groups: ["DeepSeek", "OpenRouter"], health: GatewayHealthResult(status: .down, latencyMs: nil, error: "upstream returned 401", testedAt: now.addingTimeInterval(-3_600))),
+            GatewayModelRow(id: "gpt-5", groups: ["Codex"], health: nil),
+            GatewayModelRow(id: "text-embedding-3-large", groups: ["OpenRouter"], health: GatewayHealthResult(status: .skipped, latencyMs: nil, error: nil, testedAt: now.addingTimeInterval(-7_200))),
+        ]
+    }
+}
+
+/// The keys page body with sample rows (the page's own store needs a live gateway).
+private struct KeysSample: View {
+    let rows: [GatewayKeyRow]
+    var availability: GatewayAvailability?
+    @State private var selection: Set<GatewayKeyRow.ID> = []
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            GatewayEndpointHero(baseURL: "http://127.0.0.1:8317/v1", targetKind: .local)
+                .padding(Oases.Space.page)
+            Divider()
+            if let availability {
+                GatewayUnavailableView(availability: availability) {}
+                    .padding(Oases.Space.page)
+                Spacer(minLength: 0)
+            } else if rows.isEmpty {
+                OasesEmptyState(
+                    systemImage: "key.horizontal",
+                    title: "还没有 API Key",
+                    message: "客户端（Cursor、Claude Code 等）需要一个 Key 才能调用网关。",
+                    actionTitle: "创建 Key",
+                    action: {}
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                GatewayKeysTable(rows: rows, selection: $selection)
+            }
+        }
+        .onAppear { selection = [rows.first?.id].compactMap { $0 }.reduce(into: Set()) { $0.insert($1) } }
+    }
+}
+
+private struct ProvidersSample: View {
+    static let providers = [
+        RuntimeOpenAICompatibility(name: "DeepSeek", prefix: "pin-ds", baseURL: "https://api.deepseek.com",
+                                   apiKeyEntries: [RuntimeProviderAPIKey(apiKey: "demo-0000000000004f1a")],
+                                   models: [RuntimeProviderModel(name: "deepseek-chat"), RuntimeProviderModel(name: "deepseek-reasoner")]),
+        RuntimeOpenAICompatibility(name: "OpenRouter", prefix: "pin-or", baseURL: "https://openrouter.ai/api/v1",
+                                   apiKeyEntries: [RuntimeProviderAPIKey(apiKey: "demo-0000000000009b2e"), RuntimeProviderAPIKey(apiKey: "demo-000000000000c3d4")]),
+        RuntimeOpenAICompatibility(name: "Local Ollama", disabled: true, baseURL: "http://127.0.0.1:11434/v1"),
+    ]
+    @State private var selection: RuntimeOpenAICompatibility.ID? = ProvidersSample.providers[0].id
+
+    var body: some View {
+        DetailPaneSplit(showsPane: true, paneTitle: "提供商详情", onClose: {}) {
+            ProvidersTable(providers: Self.providers, selection: $selection)
+                .padding(Oases.Space.page)
+        } pane: {
+            ProviderInspector(provider: Self.providers[0])
+        }
+    }
+}
+
+private struct ModelsSample: View {
+    static let run = try! JSONDecoder().decode(GatewayTestRun.self, from: Data(#"{"id":"run","started_at":1730000000000,"finished_at":null,"total":12,"done":7,"up":5,"down":1,"skipped":1}"#.utf8))
+    @State private var selection: GatewayModelRow.ID? = "deepseek-chat"
+    @State private var sortOrder = [KeyPathComparator(\GatewayModelRow.id)]
+
+    var body: some View {
+        DetailPaneSplit(showsPane: true, paneTitle: "模型详情", onClose: {}) {
+            VStack(alignment: .leading, spacing: 0) {
+                ModelTestRunLine(run: Self.run)
+                    .padding(.horizontal, Oases.Space.page)
+                    .padding(.vertical, Oases.Space.sm)
+                Divider()
+                ModelsTable(rows: SampleData.models, selection: $selection, sortOrder: $sortOrder)
+            }
+        } pane: {
+            ModelInspector(row: SampleData.models[1])
+        }
+    }
+}

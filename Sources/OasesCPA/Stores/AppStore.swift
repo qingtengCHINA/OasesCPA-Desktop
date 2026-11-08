@@ -43,6 +43,16 @@ final class AppStore: ObservableObject {
         pendingSection = section
     }
 
+    /// Set by a gateway page's "备份并升级…" (legacy 0.1.x deployment): 连接与部署 owns the upgrade
+    /// (its confirmation, backup and progress), so the page only routes there and leaves this
+    /// request for that page to present its own confirmation. The page clears it when it does.
+    @Published var deploymentUpgradeRequested = false
+
+    func requestDeploymentUpgrade() {
+        selectSection(.environments)
+        deploymentUpgradeRequested = true
+    }
+
     func cancelPendingNavigation() {
         pendingSection = nil
     }
