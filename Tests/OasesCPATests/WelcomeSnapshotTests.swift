@@ -54,6 +54,8 @@ final class WelcomeSnapshotTests: XCTestCase {
         ("U-running", .upgrade, .upgrading(.running), nil, nil),
         ("U-failed-restored", .upgrade, .upgrading(.failed(stage: "node")), nil, .upgrade(upgradeFailure)),
         ("U-failed-other", .upgrade, .upgrading(.failed(stage: nil)), nil, .other),
+        ("U-failed-refused", .upgrade, .upgrading(.failed(stage: nil)), nil,
+         .refused(DeploymentExecutionError.downgradeRefused(component: "engine", installed: "8.1.0", target: "8.0.51").localizedDescription)),
         ("U-done", .upgrade, .upgraded, nil, nil),
     ]
 

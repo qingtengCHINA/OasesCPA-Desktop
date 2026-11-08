@@ -73,6 +73,20 @@ final class WelcomeGateTests: XCTestCase {
         XCTAssertEqual(phase(true, .init(stage: .failed, maintenanceFailure: .other)), .upgrading(.failed(stage: nil)))
         XCTAssertEqual(phase(true, .init(stage: .attached, topology: .gateway)), .upgraded)
         XCTAssertEqual(WelcomePhase.resolve(initialStep: .ready, startedInstall: false, startedUpgrade: false, facts: .init()), .ready)
+        let refused = phase(true, .init(stage: .attached, maintenanceFailure: .refused("newer engine")))
+        XCTAssertEqual(refused, .upgrading(.failed(stage: nil)))
+        XCTAssertEqual(refused.failureExit, .environments, "a refused upgrade has a way out")
+    }
+
+    /// I2: every failed step has a way out of the gate; the other phases lead on with their own
+    /// buttons and show no extra exit.
+    func testEveryFailedStepHasAWayOut() {
+        XCTAssertEqual(WelcomePhase.upgrading(.failed(stage: "node")).failureExit, .environments)
+        XCTAssertEqual(WelcomePhase.upgrading(.failed(stage: nil)).failureExit, .environments)
+        XCTAssertEqual(WelcomePhase.installing(.failed(stage: "download-cli")).failureExit, .environments)
+        for phase: WelcomePhase in [.install, .installing(.preparing), .installing(.verifying), .ready, .upgrade, .upgrading(.running), .upgraded] {
+            XCTAssertNil(phase.failureExit, "\(phase)")
+        }
     }
 
     // MARK: - 连接与部署 state

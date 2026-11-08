@@ -70,6 +70,17 @@ enum WelcomePhase: Equatable, Sendable {
         }
     }
 
+    /// The way out of a failed step (the bottom bar's "进入控制台"): a failed install and a
+    /// failed or refused upgrade both lead to 连接与部署, which shows what is on the machine now
+    /// (for an upgrade: the old deployment and its legacy state), so the user is never stuck
+    /// between 重试 and 查看日志. Nil for every other phase (their own buttons lead on).
+    var failureExit: AppSection? {
+        switch self {
+        case .installing(.failed), .upgrading(.failed): .environments
+        default: nil
+        }
+    }
+
     static func resolve(initialStep: WelcomeStep, startedInstall: Bool, startedUpgrade: Bool, facts: Facts) -> WelcomePhase {
         switch initialStep {
         case .ready:
@@ -641,11 +652,11 @@ struct WelcomeFlowView: View {
                 Button("已有远程服务器？连接 VPS…") { showsRemoteSheet = true }
                     .buttonStyle(.link)
                     .disabled(installDisabledReason != nil)
-            case .installing(.failed):
-                Button("进入控制台") { onFinish(.environments) }
-                    .buttonStyle(.link)
             default:
-                EmptyView()
+                if let exit = phase.failureExit {
+                    Button("进入控制台") { onFinish(exit) }
+                        .buttonStyle(.link)
+                }
             }
         }
         .controlSize(.regular)
