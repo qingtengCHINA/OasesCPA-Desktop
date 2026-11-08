@@ -292,3 +292,75 @@ struct GatewayModelProvidersResponse: Decodable, Sendable {
         providers.filter { $0.kind == .compat }
     }
 }
+
+// MARK: - Provider order of a model
+
+/// `POST /cpa-admin/permissions/api/models/reorder` (`handleModelReorder` in `server.mjs`):
+/// `order` holds every provider id of the model (OAuth pools included), top first. `dryRun`
+/// is written only when true: the gateway then answers 200 with the plan and changes nothing.
+struct GatewayReorderRequest: Encodable, Sendable {
+    let model: String
+    let order: [String]
+    let dryRun: Bool?
+
+    init(model: String, order: [String], dryRun: Bool? = nil) {
+        self.model = model
+        self.order = order
+        self.dryRun = dryRun
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case model, order, dryRun
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(model, forKey: .model)
+        try container.encode(order, forKey: .order)
+        if dryRun == true {
+            try container.encode(true, forKey: .dryRun)
+        }
+    }
+}
+
+/// The gateway's plan (`planPriorityChange` in `provider-routing.mjs`): new priorities of the
+/// model's compat providers, the OTHER models whose order between compat providers changes
+/// (`affected`, never the target), providers that must stay equal (`ties`) and, when the order
+/// is impossible, a reason in Chinese (`rejected`; no code). The commit answer adds `ok`.
+struct GatewayReorderPlan: Decodable, Equatable, Sendable {
+    let priorities: [String: Int]
+    let affected: [String]
+    let ties: [[String]]
+    let rejected: String?
+    let ok: Bool?
+    let extra: [String: RuntimeJSONValue]
+
+    /// Other models change order too: the user confirms before the change is applied.
+    var hasSideEffects: Bool { !affected.isEmpty }
+
+    init(priorities: [String: Int] = [:], affected: [String] = [], ties: [[String]] = [], rejected: String? = nil, ok: Bool? = nil, extra: [String: RuntimeJSONValue] = [:]) {
+        self.priorities = priorities
+        self.affected = affected
+        self.ties = ties
+        self.rejected = rejected
+        self.ok = ok
+        self.extra = extra
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case priorities, affected, ties, rejected, ok
+    }
+
+    private static let known = Set(CodingKeys.allCases.map(\.rawValue))
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        priorities = try container.decodeIfPresent([String: Int].self, forKey: .priorities) ?? [:]
+        affected = try container.decodeIfPresent([String].self, forKey: .affected) ?? []
+        ties = try container.decodeIfPresent([[String]].self, forKey: .ties) ?? []
+        let reason = try container.decodeIfPresent(String.self, forKey: .rejected)
+        rejected = (reason?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) ? nil : reason
+        ok = try container.decodeIfPresent(Bool.self, forKey: .ok)
+        extra = try UnknownFields.capture(from: decoder, known: Self.known)
+    }
+}

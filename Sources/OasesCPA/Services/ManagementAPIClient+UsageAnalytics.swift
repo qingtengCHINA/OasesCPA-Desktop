@@ -38,9 +38,9 @@ extension ManagementAPIClient {
         }
 
         do {
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            return try decoder.decode(RuntimeUsageAnalyticsResponse.self, from: data)
+            // The models spell out their snake_case CodingKeys: a key strategy would rename the
+            // JSON keys first ("total_calls" → "totalCalls") so that none of them matched.
+            return try JSONDecoder().decode(RuntimeUsageAnalyticsResponse.self, from: data)
         } catch {
             throw ManagementAPIError.decoding(String(describing: error))
         }

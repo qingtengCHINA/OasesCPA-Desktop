@@ -139,10 +139,11 @@ class GatewayWorkbenchStore: ObservableObject {
         try Task.checkCancellation()
     }
 
-    /// Runs one change; on success the page is read again before this returns. Returns whether
+    /// Runs one change; on success the page is read again before this returns (unless
+    /// `reloadAfter` is false: a step that changed nothing, such as a dry run). Returns whether
     /// the change succeeded. Failures go to `actionError`; a 401 latches the key.
     @discardableResult
-    func mutate(_ operation: @escaping @MainActor (GatewayAdminClient) async throws -> Void) async -> Bool {
+    func mutate(reloadAfter: Bool = true, _ operation: @escaping @MainActor (GatewayAdminClient) async throws -> Void) async -> Bool {
         guard !isMutating else { return false }
         guard let client = provider.gatewayAdminClient() else {
             phase = .unavailable(provider.gatewayAvailability)
@@ -163,9 +164,14 @@ class GatewayWorkbenchStore: ObservableObject {
             }
             return false
         }
+        if reloadAfter { await reload() }
+        return true
+    }
+
+    /// Reads the page again and waits for that read.
+    func reload() async {
         refreshNow()
         await loadTask?.value
-        return true
     }
 
     /// A change that must start from the server's current state: `rereading` reads it right

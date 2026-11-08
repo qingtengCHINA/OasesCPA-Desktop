@@ -53,3 +53,24 @@ extension GatewayAdminClient {
         )
     }
 }
+
+extension GatewayAdminClient {
+    /// `POST /cpa-admin/permissions/api/models/reorder`. A dry run always answers 200 with the
+    /// plan (a refused order has `rejected`); the real change answers 200 `{ok:true, …plan}`, or
+    /// 409 `{ok:false, …plan}` when the order is refused. Both carry a plan and are returned
+    /// with their status. 502 (`management_unavailable`: the engine could not be read or
+    /// written) and every other status throw `GatewayAdminError`; 401 throws `.unauthorized`.
+    func reorder(_ request: GatewayReorderRequest) async throws -> (status: Int, plan: GatewayReorderPlan) {
+        let (status, data) = try await postAllowingStatus(
+            "/cpa-admin/permissions/api/models/reorder",
+            body: request,
+            allowed: [409],
+            timeout: GatewayAdminTimeouts.modelReorder
+        )
+        do {
+            return (status, try JSONDecoder().decode(GatewayReorderPlan.self, from: data))
+        } catch {
+            throw GatewayAdminError.decoding(GatewayAdminError.sanitized(String(describing: error), secrets: [managementKey]))
+        }
+    }
+}

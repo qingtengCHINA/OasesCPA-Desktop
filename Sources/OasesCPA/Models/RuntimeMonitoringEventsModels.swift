@@ -32,7 +32,8 @@ struct RuntimeMonitoringEventsRequest: Encodable, Sendable {
         searchQuery: String,
         failedOnly: Bool,
         filters: Filters = Filters(),
-        cursor: RuntimeMonitoringEventsCursor? = nil
+        cursor: RuntimeMonitoringEventsCursor? = nil,
+        limit: Int = Self.pageSize
     ) {
         let calendar = Calendar(identifier: .gregorian)
         let start = range.startDate(relativeTo: now, calendar: calendar)
@@ -46,7 +47,8 @@ struct RuntimeMonitoringEventsRequest: Encodable, Sendable {
             toMs: max(rangeStartMs + 1, nowMs),
             searchQuery: Self.normalizedSearchQuery(searchQuery),
             filters: filters,
-            cursor: cursor
+            cursor: cursor,
+            limit: limit
         )
     }
 
@@ -56,7 +58,8 @@ struct RuntimeMonitoringEventsRequest: Encodable, Sendable {
             toMs: toMs,
             searchQuery: searchQuery,
             filters: filters,
-            cursor: cursor
+            cursor: cursor,
+            limit: include.eventsPage.limit
         )
     }
 
@@ -144,7 +147,8 @@ struct RuntimeMonitoringEventsRequest: Encodable, Sendable {
         toMs: Int64,
         searchQuery: String?,
         filters: Filters,
-        cursor: RuntimeMonitoringEventsCursor?
+        cursor: RuntimeMonitoringEventsCursor?,
+        limit: Int
     ) {
         self.fromMs = fromMs
         self.toMs = toMs
@@ -152,7 +156,7 @@ struct RuntimeMonitoringEventsRequest: Encodable, Sendable {
         self.filters = filters
         include = Include(
             eventsPage: EventsPage(
-                limit: Self.pageSize,
+                limit: max(1, limit),
                 beforeMs: cursor?.beforeMs,
                 beforeId: cursor?.beforeId
             )

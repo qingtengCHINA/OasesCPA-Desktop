@@ -24,7 +24,7 @@ struct ModelsView: View {
             }
             .oasesCanvas()
             .navigationDestination(for: String.self) { modelID in
-                ModelDetailPlaceholderView(modelID: modelID)
+                ModelDetailView(modelID: modelID, deploymentStore: deploymentStore)
             }
         }
         .task(id: reloadKey) {
@@ -322,21 +322,5 @@ struct ModelHealthDot: View {
         } else {
             StatusDot(tone: Self.tone(for: status), size: 9)
         }
-    }
-}
-
-/// The model detail page arrives with Task 15.
-private struct ModelDetailPlaceholderView: View {
-    let modelID: String
-
-    var body: some View {
-        OasesEmptyState(
-            systemImage: "cpu",
-            title: modelID,
-            message: "模型详情（供应商顺序、调用与花费）将在后续版本提供。"
-        )
-        .padding(Oases.Space.page)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .oasesCanvas()
     }
 }

@@ -173,3 +173,24 @@ final class UsageAnalyticsWorkbenchTests: XCTestCase {
         XCTAssertEqual(RuntimeUsageAnalyticsPresentation.percentage(0.8333), "83.3%")
     }
 }
+
+/// The client decodes CPA Manager Plus's snake_case analytics answer (a key strategy on the
+/// decoder would make every snake_case CodingKey miss and read zeros).
+final class UsageAnalyticsClientDecodingTests: XCTestCase {
+    func testClientDecodesTheSnakeCaseSummary() async throws {
+        defer { URLProtocolStub.reset() }
+        URLProtocolStub.install { request, _ in
+            .json(200, #"{"generated_at_ms":1700000000000,"summary":{"total_calls":12,"success_calls":10,"failure_calls":2,"total_cost":0.12},"model_stats":[{"model":"glm-5","calls":12,"success_calls":10,"failure_calls":2,"success_rate":0.83,"input_tokens":100,"output_tokens":50,"cached_tokens":5,"total_tokens":150,"cost":0.12}]}"#, for: request)
+        }
+        let response = try await ManagementAPIClient(session: URLProtocolStub.makeSession()).usageAnalytics(
+            RuntimeUsageAnalyticsRequest(tab: .overview),
+            baseURL: URL(string: "http://127.0.0.1:18317")!,
+            managementKey: "test-cpamp-admin"
+        )
+        XCTAssertEqual(response.generatedAtMs, 1_700_000_000_000)
+        XCTAssertEqual(response.summary?.totalCalls, 12)
+        XCTAssertEqual(response.summary?.successCalls, 10)
+        XCTAssertEqual(response.summary?.totalCost, 0.12)
+        XCTAssertEqual(response.modelStats.first?.calls, 12)
+    }
+}
