@@ -103,6 +103,21 @@ final class DeploymentStore: ObservableObject {
     @Published private(set) var isAutoRecovering = false
     @Published private(set) var pendingSSHHostKeyConfirmation: SSHHostKeyConfirmation?
     @Published var healthNotificationsEnabled = UserDefaults.standard.object(forKey: "oases.cpa.health-notifications") as? Bool ?? false
+    /// From launch until the automatic local probe, and the adoption it may start, has
+    /// finished: the launch routing waits for it (`LaunchRouting`).
+    @Published private(set) var isDetectingOnLaunch = false
+    /// The live stage of the running install on this Mac (`InstallProgressReader`); nil when
+    /// none is reported.
+    @Published private(set) var installProgress: InstallProgressSnapshot?
+    /// Whether the install directory carries the trusted ownership marker `.oases-cpa-managed`
+    /// (from the latest probe; nil when unknown). Stop-and-delete refuses a root without it.
+    @Published private(set) var managedRootPresent: Bool?
+    /// The latest failed upgrade or rollback, structured for the upgrade wizard.
+    @Published private(set) var lastMaintenanceFailure: MaintenanceFailure?
+    /// A one-click install ("安装并启动") is checking ports and probing before its script runs.
+    @Published private(set) var isPreparingOneClickInstall = false
+    /// Why the one-click install stopped before its script ran (a busy port).
+    @Published private(set) var oneClickPreflightFailure: DeploymentFailure?
 
     private let tunnelProcessOwner = TunnelProcessOwner()
     private var healthMonitorTask: Task<Void, Never>?
@@ -152,6 +167,8 @@ final class DeploymentStore: ObservableObject {
     private var deploymentControlToken: String?
     private var pendingSSHHostKeyRetryAction: SSHHostKeyRetryAction?
     private var activeOperationRequest: DeploymentExecutionRequest?
+    private var acknowledgesPlanAfterProbe = false
+    private var installProgressTask: Task<Void, Never>?
 
 #if DEBUG
     func beginOperationSnapshotForTesting(_ request: DeploymentExecutionRequest) {
@@ -241,9 +258,63 @@ final class DeploymentStore: ObservableObject {
             // Local probing is read-only, so make the common first-run path
             // auto-adopt or reconnect a managed deployment without an early
             // Keychain read prompt.
+            isDetectingOnLaunch = true
             Task { [weak self] in
                 self?.probeTarget()
+                // A probe that could not start (another operation) ends the detection too.
+                if self?.isProbing != true { self?.isDetectingOnLaunch = false }
             }
+        }
+    }
+
+    /// Whether the user stopped the installed deployment (no automatic restart).
+    var isStoppedByUser: Bool { profileIsInstalled && !wantsRunning }
+
+    /// "安装并启动": a native install on the selected target in one action. The click is the
+    /// consent (the screen states what is downloaded and where), so the plan is acknowledged as
+    /// soon as the probe has prepared it. On this Mac the fixed ports are checked first.
+    func startOneClickInstall() {
+        guard !isDeploying, !isMaintaining, !isRemovingDeployment, !isProbing, !profileIsInstalled,
+              !isPreparingOneClickInstall else { return }
+        if targetKind == .local, deploymentMethod != .native {
+            selectMethod(.native)
+        }
+        oneClickPreflightFailure = nil
+        deploymentError = nil
+        probeError = nil
+        isPreparingOneClickInstall = true
+        stage = .connecting
+        statusMessage = OasesLocalization.localized("正在检查这台 Mac…")
+        let checksPorts = targetKind == .local
+        let busyLocalPort = services.busyLocalPort
+        Task { [weak self] in
+            let busy = checksPorts ? await busyLocalPort() : nil
+            guard let self else { return }
+            if let busy {
+                self.isPreparingOneClickInstall = false
+                self.oneClickPreflightFailure = DeploymentFailure(
+                    kind: .portBusy(port: busy.port, process: busy.process),
+                    stage: nil, exitStatus: nil, machineState: .unchanged
+                )
+                self.stage = .failed
+                self.statusMessage = self.oneClickPreflightFailure?.message() ?? ""
+                return
+            }
+            self.acknowledgesPlanAfterProbe = true
+            self.probeTarget()
+            if !self.isProbing {
+                self.acknowledgesPlanAfterProbe = false
+                self.isPreparingOneClickInstall = false
+            }
+        }
+    }
+
+    private func finishOneClickPreparation(acknowledge: Bool) {
+        let wanted = acknowledgesPlanAfterProbe
+        acknowledgesPlanAfterProbe = false
+        isPreparingOneClickInstall = false
+        if wanted, acknowledge, planPresented {
+            acknowledgePlan()
         }
     }
 
@@ -595,7 +666,12 @@ final class DeploymentStore: ObservableObject {
                 guard let self, self.probeRequestID == requestID else { return }
                 self.probe = result
                 self.isProbing = false
+                if result.testedInstallDirectory == directory {
+                    self.managedRootPresent = result.hasManagedRoot
+                }
                 if result.hasManagedInstallation {
+                    // An existing deployment is connected, never installed over.
+                    self.finishOneClickPreparation(acknowledge: false)
                     guard result.canAdopt(method: self.deploymentMethod) else {
                         self.stage = .failed
                         self.planPresented = false
@@ -604,12 +680,14 @@ final class DeploymentStore: ObservableObject {
                             : OasesLocalization.localized("检测到现有部署，但管理凭据不完整；请查看日志后使用修复功能。")
                         self.deploymentError = detail
                         self.statusMessage = detail
+                        self.isDetectingOnLaunch = false
                         return
                     }
                     guard self.automaticActivityEnabled else {
                         self.stage = .idle
                         self.planPresented = false
                         self.statusMessage = OasesLocalization.localized("检测到现有部署；此次运行已停用自动接管与后台巡检。")
+                        self.isDetectingOnLaunch = false
                         return
                     }
                     self.adoptExistingDeployment(request: self.currentExecutionRequest, requestID: requestID, probe: result)
@@ -617,10 +695,14 @@ final class DeploymentStore: ObservableObject {
                 }
                 self.stage = .ready
                 self.statusMessage = OasesLocalization.localizedFormat("环境检测完成：%@", result.dependencySummary(for: self.deploymentMethod))
+                self.isDetectingOnLaunch = false
                 self.preparePlan()
+                self.finishOneClickPreparation(acknowledge: true)
             } catch {
                 guard let self, self.probeRequestID == requestID else { return }
                 self.isProbing = false
+                self.isDetectingOnLaunch = false
+                self.finishOneClickPreparation(acknowledge: false)
                 if self.isSSHHostKeyConfirmationRequired(error) {
                     self.stage = .failed
                     self.probeError = nil
@@ -714,6 +796,8 @@ final class DeploymentStore: ObservableObject {
         let controlToken = UUID().uuidString.lowercased()
         deploymentOperationID = operationID
         deploymentControlToken = controlToken
+        oneClickPreflightFailure = nil
+        startInstallProgressPolling(request: request, controlToken: controlToken, operationID: operationID)
         deploymentTask?.cancel()
         deploymentTask = Task { [weak self] in
             defer {
@@ -749,6 +833,9 @@ final class DeploymentStore: ObservableObject {
                 self.topology = Self.topologyAfterInstall(method: request.method)
                 self.packEngineKeyFingerprint = result.packEngineKeyFingerprint
                 self.profileIsInstalled = true
+                // The install script writes the ownership marker before anything else.
+                self.managedRootPresent = true
+                self.stopInstallProgressPolling(clear: true)
                 self.wantsRunning = true
                 self.setWantsRunningPreference(true)
                 self.stage = .connecting
@@ -789,6 +876,7 @@ final class DeploymentStore: ObservableObject {
                       !self.isCancellingDeployment,
                       !Task.isCancelled
                 else { return }
+                self.stopInstallProgressPolling(clear: false)
                 self.stopTunnel()
                 self.stopHealthMonitor()
                 self.resetHealthState()
@@ -809,6 +897,32 @@ final class DeploymentStore: ObservableObject {
                 self.refreshDeploymentLog()
             }
         }
+    }
+
+    /// Reads the install's stage twice a second while the script runs (only this run's marker
+    /// counts: `InstallAttemptMarker.controlToken`).
+    private func startInstallProgressPolling(request: DeploymentExecutionRequest, controlToken: String, operationID: UUID) {
+        installProgressTask?.cancel()
+        installProgress = nil
+        let read = services.readInstallProgress
+        installProgressTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self, self.deploymentOperationID == operationID, self.isDeploying, self.stage == .installing else { return }
+                let snapshot = await read(request, controlToken)
+                guard !Task.isCancelled, self.deploymentOperationID == operationID else { return }
+                if let snapshot, snapshot != self.installProgress {
+                    self.installProgress = snapshot
+                }
+                try? await Task.sleep(nanoseconds: 500_000_000)
+            }
+        }
+    }
+
+    /// - Parameter clear: forget the last stage (success); a failure keeps it for the checklist.
+    private func stopInstallProgressPolling(clear: Bool) {
+        installProgressTask?.cancel()
+        installProgressTask = nil
+        if clear { installProgress = nil }
     }
 
     var canPauseDeployment: Bool {
@@ -891,7 +1005,11 @@ final class DeploymentStore: ObservableObject {
         }
     }
 
-    func cancelDeployment(removeFilesAfterCancellation: Bool = false) {
+    /// - Parameters:
+    ///   - removeFilesAfterCancellation: remove the whole deployment (`DeploymentRemovalService`).
+    ///   - moveAttemptToTrash: on this Mac, move what a cancelled fresh install created to the
+    ///     Trash (`InstallAttemptTrash`); an installed deployment is never touched.
+    func cancelDeployment(removeFilesAfterCancellation: Bool = false, moveAttemptToTrash: Bool = false) {
         guard canCancelDeployment else { return }
         if targetKind == .ssh, !ensureSSHKeyMaterial() {
             deploymentError = OasesLocalization.localized("SSH 私钥无法读取，无法安全取消远程部署")
@@ -967,6 +1085,15 @@ final class DeploymentStore: ObservableObject {
                     }
                 } else {
                     self.finishCancelledDeployment()
+                    if moveAttemptToTrash, request.target == .local, !self.profileIsInstalled {
+                        do {
+                            try await self.services.trashInstallAttempt(request)
+                            self.installProgress = nil
+                            self.statusMessage = OasesLocalization.localized("安装已取消，这次下载的文件已移到废纸篓。")
+                        } catch {
+                            self.statusMessage = OasesLocalization.localized("安装已取消；这次的文件没能移到废纸篓，保留在安装目录中，下次安装时会先自动备份。")
+                        }
+                    }
                 }
             } catch {
                 guard self.deploymentOperationID == operationID else { return }
@@ -1016,6 +1143,7 @@ final class DeploymentStore: ObservableObject {
     }
 
     private func finishCancelledDeployment() {
+        stopInstallProgressPolling(clear: false)
         activeOperationRequest = nil
         isDeploying = false
         isDeploymentPaused = false
@@ -1060,6 +1188,7 @@ final class DeploymentStore: ObservableObject {
         resetHealthState()
         invalidateProbe()
         invalidateDeploymentLog()
+        installProgress = nil
         savedProfiles = DeploymentProfileStore.loadAll()
         activeProfileID = nil
 
@@ -1214,6 +1343,7 @@ final class DeploymentStore: ObservableObject {
         isMaintaining = true
         maintenanceError = nil
         maintenanceMessage = nil
+        lastMaintenanceFailure = nil
         deploymentError = nil
         stage = .installing
         statusMessage = action == .upgrade ? OasesLocalization.localized("正在下载并切换到本应用固定的运行时版本…") : OasesLocalization.localized("正在恢复上一版运行时…")
@@ -1254,8 +1384,12 @@ final class DeploymentStore: ObservableObject {
                 self.statusMessage = result.detail
                 self.maintenanceMessage = result.detail
                 self.latestMaintenanceBackup = result.backupName
+                self.removalError = nil
                 self.saveProfile()
                 self.startHealthMonitor()
+                // The upgrade of a 0.1.x root writes the ownership marker, a rollback may
+                // remove it again: read it back (the topology comes from the script's result).
+                await self.refreshManagedRootFromProbe(for: request)
             } catch DeploymentExecutionError.downgradeRefused(let component, let installed, let target) {
                 // Exit 22 comes before anything is stopped or written: not a failed run. Stage
                 // and health stay as they were; no degraded state, notification or log fetch.
@@ -1266,6 +1400,7 @@ final class DeploymentStore: ObservableObject {
                 self.healthState = healthBefore
                 self.healthError = healthErrorBefore
                 self.maintenanceError = refusal.localizedDescription
+                self.lastMaintenanceFailure = .refused(refusal.localizedDescription)
                 self.statusMessage = refusal.localizedDescription
                 if monitorWasRunning { self.startHealthMonitor() }
             } catch {
@@ -1274,6 +1409,11 @@ final class DeploymentStore: ObservableObject {
                 self.stage = .failed
                 self.setHealthState(.degraded, error: error.localizedDescription)
                 self.maintenanceError = error.localizedDescription
+                if case DeploymentExecutionError.upgradeFailed(let failure) = error {
+                    self.lastMaintenanceFailure = .upgrade(failure)
+                } else {
+                    self.lastMaintenanceFailure = .other
+                }
                 if self.isSSHHostKeyConfirmationRequired(error) {
                     self.statusMessage = OasesLocalization.localized("请先确认 SSH 主机指纹，然后重新执行维护操作")
                     return
@@ -1663,6 +1803,10 @@ final class DeploymentStore: ObservableObject {
         probe = nil
         probeError = nil
         isProbing = false
+        managedRootPresent = nil
+        isDetectingOnLaunch = false
+        acknowledgesPlanAfterProbe = false
+        isPreparingOneClickInstall = false
     }
 
     private var currentExecutionRequest: DeploymentExecutionRequest {
@@ -1739,7 +1883,10 @@ final class DeploymentStore: ObservableObject {
     /// - Parameter probe: what the probe found; its topology decides the tunnel ports and the
     ///   health checks (a 0.1.x deployment stays legacy, a gateway deployment gets 18316/18320).
     private func adoptExistingDeployment(request: DeploymentExecutionRequest, requestID: UUID, probe: DeploymentProbe) {
-        guard !isDeploying else { return }
+        guard !isDeploying else {
+            isDetectingOnLaunch = false
+            return
+        }
         activeOperationRequest = request
         isDeploying = true
         deploymentError = nil
@@ -1799,9 +1946,11 @@ final class DeploymentStore: ObservableObject {
                 self.statusMessage = request.target == .local
                     ? OasesLocalization.localized("已接管现有本机部署并恢复连接")
                     : OasesLocalization.localized("已接管现有远程部署并恢复 SSH 连接")
+                self.isDetectingOnLaunch = false
                 self.startHealthMonitor()
             } catch {
                 guard self.probeRequestID == requestID else { return }
+                self.isDetectingOnLaunch = false
                 self.stopTunnel()
                 self.isDeploying = false
                 self.stage = .failed
@@ -1975,6 +2124,9 @@ final class DeploymentStore: ObservableObject {
         if isHealthy {
             setHealthState(.healthy)
             deploymentError = nil
+            // A refused removal leaves the deployment running: its error is stale once the
+            // services answer again.
+            removalError = nil
             if stage == .failed {
                 stage = .attached
                 statusMessage = targetKind == .local ? OasesLocalization.localized("本机服务已恢复连接") : OasesLocalization.localized("SSH 隧道与远程服务已恢复连接")
@@ -2042,11 +2194,22 @@ final class DeploymentStore: ObservableObject {
         if request.target == .ssh {
             guard (try? await ensureSSHHostKeyTrust(for: request, retryAction: .reconnect)) != nil else { return }
         }
-        guard let probe = try? await services.probe(request), probe.hasManagedInstallation,
-              probe.testedInstallDirectory == request.installDirectory,
-              probe.topology != topology else { return }
+        guard let probe = try? await services.probe(request),
+              probe.testedInstallDirectory == request.installDirectory else { return }
+        managedRootPresent = probe.hasManagedRoot
+        guard probe.hasManagedInstallation, probe.topology != topology else { return }
         topology = probe.topology
         saveProfile()
+    }
+
+    /// Reads only the ownership marker from a fresh probe (best effort, read-only).
+    private func refreshManagedRootFromProbe(for request: DeploymentExecutionRequest) async {
+        if request.target == .ssh {
+            guard (try? await ensureSSHHostKeyTrust(for: request, retryAction: nil)) != nil else { return }
+        }
+        guard let probe = try? await services.probe(request),
+              probe.testedInstallDirectory == request.installDirectory else { return }
+        managedRootPresent = probe.hasManagedRoot
     }
 
     private func restoreConnection() async {

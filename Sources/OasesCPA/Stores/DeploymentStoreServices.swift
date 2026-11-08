@@ -24,6 +24,28 @@ struct DeploymentStoreServices: Sendable {
     var notifyRecovered: @Sendable (String, DeploymentTopology) async -> Void = { target, topology in
         await HealthNotificationService.shared.notifyRecovered(target: target, topology: topology)
     }
+    /// The live stage (and download size) of an install on this Mac, for the run with the given
+    /// control token (`InstallProgressReader`); nil for SSH targets.
+    var readInstallProgress: @Sendable (DeploymentExecutionRequest, String) async -> InstallProgressSnapshot? = { request, token in
+        guard request.target == .local else { return nil }
+        return InstallProgressReader.read(installDirectory: request.installDirectory, controlToken: token)
+    }
+    /// Moves what a cancelled fresh install created on this Mac to the Trash
+    /// (`InstallAttemptTrash`).
+    var trashInstallAttempt: @Sendable (DeploymentExecutionRequest) async throws -> Void = { request in
+        guard request.target == .local else { return }
+        try InstallAttemptTrash.moveAttemptToTrash(
+            root: InstallProgressReader.expandedRoot(request.installDirectory),
+            trash: InstallAttemptTrash.liveTrash
+        )
+    }
+    /// The first fixed loopback port a fresh install on this Mac needs that is already taken,
+    /// and the program holding it when `lsof` names it.
+    var busyLocalPort: @Sendable () async -> (port: Int, process: String?)? = {
+        let ports = [DeploymentPorts.gatewayAPI, DeploymentPorts.cpamp, DeploymentPorts.engine, DeploymentPorts.gatewayAdmin]
+        guard let port = LocalPortCheck.firstBusyPort(ports) else { return nil }
+        return (port, await LocalPortCheck.processName(listeningOn: port))
+    }
 
     static let live = DeploymentStoreServices(
         execute: { request, controlToken in
