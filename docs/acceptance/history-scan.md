@@ -4,11 +4,6 @@ Recorded 2026-11-08 on branch `codex/oases-open-edition` (45 commits after `f0f2
 owner's private terms file. Findings are described by rule, commit and location only; no
 finding text, not even in the scanner's masked form, is reproduced here.
 
-Every commit id on this page (`f0f2500`, `7a8183c`, `a99cebc`, `9ca68cb`) is a pre-rewrite id:
-it exists only BEFORE the history rewrite. After the rewrite the `f0f2500..HEAD` range scans
-below can no longer be run; CI (`.github/workflows/private-scan.yml`) uses `--history`, which
-names no commit id, and that scan must then be clean.
-
 ## Scans that must be clean
 
 | Command | Exit | Findings |
@@ -46,6 +41,4 @@ replace-text file (the stem → `com.example.cpa`, the other term → `REDACTED`
 rules to the text of `git log -p --all --format=%B` and scanning it with `--stdin
 --require-private-terms` gave 0 findings (28 before, counting removed lines). The rewrite itself
 (`git filter-repo`) and the rescan of the rewritten history have not been run: the owner runs
-them (`docs/open-source-release.md`, section 4). From then on the release scans are the
-post-rewrite ones of `docs/open-source-release.md`, section 3 (`--tree`, `--history`, and the
-e-mail lines of `git log --all`), the same as CI; all must exit 0.
+them (`docs/open-source-release.md`, section 4).

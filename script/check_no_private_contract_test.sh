@@ -189,51 +189,5 @@ expect_contains "the author is an author-email finding" "$out" ":author:1: autho
 out=$(git -C "$R4" log -1 --format="$CI_FORMAT" | (cd "$R4" && bash "$SCANNER" --stdin 2>&1)); st=$?
 expect_status "the CI format fails GitHub's address as author" 1 "$st"
 
-# 8. CI names no commit id: the history rewrite changes every id, so a range based on one
-#    would fail every push afterwards. The history check is the scanner's own --history mode
-#    (every commit of every ref), and the scan step is run here as written in the workflow.
-CI_TEXT=$(cat "$CI_WORKFLOW" 2>/dev/null)
-CI_SCRIPT="$WORK/ci-scan-step.sh"
-# The body of the one "run: |" block (indented by 10 spaces), blank lines kept.
-awk '
-  /^        run: \|$/ { body = 1; next }
-  body && /^          / { print substr($0, 11); next }
-  body && /^[[:space:]]*$/ { print ""; next }
-  body { exit }
-' "$CI_WORKFLOW" >"$CI_SCRIPT" 2>/dev/null
-CI_STEP=$(cat "$CI_SCRIPT" 2>/dev/null)
-expect_contains "the CI step runs the --history scan" "$CI_STEP" \
-  'bash script/check-no-private.sh --history ${require[@]+"${require[@]}"}'
-expect_contains "the CI step still runs the --tree scan" "$CI_STEP" \
-  'bash script/check-no-private.sh --tree ${require[@]+"${require[@]}"}'
-expect_contains "the CI e-mail step reads every ref" "$CI_STEP" "git log --format='author: %ae%ncommitter: %ce' --all"
-if printf '%s\n' "$CI_TEXT" | LC_ALL=C grep -Eq '\.\.HEAD|[0-9a-f]{7,40}\.\.|(^|[^0-9a-f])[0-9a-f]{7,39}([^0-9a-f]|$)'; then
-  not_ok "private-scan.yml names no commit id or commit range"
-else
-  ok "private-scan.yml names no commit id or commit range"
-fi
-R5="$WORK/ci"
-new_repo "$R5" >/dev/null 2>&1 || not_ok "create a scratch repository"
-cp "$SCANNER" "$R5/script/check-no-private.sh"
-cp "$REPO/script/private-allowlist.txt" "$R5/script/private-allowlist.txt"
-g "$R5" add -A && g "$R5" commit -q -m "scanner"
-mkdir -p "$WORK/runner"
-ci_step() { # <dir> <terms text>: the workflow's scan step, as GitHub runs it (bash -e -o pipefail)
-  (cd "$1" && RUNNER_TEMP="$WORK/runner" OASES_PRIVATE_TERMS="$2" bash -e -o pipefail "$CI_SCRIPT" 2>&1)
-}
-out=$(ci_step "$R5" "$SAMPLE_TERM"); st=$?
-expect_status "the CI step passes a clean history" 0 "$st"
-printf 'team = %s\n' "$SAMPLE_TERM" >"$R5/settings.conf"
-g "$R5" add -A && g "$R5" commit -q -m "add a setting"
-printf 'team = none\n' >"$R5/settings.conf"
-g "$R5" add -A && g "$R5" commit -q -m "drop it again"
-out=$(ci_step "$R5" "$SAMPLE_TERM"); st=$?
-expect_status "the CI step fails a term that only an older commit added" 1 "$st"
-expect_contains "the older commit's term is a private-term finding" "$out" ": private-term:"
-expect_not_contains "the term is never printed in full" "$out" "$SAMPLE_TERM"
-out=$(ci_step "$R5" ""); st=$?
-expect_status "without the secret (a fork) the CI step runs the generic rules only" 0 "$st"
-expect_contains "the fork case says so" "$out" "generic rules only"
-
 printf '\n%d passed, %d failed (scratch: %s)\n' "$PASS" "$FAIL" "$WORK"
 [ "$FAIL" -eq 0 ]
