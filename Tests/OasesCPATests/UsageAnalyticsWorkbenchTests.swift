@@ -3,6 +3,44 @@ import XCTest
 @testable import OasesCPA
 
 final class UsageAnalyticsWorkbenchTests: XCTestCase {
+    /// Usage analytics is served by CPA Manager Plus (18317) and authorised with its admin key,
+    /// in both topologies; the engine management key must never be sent there.
+    @MainActor
+    func testRequestsGoToCPAMPWithAdminKey() async throws {
+        defer { URLProtocolStub.reset() }
+        for topology in [DeploymentTopology.gateway, .legacy] {
+            URLProtocolStub.install { request, _ in .json(500, #"{"error":"stub"}"#, for: request) }
+            let deploymentStore = DeploymentStore(autoProbe: false)
+            deploymentStore.attachForTesting(topology: topology, managementKey: "cpa-management-test-key", adminKey: "cpamp-test-key")
+            let store = UsageAnalyticsWorkbenchStore(
+                deploymentStore: deploymentStore,
+                client: ManagementAPIClient(session: URLProtocolStub.makeSession())
+            )
+            XCTAssertTrue(store.isAttached)
+            store.refresh()
+            for _ in 0..<200 where store.isLoading || URLProtocolStub.recordedRequests.isEmpty {
+                try await Task.sleep(nanoseconds: 10_000_000)
+            }
+            let requests = URLProtocolStub.recordedRequests
+            XCTAssertEqual(requests.count, 1, "\(topology)")
+            let request = try XCTUnwrap(requests.first?.0)
+            XCTAssertEqual(request.url?.host, "127.0.0.1")
+            XCTAssertEqual(request.url?.port, 18317, "\(topology)")
+            XCTAssertEqual(request.url?.path, "/v0/management/monitoring/analytics")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer cpamp-test-key")
+            XCTAssertNotEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer cpa-management-test-key")
+            XCTAssertNotNil(requests.first?.1, "the analytics request carries a JSON body")
+        }
+    }
+
+    @MainActor
+    func testWithoutAdminKeyAnalyticsIsNotAttached() {
+        let deploymentStore = DeploymentStore(autoProbe: false)
+        deploymentStore.attachForTesting(topology: .gateway, managementKey: "cpa-management-test-key", adminKey: "")
+        let store = UsageAnalyticsWorkbenchStore(deploymentStore: deploymentStore)
+        XCTAssertFalse(store.isAttached, "analytics needs the CPAMP admin key, not the management key")
+    }
+
     func testRequestUsesStableSnakeCaseAndTabSpecificIncludes() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let request = RuntimeUsageAnalyticsRequest(

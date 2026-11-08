@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0410218F6AD9D0F5F0679F6D /* OpenAICompatibilityEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF64ED65361A7023E6A5BA1 /* OpenAICompatibilityEditorView.swift */; };
 		04F6736A328117BAF615657A /* OpenSourceNoticesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96C4DE28BFCD7A9DCC3F3AE9 /* OpenSourceNoticesView.swift */; };
+		066E413E7AE16C51B4A093E2 /* DeploymentTopologyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3C68BDE0D17181759F0E5C3 /* DeploymentTopologyTests.swift */; };
 		0767A8087C1B18D288357BE6 /* DeploymentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0017A03565B9CFF2B187219 /* DeploymentModels.swift */; };
 		07F6F4D17855F3CA0DA4025B /* PluginConfigEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1790CAA37B95A163F0356FB5 /* PluginConfigEditorView.swift */; };
 		097540B1024C96E319114743 /* PluginStoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF468337BDBC84C3D7A70DD4 /* PluginStoreView.swift */; };
@@ -84,6 +85,7 @@
 		8B7CCB05423DF3BAC32E8895 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AC44BC2E10C12464F9E8030 /* SidebarView.swift */; };
 		8C3B7E1FF161625AAB7DDD9D /* SparklineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD7060B31717B15B14A52F2 /* SparklineView.swift */; };
 		90B1B3CE1247888053C5B4DB /* UsageAnalyticsWorkbenchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75414B5851AD791FFE18B01B /* UsageAnalyticsWorkbenchTests.swift */; };
+		92619BB03B7921A8906E506E /* URLProtocolStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50A2453AA54BCE5E8E428CDE /* URLProtocolStub.swift */; };
 		92CC64B9F95F4CE343C93020 /* DockerInstallerSupplyChainTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E18F55F4951B4381FBAED72 /* DockerInstallerSupplyChainTests.swift */; };
 		95DCD5CC6D3EA91BA8910039 /* AuthFilesWorkbenchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF493FFB8BD368E37321D8C /* AuthFilesWorkbenchModels.swift */; };
 		98138557908DEBBDFB9D2A52 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 042EAC68E099F9D326AFE146 /* SettingsView.swift */; };
@@ -106,6 +108,7 @@
 		B6C1357D3897211FE5D83AD6 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F87D4FC3968ACD620E72376 /* DesignTokens.swift */; };
 		B859A5789AF89B11760B662F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1E75C1119AFD0C1E1A603FC /* Assets.xcassets */; };
 		BAFC42275C25E96BEE6077F8 /* RuntimeProviderConnectivityModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB6DC80408688F7932F78C36 /* RuntimeProviderConnectivityModels.swift */; };
+		BB2DEA72B759EA3CF5E42E65 /* DeploymentTopology.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A848861AA1B53F7950990D /* DeploymentTopology.swift */; };
 		BB414CC6200FD705114CC51C /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 5DF80D7534B783CB6C58D1B5 /* PrivacyInfo.xcprivacy */; };
 		BC1992E50841A47F1FCBA08E /* StatusPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC15A57CE6C8174C1C25EDDF /* StatusPill.swift */; };
 		BF0AA7A796AAEAC3651001B5 /* RuntimeCPAConfigDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32097B6ACA91DBEB2CF65AC1 /* RuntimeCPAConfigDocument.swift */; };
@@ -216,6 +219,7 @@
 		4AC44BC2E10C12464F9E8030 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		4AD9272FA8D618140A1349D4 /* DashboardModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardModels.swift; sourceTree = "<group>"; };
 		4D4DDFF34FB4EDE555E021F8 /* RuntimeAuthJSONDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeAuthJSONDocument.swift; sourceTree = "<group>"; };
+		50A2453AA54BCE5E8E428CDE /* URLProtocolStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLProtocolStub.swift; sourceTree = "<group>"; };
 		553C818C94BD4C836715013C /* DeploymentMaintenanceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentMaintenanceService.swift; sourceTree = "<group>"; };
 		569387330C4103211781E8D4 /* OasesBrandIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = OasesBrandIcon.png; sourceTree = "<group>"; };
 		56E355E65C98BB3AE55CCEF9 /* RuntimeDirectProviderContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeDirectProviderContractTests.swift; sourceTree = "<group>"; };
@@ -261,6 +265,7 @@
 		A4CC7A12C7282B9976AD3750 /* AuthFilesWorkbenchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthFilesWorkbenchView.swift; sourceTree = "<group>"; };
 		AFC7F942E2BBEE339097DB7B /* SSHConnectionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHConnectionService.swift; sourceTree = "<group>"; };
 		B390BECFAC33611234C4164F /* OasesCPA.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = OasesCPA.icns; sourceTree = "<group>"; };
+		B3C68BDE0D17181759F0E5C3 /* DeploymentTopologyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentTopologyTests.swift; sourceTree = "<group>"; };
 		B51FFBA60F9C5E37F0D7420B /* MenuBarStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarStatusView.swift; sourceTree = "<group>"; };
 		B81A322BC0F34D7ACDE11BA7 /* DeploymentExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentExecutor.swift; sourceTree = "<group>"; };
 		B8AE364A2E03BBDAE59507A6 /* RuntimeAccountActionContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeAccountActionContractTests.swift; sourceTree = "<group>"; };
@@ -271,6 +276,7 @@
 		BFE83C899C626CE00D19B7EA /* LaunchAtLoginService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginService.swift; sourceTree = "<group>"; };
 		C0017A03565B9CFF2B187219 /* DeploymentModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentModels.swift; sourceTree = "<group>"; };
 		C033E1DDCFEE136AB5FA26A9 /* DeploymentSupplyChainContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentSupplyChainContractTests.swift; sourceTree = "<group>"; };
+		C7A848861AA1B53F7950990D /* DeploymentTopology.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentTopology.swift; sourceTree = "<group>"; };
 		C7B7E5A270BB6F778F048E5C /* RuntimeMonitoringEventsContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeMonitoringEventsContractTests.swift; sourceTree = "<group>"; };
 		CA80448BE2BFEE5DCFA741EE /* CLIProxyAPI-MIT.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "CLIProxyAPI-MIT.txt"; sourceTree = "<group>"; };
 		CB63E755A5614E0F6B50E611 /* AccountActionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountActionsView.swift; sourceTree = "<group>"; };
@@ -339,6 +345,7 @@
 				4AD9272FA8D618140A1349D4 /* DashboardModels.swift */,
 				C0017A03565B9CFF2B187219 /* DeploymentModels.swift */,
 				FD629568267BE1D1905EE36A /* DeploymentProfile.swift */,
+				C7A848861AA1B53F7950990D /* DeploymentTopology.swift */,
 				3EE173ADB3D34159BD7BD61C /* RuntimeAccountActionModels.swift */,
 				342F29054C8C443FD338DD83 /* RuntimeAuthFileModels.swift */,
 				4D4DDFF34FB4EDE555E021F8 /* RuntimeAuthJSONDocument.swift */,
@@ -391,6 +398,7 @@
 				33598341B509506D16443FAF /* DeploymentLifecycleServiceTests.swift */,
 				08CE900F226773AF96F29E34 /* DeploymentStoreAutomationTests.swift */,
 				C033E1DDCFEE136AB5FA26A9 /* DeploymentSupplyChainContractTests.swift */,
+				B3C68BDE0D17181759F0E5C3 /* DeploymentTopologyTests.swift */,
 				9E18F55F4951B4381FBAED72 /* DockerInstallerSupplyChainTests.swift */,
 				79E24EBF7DA4561E3B9E169C /* OasesAppearanceTests.swift */,
 				D71CF28144C36877997E7F4F /* OnboardingStateTests.swift */,
@@ -414,6 +422,7 @@
 				096C174C9ABE8222B66C798C /* SystemModelDirectoryTests.swift */,
 				75414B5851AD791FFE18B01B /* UsageAnalyticsWorkbenchTests.swift */,
 				45F6EFD34B3B75F326460945 /* WindowLayoutPolicyTests.swift */,
+				E7616F556CE64E3DEDB6DF56 /* Support */,
 			);
 			name = OasesCPATests;
 			path = Tests/OasesCPATests;
@@ -564,6 +573,14 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		E7616F556CE64E3DEDB6DF56 /* Support */ = {
+			isa = PBXGroup;
+			children = (
+				50A2453AA54BCE5E8E428CDE /* URLProtocolStub.swift */,
+			);
+			path = Support;
+			sourceTree = "<group>";
+		};
 		FF3E1A8630C3DFD4456B9CD3 /* Support */ = {
 			isa = PBXGroup;
 			children = (
@@ -710,6 +727,7 @@
 				239AB79D91A6599E3EC77C63 /* DeploymentRecoveryService.swift in Sources */,
 				B1188B0C679960F680809A47 /* DeploymentRemovalService.swift in Sources */,
 				6242AF81DA381E95536A413C /* DeploymentStore.swift in Sources */,
+				BB2DEA72B759EA3CF5E42E65 /* DeploymentTopology.swift in Sources */,
 				B6C1357D3897211FE5D83AD6 /* DesignTokens.swift in Sources */,
 				C55687B26C51109A5F7ECCF4 /* DirectProviderCredentialsView.swift in Sources */,
 				E8ABA8E8C2A6204E645B7524 /* ExistingDeploymentAdoptionService.swift in Sources */,
@@ -798,6 +816,7 @@
 				F17803E741D5EE26459BB164 /* DeploymentLifecycleServiceTests.swift in Sources */,
 				2E5D599813C30F9BE0EA5C67 /* DeploymentStoreAutomationTests.swift in Sources */,
 				297F95A8CEA29260D79E8B50 /* DeploymentSupplyChainContractTests.swift in Sources */,
+				066E413E7AE16C51B4A093E2 /* DeploymentTopologyTests.swift in Sources */,
 				92CC64B9F95F4CE343C93020 /* DockerInstallerSupplyChainTests.swift in Sources */,
 				4A3F22BF404E9F4607F7CF59 /* OasesAppearanceTests.swift in Sources */,
 				6B285E4C7F4BCDF44028ADFA /* OnboardingStateTests.swift in Sources */,
@@ -819,6 +838,7 @@
 				6911849EA065279F794E490C /* RuntimeProviderDraftDiagnosticsContractTests.swift in Sources */,
 				FA4F03078D3BF5D8C879187E /* SSHConnectionServiceSecurityTests.swift in Sources */,
 				AE92D506AAF6CC5B9E38CBC3 /* SystemModelDirectoryTests.swift in Sources */,
+				92619BB03B7921A8906E506E /* URLProtocolStub.swift in Sources */,
 				90B1B3CE1247888053C5B4DB /* UsageAnalyticsWorkbenchTests.swift in Sources */,
 				0AB246D60D2FF354DCA126D6 /* WindowLayoutPolicyTests.swift in Sources */,
 			);

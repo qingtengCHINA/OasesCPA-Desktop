@@ -463,10 +463,10 @@ struct ConfigurationView: View {
 
     private var baseURLBinding: Binding<String> {
         Binding(
-            get: { draft?.cpaConnection.cpaBaseURL ?? "" },
+            get: { draft?.cpaConnection.engineBaseURL ?? "" },
             set: { value in
                 guard var draft else { return }
-                draft.cpaConnection.cpaBaseURL = value
+                draft.cpaConnection.engineBaseURL = value
                 self.draft = draft
                 editState.markChanged()
             }
@@ -553,7 +553,7 @@ struct ConfigurationView: View {
 
     private var isValidDraft: Bool {
         guard let draft,
-              !draft.cpaConnection.cpaBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !draft.cpaConnection.engineBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !draft.managementKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               let pollInterval = Int(pollIntervalText), pollInterval > 0,
               let batchSize = Int(batchSizeText), batchSize > 0,

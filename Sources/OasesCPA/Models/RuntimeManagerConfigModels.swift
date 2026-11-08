@@ -54,22 +54,22 @@ struct RuntimeManagerConfig: Codable, Equatable {
 }
 
 struct RuntimeCPAConnectionConfig: Codable, Equatable {
-    var cpaBaseURL: String
+    var engineBaseURL: String
     var managementKey: String?
 
-    init(cpaBaseURL: String = "", managementKey: String? = nil) {
-        self.cpaBaseURL = cpaBaseURL
+    init(engineBaseURL: String = "", managementKey: String? = nil) {
+        self.engineBaseURL = engineBaseURL
         self.managementKey = managementKey
     }
 
     private enum CodingKeys: String, CodingKey {
-        case cpaBaseURL = "cpaBaseUrl"
+        case engineBaseURL = "cpaBaseUrl"
         case managementKey
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        cpaBaseURL = try container.decodeIfPresent(String.self, forKey: .cpaBaseURL) ?? ""
+        engineBaseURL = try container.decodeIfPresent(String.self, forKey: .engineBaseURL) ?? ""
         managementKey = try container.decodeIfPresent(String.self, forKey: .managementKey)
     }
 }

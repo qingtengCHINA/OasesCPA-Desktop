@@ -173,7 +173,7 @@ struct ConnectionCenterView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("App 会使用目标目录中最近的 backups/upgrade-*，恢复上一版启动脚本并重新验证 8317 / 18317。不会删除认证文件或 CPAMP 数据。")
+            Text("App 会使用目标目录中最近的 backups/upgrade-*，恢复上一版启动脚本并重新验证 \(deploymentStore.tunnelPortList)。不会删除认证文件或 CPAMP 数据。")
         }
         .confirmationDialog(
             "删除未部署目标？",
@@ -294,6 +294,23 @@ struct ConnectionCenterView: View {
         }
     }
 
+    /// The loopback ports of the current topology: the gateway (API / admin) when there is one,
+    /// the engine, and CPA Manager Plus.
+    @ViewBuilder
+    private var runtimePortFacts: some View {
+        if deploymentStore.topology == .gateway {
+            DeploymentChoiceFact(
+                title: "Oases 网关",
+                value: "\(DeploymentPorts.gatewayAPI) / \(DeploymentPorts.gatewayAdmin)"
+            )
+        }
+        DeploymentChoiceFact(
+            title: "CLIProxyAPI",
+            value: String(deploymentStore.endpoints.engineBaseURL.port ?? DeploymentPorts.legacyEngine)
+        )
+        DeploymentChoiceFact(title: "CPAMP 面板", value: String(DeploymentPorts.cpamp))
+    }
+
     private var deploymentCard: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .top, spacing: 12) {
@@ -308,8 +325,7 @@ struct ConnectionCenterView: View {
             }
 
             HStack(spacing: 0) {
-                DeploymentChoiceFact(title: "CLIProxyAPI", value: "8317")
-                DeploymentChoiceFact(title: "CPAMP 面板", value: "18317")
+                runtimePortFacts
                 DeploymentChoiceFact(
                     title: "部署方式",
                     value: deploymentStore.targetKind == .local ? "本机原生" : deploymentStore.deploymentMethod.title
@@ -626,7 +642,7 @@ struct ConnectionCenterView: View {
 
             if deploymentStore.savedProfiles.count > 1 {
                 Label(
-                    "切换目标前请先停止当前正在运行的服务，避免本机 8317 / 18317 端口或 SSH 隧道互相覆盖。",
+                    "切换目标前请先停止当前正在运行的服务，避免本机 \(deploymentStore.tunnelPortList) 端口或 SSH 隧道互相覆盖。",
                     systemImage: "info.circle"
                 )
                 .font(.caption)
@@ -722,8 +738,7 @@ struct ConnectionCenterView: View {
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 16) {
-                DeploymentChoiceFact(title: "CLIProxyAPI", value: "8317")
-                DeploymentChoiceFact(title: "CPAMP 面板", value: "18317")
+                runtimePortFacts
                 DeploymentChoiceFact(title: "管理访问", value: "本机回环 / SSH 隧道")
             }
         }

@@ -258,7 +258,7 @@ struct PluginOAuthView: View {
         authorizationURL = ""
         oauthState = ""
 
-        let baseURL = deploymentStore.cpaBaseURL
+        let baseURL = deploymentStore.engineBaseURL
         let managementKey = deploymentStore.managementKey
         Task { @MainActor in
             do {
@@ -291,7 +291,7 @@ struct PluginOAuthView: View {
     private func pollAuthorization() async {
         guard let pollingState = activePollingState, !pollingState.isEmpty else { return }
         let state = pollingState
-        let baseURL = deploymentStore.cpaBaseURL
+        let baseURL = deploymentStore.engineBaseURL
         let managementKey = deploymentStore.managementKey
 
         while !Task.isCancelled {
@@ -341,7 +341,7 @@ struct PluginOAuthView: View {
 
         let input = callbackURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !input.isEmpty else { return }
-        let baseURL = deploymentStore.cpaBaseURL
+        let baseURL = deploymentStore.engineBaseURL
         let managementKey = deploymentStore.managementKey
         isSubmittingCallback = true
         callbackMessage = nil
@@ -398,7 +398,7 @@ struct PluginOAuthView: View {
               !state.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               deploymentStore.stage == .attached,
               !deploymentStore.managementKey.isEmpty else { return }
-        let baseURL = deploymentStore.cpaBaseURL
+        let baseURL = deploymentStore.engineBaseURL
         let managementKey = deploymentStore.managementKey
         Task {
             try? await ManagementAPIClient().cancelOAuth(

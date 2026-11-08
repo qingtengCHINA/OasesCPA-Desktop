@@ -73,6 +73,9 @@ final class DeploymentStore: ObservableObject {
     @Published private(set) var removalError: String?
     @Published private(set) var managementKey = ""
     @Published private(set) var cpampAdminKey = ""
+    /// The layout of the current target. Comes from the saved profile when a target is
+    /// selected or attached; new targets start as `legacy` until a probe says otherwise.
+    @Published private(set) var topology: DeploymentTopology = .legacy
     @Published private(set) var hasLoadedSavedCredentials = false
     @Published private(set) var deploymentError: String?
     @Published private(set) var deploymentLog = ""
@@ -153,6 +156,15 @@ final class DeploymentStore: ObservableObject {
     var operationRequestSnapshotForTesting: DeploymentExecutionRequest? {
         activeOperationRequest
     }
+
+    /// Puts the store into the attached state with the given topology and credentials, without
+    /// Keychain, network or saved profiles.
+    func attachForTesting(topology: DeploymentTopology, managementKey: String, adminKey: String) {
+        self.topology = topology
+        self.managementKey = managementKey
+        cpampAdminKey = adminKey
+        stage = .attached
+    }
 #endif
 
     private enum SSHHostKeyRetryAction {
@@ -181,6 +193,7 @@ final class DeploymentStore: ObservableObject {
             remotePort = profile.remotePort
             privateKeyPath = profile.privateKeyPath
             installDirectory = profile.installDirectory
+            topology = profile.topology
             profileIsInstalled = profile.isInstalled
             wantsRunning = loadWantsRunningPreference()
             stage = .idle
@@ -209,31 +222,42 @@ final class DeploymentStore: ObservableObject {
         stopTunnel()
     }
 
+    /// The four loopback base URLs of the current target's topology.
+    var endpoints: DeploymentEndpoints {
+        DeploymentEndpoints(topology: topology)
+    }
+
     var localPanelURL: String {
         targetKind == .local || tunnelAttached
-            ? "http://127.0.0.1:18317/management.html"
+            ? endpoints.cpampBaseURL.appendingPathComponent("management.html").absoluteString
             : OasesLocalization.localized("SSH 隧道建立后使用本机回环地址")
     }
 
     var cpaManagementURL: String {
         targetKind == .local || tunnelAttached
-            ? "http://127.0.0.1:8317"
-            : OasesLocalization.localized("SSH 隧道建立后使用本机 8317 端口")
+            ? endpoints.engineBaseURL.absoluteString
+            : OasesLocalization.localizedFormat("SSH 隧道建立后使用本机 %lld 端口", endpoints.engineBaseURL.port ?? DeploymentPorts.legacyEngine)
     }
 
-    /// User-facing OpenAI-compatible endpoint. Internal management requests
-    /// continue to use `cpaBaseURL` without the `/v1` suffix.
+    /// The forwarded loopback ports of the current topology, for display ("8317 / 18317").
+    var tunnelPortList: String {
+        DeploymentPorts.tunnelPorts(for: topology).map(String.init).joined(separator: " / ")
+    }
+
+    /// User-facing OpenAI-compatible endpoint (with `/v1`). Engine management requests use
+    /// `engineBaseURL` without the suffix.
     var cpaClientURLString: String {
-        let base = cpaBaseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        return base.hasSuffix("/v1") ? base : "\(base)/v1"
+        endpoints.clientAPIBaseURL.absoluteString
     }
 
     var cpampBaseURL: URL {
-        URL(string: "http://127.0.0.1:18317")!
+        endpoints.cpampBaseURL
     }
 
-    var cpaBaseURL: URL {
-        URL(string: "http://127.0.0.1:8317")!
+    /// The engine (CLIProxyAPI) and its management API: 8317 for a legacy target, 18316 behind
+    /// the gateway.
+    var engineBaseURL: URL {
+        endpoints.engineBaseURL
     }
 
     func setHealthNotificationsEnabled(_ enabled: Bool) {
@@ -322,6 +346,7 @@ final class DeploymentStore: ObservableObject {
         remotePort = "22"
         privateKeyPath = ""
         installDirectory = "~/.oases-cpa"
+        topology = .legacy
         profileIsInstalled = false
         wantsRunning = true
         setWantsRunningPreference(true)
@@ -363,6 +388,7 @@ final class DeploymentStore: ObservableObject {
         remotePort = profile.remotePort
         privateKeyPath = profile.privateKeyPath
         installDirectory = profile.installDirectory
+        topology = profile.topology
         profileIsInstalled = profile.isInstalled
         wantsRunning = loadWantsRunningPreference()
         clearLoadedCredentials()
@@ -661,7 +687,7 @@ final class DeploymentStore: ObservableObject {
                 if request.target == .ssh {
                     try await self.startTunnel(for: request)
                 }
-                try await RuntimeLifecycleService().waitForConnectionHealth(
+                try await RuntimeLifecycleService(endpoints: endpoints).waitForConnectionHealth(
                     cpaManagementKey: result.cpaManagementKey
                 )
 
@@ -833,7 +859,7 @@ final class DeploymentStore: ObservableObject {
                 }
 
                 if !cancellationCompleted, self.profileIsInstalled {
-                    try await RuntimeLifecycleService().stop(
+                    try await RuntimeLifecycleService(endpoints: endpoints).stop(
                         target: request.target,
                         method: request.method,
                         host: request.host,
@@ -1142,7 +1168,7 @@ final class DeploymentStore: ObservableObject {
                     try await self.startTunnel(for: request)
                 }
                 let managementKey = self.managementKey
-                try await RuntimeLifecycleService().waitForConnectionHealth(
+                try await RuntimeLifecycleService(endpoints: endpoints).waitForConnectionHealth(
                     cpaManagementKey: managementKey
                 )
                 self.isMaintaining = false
@@ -1203,6 +1229,7 @@ final class DeploymentStore: ObservableObject {
         )
         activeOperationRequest = request
 
+        let lifecycleEndpoints = endpoints
         Task { [weak self] in
             defer { self?.activeOperationRequest = nil }
             do {
@@ -1210,7 +1237,7 @@ final class DeploymentStore: ObservableObject {
                     guard let store = self else { return }
                     try await store.ensureSSHHostKeyTrust(for: request, retryAction: nil)
                 }
-                try await RuntimeLifecycleService().stop(
+                try await RuntimeLifecycleService(endpoints: lifecycleEndpoints).stop(
                     target: target,
                     method: method,
                     host: host,
@@ -1263,6 +1290,7 @@ final class DeploymentStore: ObservableObject {
         deploymentError = nil
         statusMessage = shouldStop ? OasesLocalization.localized("正在停止服务并解除当前目标绑定…") : OasesLocalization.localized("正在解除当前目标绑定…")
 
+        let lifecycleEndpoints = endpoints
         Task { [weak self] in
             defer { self?.activeOperationRequest = nil }
             do {
@@ -1271,7 +1299,7 @@ final class DeploymentStore: ObservableObject {
                     try await store.ensureSSHHostKeyTrust(for: request, retryAction: nil)
                 }
                 if shouldStop {
-                    try await RuntimeLifecycleService().stop(
+                    try await RuntimeLifecycleService(endpoints: lifecycleEndpoints).stop(
                         target: request.target,
                         method: request.method,
                         host: request.host,
@@ -1365,7 +1393,8 @@ final class DeploymentStore: ObservableObject {
             host: request.host,
             user: request.user,
             port: request.port,
-            privateKeyPath: request.privateKeyPath
+            privateKeyPath: request.privateKeyPath,
+            topology: topology
         )
         try SSHConnectionService.verifyKnownHostsFileForConnection()
         process.arguments = arguments
@@ -1557,11 +1586,13 @@ final class DeploymentStore: ObservableObject {
             privateKeyPath: privateKeyPath,
             installDirectory: installDirectory,
             isInstalled: profileIsInstalled,
-            lastAttachedAt: profileIsInstalled ? Date() : nil
+            lastAttachedAt: profileIsInstalled ? Date() : nil,
+            topology: topology
         )
         let canonical = DeploymentProfileStore.save(profile)
         if canonical.id != profile.id {
             activeProfileID = canonical.id
+            topology = canonical.topology
             profileIsInstalled = canonical.isInstalled
             wantsRunning = loadWantsRunningPreference()
         }
@@ -1588,7 +1619,7 @@ final class DeploymentStore: ObservableObject {
                 if request.target == .ssh {
                     try await self.startTunnel(for: request)
                 }
-                try await RuntimeLifecycleService().ensureRunning(
+                try await RuntimeLifecycleService(endpoints: endpoints).ensureRunning(
                     target: request.target,
                     method: request.method,
                     host: request.host,
@@ -1791,7 +1822,7 @@ final class DeploymentStore: ObservableObject {
         setHealthState(.checking)
         let request = currentExecutionRequest
         let managementKey = self.managementKey
-        let isHealthy = await RuntimeLifecycleService().checkConnectionHealth(
+        let isHealthy = await RuntimeLifecycleService(endpoints: endpoints).checkConnectionHealth(
             cpaManagementKey: managementKey
         )
         guard !Task.isCancelled, profileIsInstalled, wantsRunning else { return }
@@ -1833,7 +1864,7 @@ final class DeploymentStore: ObservableObject {
             if request.target == .ssh {
                 try await startTunnel(for: request)
             }
-            try await RuntimeLifecycleService().ensureRunning(
+            try await RuntimeLifecycleService(endpoints: endpoints).ensureRunning(
                 target: request.target,
                 method: request.method,
                 host: request.host,
@@ -1872,7 +1903,7 @@ final class DeploymentStore: ObservableObject {
             guard !managementKey.isEmpty else {
                 throw DeploymentExecutionError.missingResult
             }
-            let runtime = RuntimeLifecycleService()
+            let runtime = RuntimeLifecycleService(endpoints: endpoints)
             try await runtime.ensureRunning(
                 target: request.target,
                 method: request.method,

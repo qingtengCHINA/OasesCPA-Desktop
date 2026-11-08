@@ -52,8 +52,11 @@ enum ManagementAPIError: LocalizedError {
 
 struct ManagementAPIClient {
     private let decoder: JSONDecoder
+    /// The transport of every request (tests inject a stubbed session).
+    let session: URLSession
 
-    init() {
+    init(session: URLSession = .shared) {
+        self.session = session
         decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
     }
@@ -1132,7 +1135,7 @@ struct ManagementAPIClient {
         request.timeoutInterval = 20
         request.setValue("Bearer \(managementKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ManagementAPIError.invalidResponse
         }
@@ -1165,7 +1168,7 @@ struct ManagementAPIClient {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.httpBody = try JSONSerialization.data(withJSONObject: ["value": enabled])
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ManagementAPIError.invalidResponse
         }
@@ -1275,7 +1278,7 @@ struct ManagementAPIClient {
             "redirect_url": redirectURL
         ])
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ManagementAPIError.invalidResponse
         }
@@ -1310,7 +1313,7 @@ struct ManagementAPIClient {
         request.timeoutInterval = 8
         request.setValue("Bearer \(managementKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ManagementAPIError.invalidResponse
         }
@@ -1363,7 +1366,7 @@ struct ManagementAPIClient {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.httpBody = try JSONEncoder().encode(RuntimeManagerConfigPayload(config: config))
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ManagementAPIError.invalidResponse
         }
@@ -1389,7 +1392,7 @@ struct ManagementAPIClient {
         request.setValue("Bearer \(managementKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ManagementAPIError.invalidResponse
         }
@@ -1596,7 +1599,7 @@ struct ManagementAPIClient {
         _ request: URLRequest,
         unauthorizedError: ManagementAPIError = .unauthorized
     ) async throws -> Data {
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ManagementAPIError.invalidResponse
         }

@@ -1,6 +1,23 @@
 import Foundation
 
 struct RuntimeLifecycleService {
+    /// Where the health checks look (the engine moves to 18316 behind the gateway).
+    let endpoints: DeploymentEndpoints
+
+    init(endpoints: DeploymentEndpoints = DeploymentEndpoints(topology: .legacy)) {
+        self.endpoints = endpoints
+    }
+
+    /// The engine management endpoint the health check reads (needs the management key).
+    var engineHealthURL: URL {
+        endpoints.engineBaseURL.appendingPathComponent("v0/management/config")
+    }
+
+    /// The CPA Manager Plus health endpoint (no key).
+    var panelHealthURL: URL {
+        endpoints.cpampBaseURL.appendingPathComponent("health")
+    }
+
     func startScriptForVerification(method: DeploymentMethod, installDirectory: String) -> String {
         startScript(method: method, installDirectory: installDirectory)
     }
@@ -125,12 +142,11 @@ struct RuntimeLifecycleService {
             }
             try await Task.sleep(nanoseconds: 1_000_000_000)
         }
-        throw DeploymentExecutionError.commandFailed(OasesLocalization.localized("服务已启动，但 8317 / 18317 健康检查未在 45 秒内通过。"))
+        throw DeploymentExecutionError.commandFailed(OasesLocalization.localized("服务已启动，但健康检查未在 45 秒内通过。"))
     }
 
     private func isHealthy(cpaManagementKey: String) async -> Bool {
-        guard let url = URL(string: "http://127.0.0.1:8317/v0/management/config") else { return false }
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: engineHealthURL)
         request.timeoutInterval = 2
         request.setValue("Bearer \(cpaManagementKey)", forHTTPHeaderField: "Authorization")
         do {
@@ -142,8 +158,7 @@ struct RuntimeLifecycleService {
     }
 
     private func isPanelHealthy() async -> Bool {
-        guard let url = URL(string: "http://127.0.0.1:18317/health") else { return false }
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: panelHealthURL)
         request.timeoutInterval = 2
         do {
             let (_, response) = try await URLSession.shared.data(for: request)

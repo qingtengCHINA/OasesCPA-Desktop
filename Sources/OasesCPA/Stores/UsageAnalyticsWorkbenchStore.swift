@@ -45,9 +45,10 @@ final class UsageAnalyticsWorkbenchStore: ObservableObject {
         requestTask?.cancel()
     }
 
+    /// Usage analytics is served by CPA Manager Plus, so it needs the CPAMP admin key.
     var isAttached: Bool {
         if let deploymentStore {
-            return deploymentStore.stage == .attached && !deploymentStore.managementKey.isEmpty
+            return deploymentStore.stage == .attached && !deploymentStore.cpampAdminKey.isEmpty
         }
         return configuredBaseURL != nil && !(configuredManagementKey ?? "").isEmpty
     }
@@ -167,10 +168,11 @@ final class UsageAnalyticsWorkbenchStore: ObservableObject {
         }
     }
 
+    /// CPA Manager Plus and its admin key; never the engine and its management key.
     private func targetEndpoint() -> (baseURL: URL, managementKey: String) {
         if let deploymentStore {
-            return (deploymentStore.cpaBaseURL, deploymentStore.managementKey)
+            return (deploymentStore.endpoints.cpampBaseURL, deploymentStore.cpampAdminKey)
         }
-        return (configuredBaseURL ?? URL(string: "http://127.0.0.1:8317")!, configuredManagementKey ?? "")
+        return (configuredBaseURL ?? URL(string: "http://127.0.0.1:18317")!, configuredManagementKey ?? "")
     }
 }

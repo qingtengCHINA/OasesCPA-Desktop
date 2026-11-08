@@ -360,7 +360,7 @@ struct AuthFilesWorkbenchView: View {
     private func refresh() async {
         guard deploymentStore.stage == .attached, !deploymentStore.managementKey.isEmpty else { return }
         await workbench.refresh(
-            baseURL: deploymentStore.cpaBaseURL,
+            baseURL: deploymentStore.engineBaseURL,
             managementKey: deploymentStore.managementKey
         )
     }
@@ -368,7 +368,7 @@ struct AuthFilesWorkbenchView: View {
     private func loadModels(for file: AuthFilesWorkbenchFile) async throws -> [AuthFilesWorkbenchModel] {
         try await workbench.loadModels(
             for: file,
-            baseURL: deploymentStore.cpaBaseURL,
+            baseURL: deploymentStore.engineBaseURL,
             managementKey: deploymentStore.managementKey
         )
     }
@@ -378,7 +378,7 @@ struct AuthFilesWorkbenchView: View {
             await workbench.setDisabled(
                 file,
                 disabled: !file.isDisabled,
-                baseURL: deploymentStore.cpaBaseURL,
+                baseURL: deploymentStore.engineBaseURL,
                 managementKey: deploymentStore.managementKey
             )
         }
@@ -397,21 +397,21 @@ struct AuthFilesWorkbenchView: View {
                 note: note,
                 projectID: projectID
             ),
-            baseURL: deploymentStore.cpaBaseURL,
+            baseURL: deploymentStore.engineBaseURL,
             managementKey: deploymentStore.managementKey
         )
     }
 
     private func deleteSelected() async {
         await workbench.deleteSelected(
-            baseURL: deploymentStore.cpaBaseURL,
+            baseURL: deploymentStore.engineBaseURL,
             managementKey: deploymentStore.managementKey
         )
     }
 
     private func deleteAll() async {
         await workbench.deleteAll(
-            baseURL: deploymentStore.cpaBaseURL,
+            baseURL: deploymentStore.engineBaseURL,
             managementKey: deploymentStore.managementKey
         )
     }

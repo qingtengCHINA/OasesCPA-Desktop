@@ -509,7 +509,7 @@ struct OpenAICompatibilityEditorView: View {
                 )
                 let response = try await ManagementAPIClient().apiCall(
                     request,
-                    baseURL: deploymentStore.cpaBaseURL,
+                    baseURL: deploymentStore.engineBaseURL,
                     managementKey: deploymentStore.managementKey
                 )
                 let discovered = try RuntimeProviderDraftDiagnosticsParser.models(from: response)
@@ -592,7 +592,7 @@ struct OpenAICompatibilityEditorView: View {
             )
             let response = try await ManagementAPIClient().apiCall(
                 request,
-                baseURL: deploymentStore.cpaBaseURL,
+                baseURL: deploymentStore.engineBaseURL,
                 managementKey: deploymentStore.managementKey
             )
             let outcome = RuntimeProviderDraftDiagnosticsParser.safeOutcome(

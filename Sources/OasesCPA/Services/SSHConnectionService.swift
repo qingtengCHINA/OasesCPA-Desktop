@@ -143,6 +143,17 @@ enum SSHConnectionService {
         )
     }
 
+    nonisolated(unsafe) private static var knownHostsURLOverride: URL?
+
+    /// Runs `operation` with the app's known_hosts file replaced by `url` (tests must never
+    /// create or change the real one under Application Support).
+    static func withKnownHostsFileURLForTesting<T>(_ url: URL, operation: () throws -> T) rethrows -> T {
+        let previous = knownHostsURLOverride
+        knownHostsURLOverride = url
+        defer { knownHostsURLOverride = previous }
+        return try operation()
+    }
+
     static func withSSHToolRunnerForTesting<T>(
         _ runner: @escaping SSHProcessRunner,
         operation: () throws -> T
@@ -184,23 +195,28 @@ enum SSHConnectionService {
         ]
     }
 
+    /// `ssh -N` arguments that forward exactly the topology's loopback ports. Both ends of every
+    /// forward name `127.0.0.1` explicitly, so the local listener never binds another interface
+    /// (whatever `GatewayPorts` says) and the remote side never reaches beyond its loopback.
     static func tunnelArguments(
         host: String,
         user: String,
         port: String,
-        privateKeyPath: String
+        privateKeyPath: String,
+        topology: DeploymentTopology
     ) throws -> [String] {
         let validatedHost = try validateHost(host)
         let validatedUser = try validateUser(user)
         _ = try validatedPort(port)
         try validatePrivateKeyPath(privateKeyPath)
 
+        let forwards = DeploymentPorts.tunnelPorts(for: topology).flatMap { forwardedPort in
+            ["-L", "127.0.0.1:\(forwardedPort):127.0.0.1:\(forwardedPort)"]
+        }
         return [
             "-N",
             "-o", "ExitOnForwardFailure=yes"
-        ] + (try connectionArguments(port: port, privateKeyPath: privateKeyPath)) + [
-            "-L", "8317:127.0.0.1:8317",
-            "-L", "18317:127.0.0.1:18317",
+        ] + (try connectionArguments(port: port, privateKeyPath: privateKeyPath)) + forwards + [
             "\(validatedUser)@\(validatedHost)"
         ]
     }
@@ -969,6 +985,11 @@ enum SSHConnectionService {
     }
 
     private static func knownHostsFileURL() throws -> URL {
+#if DEBUG
+        if let knownHostsURLOverride {
+            return knownHostsURLOverride
+        }
+#endif
         guard let applicationSupport = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask

@@ -374,7 +374,7 @@ final class RuntimeDecodingTests: XCTestCase {
         )
 
         let response = try JSONDecoder().decode(RuntimeManagerConfigResponse.self, from: data)
-        XCTAssertEqual(response.config.cpaConnection.cpaBaseURL, "http://127.0.0.1:8317")
+        XCTAssertEqual(response.config.cpaConnection.engineBaseURL, "http://127.0.0.1:8317")
         XCTAssertEqual(response.config.managementKey, "cpa_test_key")
         XCTAssertEqual(response.config.collector.pollIntervalMs, 500)
         XCTAssertEqual(response.config.isMonitoringEnabled, true)
@@ -386,7 +386,7 @@ final class RuntimeDecodingTests: XCTestCase {
         let configObject = try XCTUnwrap(encodedObject["config"] as? [String: Any])
         let connectionObject = try XCTUnwrap(configObject["cpaConnection"] as? [String: Any])
         XCTAssertEqual(connectionObject["cpaBaseUrl"] as? String, "http://127.0.0.1:8317")
-        XCTAssertNil(connectionObject["cpaBaseURL"])
+        XCTAssertNil(connectionObject["engineBaseURL"])
     }
 
     func testRuntimeLogsDecodeFlexibleCursorFields() throws {
@@ -1072,14 +1072,14 @@ final class RuntimeDecodingTests: XCTestCase {
             baseURL: URL(string: "http://127.0.0.1:18317")!,
             managementKey: cpampKey
         )
-        XCTAssertEqual(managerConfig.config.cpaConnection.cpaBaseURL, "http://127.0.0.1:8317")
+        XCTAssertEqual(managerConfig.config.cpaConnection.engineBaseURL, "http://127.0.0.1:8317")
         XCTAssertEqual(managerConfig.config.managementKey, cpaKey)
         try await assertCPAConfigYAMLRoundTrip(
             baseURL: URL(string: "http://127.0.0.1:8317")!,
             managementKey: cpaKey
         )
         try await assertQuotaManagementContract(
-            cpaBaseURL: URL(string: "http://127.0.0.1:8317")!,
+            engineBaseURL: URL(string: "http://127.0.0.1:8317")!,
             cpaManagementKey: cpaKey,
             cpampBaseURL: URL(string: "http://127.0.0.1:18317")!,
             cpampAdminKey: cpampKey
@@ -1096,7 +1096,7 @@ final class RuntimeDecodingTests: XCTestCase {
             baseURL: URL(string: "http://127.0.0.1:18317")!,
             managementKey: cpampKey
         )
-        XCTAssertEqual(savedManagerConfig.config.cpaConnection.cpaBaseURL, "http://127.0.0.1:8317")
+        XCTAssertEqual(savedManagerConfig.config.cpaConnection.engineBaseURL, "http://127.0.0.1:8317")
         XCTAssertEqual(savedManagerConfig.config.managementKey, cpaKey)
         try await ManagementAPIClient().setLoggingToFile(
             true,
@@ -1250,14 +1250,14 @@ final class RuntimeDecodingTests: XCTestCase {
             baseURL: URL(string: "http://127.0.0.1:18317")!,
             managementKey: cpampKey
         )
-        XCTAssertEqual(managerConfig.config.cpaConnection.cpaBaseURL, "http://cli-proxy-api:8317")
+        XCTAssertEqual(managerConfig.config.cpaConnection.engineBaseURL, "http://cli-proxy-api:8317")
         XCTAssertEqual(managerConfig.config.managementKey, cpaKey)
         try await assertCPAConfigYAMLRoundTrip(
             baseURL: URL(string: "http://127.0.0.1:8317")!,
             managementKey: cpaKey
         )
         try await assertQuotaManagementContract(
-            cpaBaseURL: URL(string: "http://127.0.0.1:8317")!,
+            engineBaseURL: URL(string: "http://127.0.0.1:8317")!,
             cpaManagementKey: cpaKey,
             cpampBaseURL: URL(string: "http://127.0.0.1:18317")!,
             cpampAdminKey: cpampKey
@@ -1431,7 +1431,8 @@ final class RuntimeDecodingTests: XCTestCase {
                 host: "127.0.0.1",
                 user: user,
                 port: String(port),
-                privateKeyPath: clientKey.path
+                privateKeyPath: clientKey.path,
+                topology: .legacy
             )
             let nullDevice = FileHandle(forWritingAtPath: "/dev/null")
             tunnelProcess.standardOutput = nullDevice
@@ -1475,14 +1476,14 @@ final class RuntimeDecodingTests: XCTestCase {
                 baseURL: URL(string: "http://127.0.0.1:18317")!,
                 managementKey: execution.cpampAdminKey
             )
-            XCTAssertEqual(managerConfig.config.cpaConnection.cpaBaseURL, "http://127.0.0.1:8317")
+            XCTAssertEqual(managerConfig.config.cpaConnection.engineBaseURL, "http://127.0.0.1:8317")
             XCTAssertEqual(managerConfig.config.managementKey, execution.cpaManagementKey)
             try await assertCPAConfigYAMLRoundTrip(
                 baseURL: URL(string: "http://127.0.0.1:8317")!,
                 managementKey: execution.cpaManagementKey
             )
             try await assertQuotaManagementContract(
-                cpaBaseURL: URL(string: "http://127.0.0.1:8317")!,
+                engineBaseURL: URL(string: "http://127.0.0.1:8317")!,
                 cpaManagementKey: execution.cpaManagementKey,
                 cpampBaseURL: URL(string: "http://127.0.0.1:18317")!,
                 cpampAdminKey: execution.cpampAdminKey
@@ -2431,7 +2432,7 @@ final class RuntimeDecodingTests: XCTestCase {
     }
 
     private func assertQuotaManagementContract(
-        cpaBaseURL: URL,
+        engineBaseURL: URL,
         cpaManagementKey: String,
         cpampBaseURL: URL,
         cpampAdminKey: String
@@ -2444,7 +2445,7 @@ final class RuntimeDecodingTests: XCTestCase {
                 url: "http://127.0.0.1:8317/healthz",
                 header: ["Accept": "application/json"]
             ),
-            baseURL: cpaBaseURL,
+            baseURL: engineBaseURL,
             managementKey: cpaManagementKey
         )
         XCTAssertEqual(proxiedStatus.statusCode, 200)

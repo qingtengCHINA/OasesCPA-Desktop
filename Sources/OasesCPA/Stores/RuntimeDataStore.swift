@@ -440,7 +440,7 @@ final class RuntimeDataStore: ObservableObject {
             return
         }
 
-        let baseURL = deploymentStore.cpaBaseURL
+        let baseURL = deploymentStore.engineBaseURL
         let managementKey = deploymentStore.managementKey
         isLoadingAuthFiles = true
         authFilesErrorMessage = nil
@@ -476,7 +476,7 @@ final class RuntimeDataStore: ObservableObject {
             return
         }
 
-        let baseURL = deploymentStore.cpaBaseURL
+        let baseURL = deploymentStore.engineBaseURL
         let managementKey = deploymentStore.managementKey
         isLoadingGatewayAccess = true
         gatewayAccessErrorMessage = nil
@@ -583,7 +583,7 @@ final class RuntimeDataStore: ObservableObject {
             return
         }
 
-        let baseURL = deploymentStore.cpaBaseURL
+        let baseURL = deploymentStore.engineBaseURL
         let managementKey = deploymentStore.managementKey
         isLoadingPlugins = true
         pluginsErrorMessage = nil
@@ -617,7 +617,7 @@ final class RuntimeDataStore: ObservableObject {
             return
         }
 
-        let baseURL = deploymentStore.cpaBaseURL
+        let baseURL = deploymentStore.engineBaseURL
         let managementKey = deploymentStore.managementKey
         isLoadingPluginStore = true
         pluginStoreErrorMessage = nil
@@ -755,7 +755,7 @@ final class RuntimeDataStore: ObservableObject {
             return
         }
 
-        let cpaBaseURL = deploymentStore.cpaBaseURL
+        let engineBaseURL = deploymentStore.engineBaseURL
         let cpaManagementKey = deploymentStore.managementKey
         let cpampBaseURL = deploymentStore.cpampBaseURL
         let cpampAdminKey = deploymentStore.cpampAdminKey
@@ -791,7 +791,7 @@ final class RuntimeDataStore: ObservableObject {
                             header: request.headers,
                             data: request.data
                         ),
-                        baseURL: cpaBaseURL,
+                        baseURL: engineBaseURL,
                         managementKey: cpaManagementKey
                     )
                     evidence[file.name] = RuntimeQuotaParser.parse(
@@ -919,7 +919,7 @@ final class RuntimeDataStore: ObservableObject {
             return
         }
 
-        let baseURL = deploymentStore.cpaBaseURL
+        let baseURL = deploymentStore.engineBaseURL
         let managementKey = deploymentStore.managementKey
         let previousExcluded = oauthExcludedModels
         let previousAliases = oauthModelAliases
@@ -1669,7 +1669,7 @@ final class RuntimeDataStore: ObservableObject {
         guard deploymentStore.stage == .attached, !deploymentStore.managementKey.isEmpty else {
             throw RuntimeDataStoreError.targetNotAttached
         }
-        return (deploymentStore.cpaBaseURL, deploymentStore.managementKey)
+        return (deploymentStore.engineBaseURL, deploymentStore.managementKey)
     }
 
     private func authFileName(_ name: String) throws -> String {
@@ -2138,7 +2138,7 @@ final class RuntimeDataStore: ObservableObject {
             return
         }
 
-        let baseURL = deploymentStore.cpaBaseURL
+        let baseURL = deploymentStore.engineBaseURL
         let managementKey = deploymentStore.managementKey
         isLoadingLogs = true
         logsErrorMessage = nil
@@ -2211,7 +2211,7 @@ final class RuntimeDataStore: ObservableObject {
             return
         }
 
-        let baseURL = deploymentStore.cpaBaseURL
+        let baseURL = deploymentStore.engineBaseURL
         let managementKey = deploymentStore.managementKey
         isCheckingProviderConnectivity = true
 
@@ -2303,7 +2303,7 @@ final class RuntimeDataStore: ObservableObject {
             return
         }
 
-        let baseURL = deploymentStore.cpaBaseURL
+        let baseURL = deploymentStore.engineBaseURL
         let managementKey = deploymentStore.managementKey
         isLoadingProviders = true
         providerErrorMessage = nil
@@ -2345,7 +2345,7 @@ final class RuntimeDataStore: ObservableObject {
             return
         }
 
-        let baseURL = deploymentStore.cpaBaseURL
+        let baseURL = deploymentStore.engineBaseURL
         let managementKey = deploymentStore.managementKey
         let previousCredentials = directProviderCredentials
         isLoadingDirectProviders = true
@@ -2397,7 +2397,7 @@ final class RuntimeDataStore: ObservableObject {
         generation: Int
     ) -> Bool {
         deploymentStore.stage == .attached
-            && deploymentStore.cpaBaseURL == baseURL
+            && deploymentStore.engineBaseURL == baseURL
             && deploymentStore.managementKey == managementKey
             && providerConnectivityGeneration == generation
     }
@@ -2618,7 +2618,7 @@ final class RuntimeDataStore: ObservableObject {
             return
         }
 
-        let baseURL = deploymentStore.cpaBaseURL
+        let baseURL = deploymentStore.engineBaseURL
         let managementKey = deploymentStore.managementKey
         isSavingProviders = true
         providerErrorMessage = nil
@@ -2748,7 +2748,7 @@ final class RuntimeDataStore: ObservableObject {
             }
 
             guard deploymentStore.stage == .attached,
-                  deploymentStore.cpaBaseURL == baseURL,
+                  deploymentStore.engineBaseURL == baseURL,
                   deploymentStore.managementKey == managementKey else {
                 return result
             }
@@ -2769,7 +2769,7 @@ final class RuntimeDataStore: ObservableObject {
             return
         }
 
-        let baseURL = deploymentStore.cpaBaseURL
+        let baseURL = deploymentStore.engineBaseURL
         let managementKey = deploymentStore.managementKey
         isSavingProviders = true
         providerErrorMessage = nil
@@ -2785,7 +2785,7 @@ final class RuntimeDataStore: ObservableObject {
                 }
                 guard !Task.isCancelled,
                       deploymentStore.stage == .attached,
-                      deploymentStore.cpaBaseURL == baseURL,
+                      deploymentStore.engineBaseURL == baseURL,
                       deploymentStore.managementKey == managementKey else { return }
                 self?.isSavingProviders = false
                 self?.refreshProviders(using: deploymentStore)
@@ -2820,7 +2820,7 @@ final class RuntimeDataStore: ObservableObject {
             )
             guard !Task.isCancelled,
                   deploymentStore.stage == .attached,
-                  deploymentStore.cpaBaseURL == baseURL,
+                  deploymentStore.engineBaseURL == baseURL,
                   deploymentStore.managementKey == managementKey else {
                 throw CancellationError()
             }
@@ -2843,7 +2843,7 @@ final class RuntimeDataStore: ObservableObject {
             return
         }
 
-        let baseURL = deploymentStore.cpaBaseURL
+        let baseURL = deploymentStore.engineBaseURL
         let managementKey = deploymentStore.managementKey
         isLoadingLogs = true
         logsErrorMessage = nil
@@ -2880,7 +2880,7 @@ final class RuntimeDataStore: ObservableObject {
             return
         }
 
-        let baseURL = deploymentStore.cpaBaseURL
+        let baseURL = deploymentStore.engineBaseURL
         let managementKey = deploymentStore.managementKey
         isLoadingLogs = true
         logsErrorMessage = nil
@@ -2980,7 +2980,7 @@ final class RuntimeDataStore: ObservableObject {
             return
         }
 
-        let baseURL = deploymentStore.cpaBaseURL
+        let baseURL = deploymentStore.engineBaseURL
         let managementKey = deploymentStore.managementKey
         isLoadingCPAConfig = true
         cpaConfigErrorMessage = nil
@@ -3031,7 +3031,7 @@ final class RuntimeDataStore: ObservableObject {
         guard deploymentStore.stage == .attached, !deploymentStore.managementKey.isEmpty else {
             throw RuntimeDataStoreError.targetNotAttached
         }
-        return (deploymentStore.cpaBaseURL, deploymentStore.managementKey)
+        return (deploymentStore.engineBaseURL, deploymentStore.managementKey)
     }
 
     private func cpampManagementContext(using deploymentStore: DeploymentStore) throws -> (URL, String) {

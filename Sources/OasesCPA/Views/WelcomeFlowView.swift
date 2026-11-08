@@ -259,7 +259,7 @@ private struct WelcomeMapPage: View {
                 id: "runtime",
                 symbol: "server.rack",
                 title: "运行时网关",
-                detail: "对外提供通用兼容 /v1，默认 :8317。"
+                detail: "对外提供通用兼容 /v1，默认 :\(DeploymentPorts.gatewayAPI)。"
             ),
             WelcomeMapCard(
                 id: "panel",
@@ -429,7 +429,7 @@ private struct WelcomeHeroDiagram: View {
             }
 
             VStack(spacing: 8) {
-                WelcomeRuntimeRow(dot: Color.accentColor, name: "CLIProxyAPI", meta: ":8317 /v1")
+                WelcomeRuntimeRow(dot: Color.accentColor, name: "CLIProxyAPI", meta: ":\(DeploymentPorts.gatewayAPI) /v1")
                 WelcomeRuntimeRow(dot: Color.accentColor.opacity(0.55), name: "CPA Manager Plus", meta: "panel")
             }
             .padding(14)

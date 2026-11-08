@@ -689,7 +689,7 @@ struct CollectorStatusCard: View {
                     .foregroundStyle(dashboard == nil ? Color.oasesOrange : Color.oasesGreen)
                     .fontWeight(.semibold)
             }
-            LabeledContent("数据源") { Text("CPAMP 18317") }
+            LabeledContent("数据源") { Text(verbatim: "CPAMP \(DeploymentPorts.cpamp)") }
             LabeledContent("最近数据") {
                 Text(dashboard?.lastUpdated.formatted(date: .omitted, time: .shortened) ?? "暂无")
             }

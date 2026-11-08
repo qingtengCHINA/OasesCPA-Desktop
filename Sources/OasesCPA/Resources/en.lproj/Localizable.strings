@@ -42,7 +42,7 @@
 "Anthropic Claude API 密钥" = "Anthropic Claude API Key";
 "App 不把 CPA 管理密钥写入普通偏好设置；部署生成的密钥仍由 Keychain 保存。修改后 CPAMP 会先验证连接再保存。" = "Apps do not write CPA management keys to normal preferences; deployment-generated keys are still held by Keychain. After modification, CPAMP will verify the connection before saving.";
 "App 仅创建 OAuth 会话、打开授权页、轮询状态和按需转交回调地址。授权令牌不会写入 App 偏好设置或日志；插件与当前目标 CLIProxyAPI 决定凭证的实际存储位置。" = "The app simply creates an OAuth session, opens the authorization page, polls for status, and forwards the callback address as needed. Authorization tokens are not written to App preferences or logs; the plugin and the current target CLIProxyAPI determine where the credentials are actually stored.";
-"App 会使用目标目录中最近的 backups/upgrade-*，恢复上一版启动脚本并重新验证 8317 / 18317。不会删除认证文件或 CPAMP 数据。" = "The app will use the latest backups/upgrade-* in the target directory to restore the previous version of the startup script and re-verify 8317 / 18317. Certification files or CPAMP data will not be deleted.";
+"App 会使用目标目录中最近的 backups/upgrade-*，恢复上一版启动脚本并重新验证 %@。不会删除认证文件或 CPAMP 数据。" = "The app will use the latest backups/upgrade-* in the target directory to restore the previous startup scripts and re-verify %@. Credential files and CPAMP data are not deleted.";
 "App 会停止当前目标服务并删除本机保存的 CPA / CPAMP 管理密钥，但不会删除目标目录、认证文件或远程部署文件。之后可以选择另一个本机或 VPS 目标。" = "The app will stop the current target service and delete the locally saved CPA/CPAMP management keys, but will not delete the target directory, certification files, or remote deployment files. You can then choose another local or VPS destination.";
 "App 会先保存当前启动脚本和运行时到目标目录的 backups/upgrade-*，再下载官方最新 CLIProxyAPI 与 CPA Manager Plus。配置、认证文件和 CPAMP 数据会保留。" = "The App will first save the current startup script and runtime to backups/upgrade-* in the target directory, and then download the latest official CLIProxyAPI and CPA Manager Plus. Configuration, authentication files, and CPAMP data are preserved.";
 "App 会先停止由本次部署创建的进程或 Compose 服务，再把失败部署文件和日志移动到目标目录的 backups/failed-*，不会直接删除。" = "The App will first stop the process or Compose service created by this deployment, and then move the failed deployment files and logs to backups/failed-* in the target directory, and will not delete them directly.";
@@ -161,7 +161,7 @@
 "SSH 连接超时；请检查 VPS 地址、防火墙和 SSH 端口。" = "SSH connection timed out; please check VPS address, firewall, and SSH port.";
 "SSH 隧道与远程服务已恢复连接" = "The connection between the SSH tunnel and the remote service has been restored";
 "SSH 隧道与远程服务已自动恢复" = "SSH tunnel and remote services have been automatically restored";
-"SSH 隧道建立后使用本机 8317 端口" = "After the SSH tunnel is established, use the local port 8317";
+"SSH 隧道建立后使用本机 %lld 端口" = "After the SSH tunnel is established, use local port %lld";
 "SSH 隧道建立后使用本机回环地址" = "Use the local loopback address after the SSH tunnel is established";
 "SSH 隧道未能建立，请检查远程端口和私钥权限。" = "SSH tunnel failed to be established, please check remote port and private key permissions.";
 "TLS 校验已关闭" = "TLS verification is turned off";
@@ -407,7 +407,7 @@
 "凭证由目标 CLIProxyAPI 管理" = "Credentials are managed by the target CLIProxyAPI";
 "凭证由目标插件处理" = "Credentials are handled by the target plugin";
 "分析数据读取失败" = "Analysis data reading failed";
-"切换目标前请先停止当前正在运行的服务，避免本机 8317 / 18317 端口或 SSH 隧道互相覆盖。" = "Please stop the currently running service before switching targets to avoid local 8317 / 18317 ports or SSH tunnels from covering each other.";
+"切换目标前请先停止当前正在运行的服务，避免本机 %@ 端口或 SSH 隧道互相覆盖。" = "Stop the running services before switching targets, so that the local %@ ports or SSH tunnels do not collide.";
 "创建 Key" = "Create Key";
 "创建 config.yaml、认证目录与管理密钥，不覆盖已有配置" = "Create config.yaml, authentication directory and management key, without overwriting existing configurations";
 "创建后请立即复制到密码管理器。该 Key 用于客户端调用网关，不是 CLIProxyAPI 管理密钥。" = "Please copy it to your password manager immediately after creating it. This Key is used by the client to call the gateway, not the CLIProxyAPI management key.";
@@ -1005,7 +1005,7 @@
 "服务基线" = "service baseline";
 "服务层级 \(payload.serviceTierCount)" = "Service level \(payload.serviceTierCount)";
 "服务已停止；部署文件和凭据已保留" = "Service stopped; deployment files and credentials retained";
-"服务已启动，但 8317 / 18317 健康检查未在 45 秒内通过。" = "Service started, but 8317 / 18317 health check did not pass within 45 seconds.";
+"服务已启动，但健康检查未在 45 秒内通过。" = "The services started, but the health check did not pass within 45 seconds.";
 "服务已响应，但没有返回可识别的模型。" = "The service responded, but no recognized model was returned.";
 "服务异常与恢复通知" = "Service exception and recovery notification";
 "服务端口" = "service port";
@@ -1149,7 +1149,7 @@
 "本机或 SSH" = "This Mac or SSH";
 "把控制面连到你自己的电脑，或一台 VPS。" = "Point the control plane at this Mac, or at a VPS.";
 "运行时网关" = "Runtime gateway";
-"对外提供通用兼容 /v1，默认 :8317。" = "Serves a widely compatible /v1 API, default :8317.";
+"对外提供通用兼容 /v1，默认 :%lld。" = "Serves a widely compatible /v1 API, default :%lld.";
 "管理面板" = "Admin panel";
 "签发密钥、看用量、管 Provider。" = "Issue keys, watch usage, manage providers.";
 "第一次这样走" = "First run, in four steps";
@@ -2161,3 +2161,4 @@
 "检测到现有部署；此次运行已停用自动接管与后台巡检。" = "An existing deployment was found; automatic adoption and the background patrol are off for this run.";
 "DMG 验证失败。" = "DMG verification failed.";
 "更新包完整性验证失败。" = "The update package failed its integrity check.";
+"Oases 网关" = "Oases gateway";

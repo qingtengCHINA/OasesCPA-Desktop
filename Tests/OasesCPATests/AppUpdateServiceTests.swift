@@ -925,10 +925,8 @@ final class AppUpdateServiceTests: XCTestCase {
     }
 
     private func makeSession(handler: @escaping @Sendable (URLRequest) -> URLProtocolStub.Result) -> URLSession {
-        URLProtocolStub.installHandler(handler)
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [URLProtocolStub.self]
-        return URLSession(configuration: configuration)
+        URLProtocolStub.install { request, _ in handler(request) }
+        return URLProtocolStub.makeSession()
     }
 
     private nonisolated static func asset(_ name: String, url: String? = nil) -> [String: String] {
@@ -1087,49 +1085,4 @@ private final class FakeDMGToolRunner: DMGToolRunner {
         }
         return DMGToolResult(status: 1, stdout: Data(), stderr: Data())
     }
-}
-
-private final class URLProtocolStub: URLProtocol {
-    struct Result: @unchecked Sendable {
-        let response: HTTPURLResponse
-        let data: Data
-        let redirectURL: URL?
-    }
-
-    nonisolated(unsafe) private static var handler: (@Sendable (URLRequest) -> Result)?
-    private static let handlerLock = NSLock()
-
-    static func installHandler(_ handler: @escaping @Sendable (URLRequest) -> Result) {
-        handlerLock.lock()
-        Self.handler = handler
-        handlerLock.unlock()
-    }
-
-    private static func result(for request: URLRequest) -> Result? {
-        handlerLock.lock()
-        let currentHandler = handler
-        handlerLock.unlock()
-        return currentHandler?(request)
-    }
-
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
-
-    override func startLoading() {
-        guard let result = Self.result(for: request) else {
-            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
-            return
-        }
-        if let redirectURL = result.redirectURL {
-            var redirectedRequest = request
-            redirectedRequest.url = redirectURL
-            client?.urlProtocol(self, wasRedirectedTo: redirectedRequest, redirectResponse: result.response)
-            return
-        }
-        client?.urlProtocol(self, didReceive: result.response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: result.data)
-        client?.urlProtocolDidFinishLoading(self)
-    }
-
-    override func stopLoading() {}
 }

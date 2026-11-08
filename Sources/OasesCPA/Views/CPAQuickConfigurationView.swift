@@ -77,7 +77,7 @@ struct CPAQuickConfigurationView: View {
     }
 
     private var contextID: String {
-        "\(deploymentStore.stage.rawValue)|\(deploymentStore.cpaBaseURL.absoluteString)|\(deploymentStore.managementKey)"
+        "\(deploymentStore.stage.rawValue)|\(deploymentStore.engineBaseURL.absoluteString)|\(deploymentStore.managementKey)"
     }
 
     private var contextCard: some View {
@@ -309,7 +309,7 @@ struct CPAQuickConfigurationView: View {
               !deploymentStore.managementKey.isEmpty else { return }
         if force || !store.isLoaded {
             await store.load(
-                baseURL: deploymentStore.cpaBaseURL,
+                baseURL: deploymentStore.engineBaseURL,
                 managementKey: deploymentStore.managementKey
             )
         }
@@ -319,7 +319,7 @@ struct CPAQuickConfigurationView: View {
         guard deploymentStore.stage == .attached else { return }
         Task {
             await store.save(
-                baseURL: deploymentStore.cpaBaseURL,
+                baseURL: deploymentStore.engineBaseURL,
                 managementKey: deploymentStore.managementKey
             )
         }

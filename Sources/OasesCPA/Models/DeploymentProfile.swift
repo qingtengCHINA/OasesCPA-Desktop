@@ -11,6 +11,8 @@ struct DeploymentProfile: Codable, Sendable, Identifiable, Equatable {
     var installDirectory: String
     var isInstalled: Bool
     var lastAttachedAt: Date?
+    /// Saved by app 0.1.4 and later; profiles saved before have no value and are `legacy`.
+    var topology: DeploymentTopology
 
     init(
         id: UUID = UUID(),
@@ -22,7 +24,8 @@ struct DeploymentProfile: Codable, Sendable, Identifiable, Equatable {
         privateKeyPath: String,
         installDirectory: String,
         isInstalled: Bool,
-        lastAttachedAt: Date?
+        lastAttachedAt: Date?,
+        topology: DeploymentTopology = .legacy
     ) {
         self.id = id
         self.targetKind = targetKind
@@ -34,6 +37,7 @@ struct DeploymentProfile: Codable, Sendable, Identifiable, Equatable {
         self.installDirectory = installDirectory
         self.isInstalled = isInstalled
         self.lastAttachedAt = lastAttachedAt
+        self.topology = topology
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -47,6 +51,7 @@ struct DeploymentProfile: Codable, Sendable, Identifiable, Equatable {
         case installDirectory
         case isInstalled
         case lastAttachedAt
+        case topology
     }
 
     init(from decoder: Decoder) throws {
@@ -61,6 +66,7 @@ struct DeploymentProfile: Codable, Sendable, Identifiable, Equatable {
         installDirectory = try container.decode(String.self, forKey: .installDirectory)
         isInstalled = try container.decode(Bool.self, forKey: .isInstalled)
         lastAttachedAt = try container.decodeIfPresent(Date.self, forKey: .lastAttachedAt)
+        topology = try container.decodeIfPresent(DeploymentTopology.self, forKey: .topology) ?? .legacy
     }
 
     var displayName: String {

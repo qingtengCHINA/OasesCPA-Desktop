@@ -273,7 +273,8 @@ final class SSHConnectionServiceSecurityTests: XCTestCase {
             host: "vps.example.com",
             user: "root\nevil",
             port: "22",
-            privateKeyPath: "/tmp/key"
+            privateKeyPath: "/tmp/key",
+            topology: .gateway
         )) { error in
             XCTAssertEqual(error as? SSHConnectionError, .invalidUser)
         }
@@ -281,7 +282,8 @@ final class SSHConnectionServiceSecurityTests: XCTestCase {
             host: "vps.example.com",
             user: "-oProxyCommand=unsafe",
             port: "22",
-            privateKeyPath: "/tmp/key"
+            privateKeyPath: "/tmp/key",
+            topology: .gateway
         )) { error in
             XCTAssertEqual(error as? SSHConnectionError, .invalidUser)
         }
@@ -289,17 +291,45 @@ final class SSHConnectionServiceSecurityTests: XCTestCase {
             host: "vps.example.com",
             user: "root",
             port: "22",
-            privateKeyPath: "/tmp/key\nevil"
+            privateKeyPath: "/tmp/key\nevil",
+            topology: .gateway
         )) { error in
             XCTAssertEqual(error as? SSHConnectionError, .invalidPrivateKeyPath)
         }
 
-        let arguments = try SSHConnectionService.connectionArguments(
-            port: "22",
-            privateKeyPath: "/tmp/key"
-        )
+        let arguments = try SSHConnectionService.withKnownHostsFileURLForTesting(try makeKnownHostsURL()) {
+            try SSHConnectionService.connectionArguments(
+                port: "22",
+                privateKeyPath: "/tmp/key"
+            )
+        }
         XCTAssertTrue(arguments.contains("StrictHostKeyChecking=yes"))
         XCTAssertFalse(arguments.contains("StrictHostKeyChecking=accept-new"))
+    }
+
+    func testGatewayTunnelForwardsExactlyFourLoopbackPorts() throws {
+        let keyPath = try makePrivateKeyFile()
+        let knownHostsURL = try makeKnownHostsURL()
+        let args = try SSHConnectionService.withKnownHostsFileURLForTesting(knownHostsURL) {
+            try SSHConnectionService.tunnelArguments(host: "example.com", user: "u", port: "22", privateKeyPath: keyPath, topology: .gateway)
+        }
+        let forwards = zip(args, args.dropFirst()).filter { $0.0 == "-L" }.map(\.1)
+        XCTAssertEqual(forwards, ["127.0.0.1:8317:127.0.0.1:8317", "127.0.0.1:18320:127.0.0.1:18320", "127.0.0.1:18317:127.0.0.1:18317", "127.0.0.1:18316:127.0.0.1:18316"])
+        XCTAssertFalse(args.contains("-g")); XCTAssertFalse(args.contains("-R"))
+        XCTAssertEqual(args.filter { $0 == "-L" }.count, 4)
+        XCTAssertEqual(args.last, "u@example.com")
+        XCTAssertTrue(args.contains("UserKnownHostsFile=\(knownHostsURL.path)"))
+    }
+
+    func testLegacyTunnelForwardsTheTwoLegacyPortsOnLoopback() throws {
+        let keyPath = try makePrivateKeyFile()
+        let knownHostsURL = try makeKnownHostsURL()
+        let args = try SSHConnectionService.withKnownHostsFileURLForTesting(knownHostsURL) {
+            try SSHConnectionService.tunnelArguments(host: "example.com", user: "u", port: "22", privateKeyPath: keyPath, topology: .legacy)
+        }
+        let forwards = zip(args, args.dropFirst()).filter { $0.0 == "-L" }.map(\.1)
+        XCTAssertEqual(forwards, ["127.0.0.1:8317:127.0.0.1:8317", "127.0.0.1:18317:127.0.0.1:18317"])
+        XCTAssertFalse(args.contains("-g")); XCTAssertFalse(args.contains("-R"))
     }
 
     func testKnownHostsRejectsSymlinkedParentDirectory() throws {
@@ -600,6 +630,18 @@ final class SSHConnectionServiceSecurityTests: XCTestCase {
             duration: 0.6,
             readyMarker: URL(fileURLWithPath: marker)
         )
+    }
+
+    /// A placeholder private key file (the argument builder only needs a valid path).
+    private func makePrivateKeyFile() throws -> String {
+        let directory = canonicalTemporaryDirectory
+            .appendingPathComponent("oases-cpa-ssh-key-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        temporaryDirectories.append(directory)
+        let keyURL = directory.appendingPathComponent("id_ed25519")
+        try Data("placeholder, not a key\n".utf8).write(to: keyURL)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: keyURL.path)
+        return keyURL.path
     }
 
     private func makeKnownHostsURL() throws -> URL {
