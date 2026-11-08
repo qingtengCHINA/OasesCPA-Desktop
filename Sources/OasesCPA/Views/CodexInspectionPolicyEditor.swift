@@ -260,14 +260,7 @@ struct CodexInspectionPolicyEditor: View {
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: 96, maxHeight: 144)
                 .padding(8)
-                .background(
-                    Color.primary.opacity(0.045),
-                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(Color.secondary.opacity(0.24), lineWidth: 1)
-                }
+                .background(Oases.Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: Oases.Radius.row, style: .continuous))
 
             HStack(spacing: 10) {
                 Text(OasesLocalization.localizedFormat("提示词会发送给 xAI；当前 %lld 个字符。", draft.xaiInferencePrompt.count))

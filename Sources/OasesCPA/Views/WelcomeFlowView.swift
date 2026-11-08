@@ -36,7 +36,6 @@ struct WelcomeFlowView: View {
             footer
         }
         .frame(minWidth: 880, minHeight: 560)
-        .background(WelcomeAtmosphere())
         .onAppear(perform: revealActions)
         .onChange(of: pageIndex) { _, _ in
             revealActions()
@@ -144,28 +143,6 @@ struct WelcomeFlowView: View {
     }
 }
 
-private struct WelcomeAtmosphere: View {
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            Oases.Color.background
-            Circle()
-                .fill(Color.accentColor.opacity(0.10))
-                .frame(width: 420, height: 420)
-                .blur(radius: 80)
-                .offset(x: -120, y: -160)
-                .allowsHitTesting(false)
-            Circle()
-                .fill(Color.accentColor.opacity(0.06))
-                .frame(width: 360, height: 360)
-                .blur(radius: 70)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                .offset(x: 80, y: 80)
-                .allowsHitTesting(false)
-        }
-        .ignoresSafeArea()
-    }
-}
-
 private struct WelcomeHeroPage: View {
     var body: some View {
         ViewThatFits(in: .horizontal) {
@@ -187,14 +164,8 @@ private struct WelcomeHeroPage: View {
 
     private var copy: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("SELF-HOSTED AI GATEWAY")
-                .font(.caption.weight(.semibold).monospaced())
-                .tracking(1.4)
-                .foregroundStyle(Color.accentColor)
-
             Text("欢迎使用 Oases CPA")
-                .font(.system(size: 40, weight: .bold, design: .rounded))
-                .tracking(-0.8)
+                .font(.title.weight(.semibold))
                 .fixedSize(horizontal: false, vertical: true)
 
             Text("搭建并管理你自己的 AI API 中转站")
@@ -222,7 +193,7 @@ private struct WelcomeMapPage: View {
         VStack(alignment: .leading, spacing: 22) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("三件事，先记清楚")
-                    .font(.largeTitle.bold())
+                    .font(.title.weight(.semibold))
 
                 Text("Oases CPA 是控制面。它不替代网关，也不替代用量统计后端。")
                     .font(.title3)
@@ -287,7 +258,7 @@ private struct WelcomeMapCardView: View {
                 .font(.title2)
                 .foregroundStyle(Oases.Color.textSecondary)
                 .frame(width: 40, height: 40)
-                .oasesIconTile(cornerRadius: 999)
+                .oasesIconTile()
                 .accessibilityHidden(true)
 
             Text(card.title)
@@ -302,14 +273,6 @@ private struct WelcomeMapCardView: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, minHeight: 168, alignment: .topLeading)
-        .background(
-            Oases.Color.surface.opacity(0.86),
-            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-        }
         .accessibilityElement(children: .combine)
     }
 }
@@ -326,7 +289,7 @@ private struct WelcomeFirstRunPage: View {
         VStack(alignment: .leading, spacing: 22) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("第一次这样走")
-                    .font(.largeTitle.bold())
+                    .font(.title.weight(.semibold))
 
                 Text("四步就能在 AI IDE 里打到你自己的网关。随时可以回来重看。")
                     .font(.title3)
@@ -363,7 +326,7 @@ private struct WelcomeStepCard: View {
                 .font(.subheadline.weight(.semibold).monospacedDigit())
                 .foregroundStyle(Oases.Color.textSecondary)
                 .frame(width: 28, height: 28)
-                .oasesIconTile(cornerRadius: 999)
+                .oasesIconTile()
 
             Text(title)
                 .font(.headline)
@@ -377,14 +340,6 @@ private struct WelcomeStepCard: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, minHeight: 156, alignment: .topLeading)
-        .background(
-            Oases.Color.surface.opacity(0.86),
-            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-        }
         .accessibilityElement(children: .combine)
     }
 }
@@ -434,11 +389,6 @@ private struct WelcomeHeroDiagram: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("ONE CONTROL PLANE")
-                .font(.caption.weight(.semibold).monospaced())
-                .tracking(1.2)
-                .foregroundStyle(.secondary)
-
             HStack(alignment: .center, spacing: 14) {
                 VStack(spacing: 10) {
                     WelcomeDiagramChip(symbol: "laptopcomputer", title: "本机", subtitle: "默认目标")
@@ -447,7 +397,7 @@ private struct WelcomeHeroDiagram: View {
 
                 Image(systemName: "arrow.right")
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(Color.accentColor.opacity(0.7))
+                    .foregroundStyle(Oases.Color.textTertiary)
                     .accessibilityHidden(true)
 
                 VStack(spacing: 8) {
@@ -460,39 +410,15 @@ private struct WelcomeHeroDiagram: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 22)
-                .background(
-                    Color.accentColor.opacity(0.08),
-                    in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .strokeBorder(Color.accentColor.opacity(0.35), lineWidth: 1)
-                }
             }
 
             VStack(spacing: 8) {
                 WelcomeRuntimeRow(dot: Color.accentColor, name: WelcomeRuntimeLabels.apiRowName(topology: topology), meta: ":\(DeploymentPorts.gatewayAPI) /v1")
-                WelcomeRuntimeRow(dot: Color.accentColor.opacity(0.55), name: "CPA Manager Plus", meta: ":\(DeploymentPorts.cpamp)")
+                WelcomeRuntimeRow(dot: Oases.Color.textTertiary, name: "CPA Manager Plus", meta: ":\(DeploymentPorts.cpamp)")
             }
             .padding(14)
-            .background(
-                Oases.Color.surface,
-                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-            }
         }
         .padding(22)
-        .background(
-            Oases.Color.surface.opacity(0.72),
-            in: RoundedRectangle(cornerRadius: 24, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(WelcomeRuntimeLabels.diagramAccessibilityLabel(topology: topology))
     }
@@ -520,14 +446,6 @@ private struct WelcomeDiagramChip: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(
-            Oases.Color.surface,
-            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-        }
     }
 }
 
@@ -562,13 +480,7 @@ private struct WelcomePill: View {
     var body: some View {
         Text(title)
             .font(.caption.weight(.semibold).monospaced())
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color.accentColor.opacity(0.10), in: Capsule(style: .continuous))
-            .overlay {
-                Capsule(style: .continuous)
-                    .strokeBorder(Color.accentColor.opacity(0.28), lineWidth: 1)
-            }
+            .foregroundStyle(.secondary)
     }
 }
 
@@ -579,9 +491,9 @@ private struct WelcomeProgressView: View {
     var body: some View {
         HStack(spacing: 7) {
             ForEach(0..<pageCount, id: \.self) { index in
-                Capsule(style: .continuous)
-                    .fill(index == currentPage ? Color.accentColor : Color.secondary.opacity(0.25))
-                    .frame(width: index == currentPage ? 24 : 8, height: 6)
+                Circle()
+                    .fill(index == currentPage ? Oases.Color.accent : Oases.Color.textQuaternary)
+                    .frame(width: 6, height: 6)
                     .accessibilityHidden(true)
             }
         }

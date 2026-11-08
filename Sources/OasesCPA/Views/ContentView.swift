@@ -5,30 +5,21 @@ struct ContentView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var deploymentStore: DeploymentStore
     @EnvironmentObject private var runtimeDataStore: RuntimeDataStore
-    #if !APP_STORE
-    @EnvironmentObject private var appUpdateService: AppUpdateService
-    #endif
+
     var body: some View {
         NavigationSplitView {
             SidebarView()
-                .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 300)
+                .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 260)
         } detail: {
             DetailWorkspaceView(section: store.selectedSection)
-                .oasesCanvas()
                 .navigationTitle(store.selectedSection.title)
-                .navigationSubtitle(deploymentStore.stage == .attached
-                    ? OasesLocalization.localizedFormat("已接入 · %@", deploymentStore.targetTitle)
-                    : store.connectionLabel)
+                .navigationSubtitle(ShellStatus.subtitle(deploymentStore))
         }
         .navigationSplitViewStyle(.balanced)
         .toolbar {
-            #if !APP_STORE
-            ToolbarItem(placement: .navigation) {
-                AppUpdateToolbarButton()
-            }
-            #endif
-
-            ToolbarItemGroup(placement: .primaryAction) {
+            // Settings (⌘,) and "Check for Updates…" live in the app menu (HIG); the toolbar
+            // keeps the page's refresh, which is also in the Navigation menu.
+            ToolbarItem(placement: .primaryAction) {
                 Button {
                     WorkspaceRefresh.refreshCurrentSection(
                         store: store,
@@ -39,16 +30,8 @@ struct ContentView: View {
                     Label("刷新", systemImage: "arrow.clockwise")
                 }
                 .help("刷新当前工作区（⌘R）")
-                .keyboardShortcut("r", modifiers: .command)
-
-                SettingsLink {
-                    Image(systemName: "gearshape")
-                }
-                .help("连接与外观设置")
             }
         }
-        .background(Oases.Color.background)
-        .tint(Oases.Color.accent)
         .task {
             runtimeDataStore.refresh(using: deploymentStore, includingGatewayModels: refreshesDirectoryNow)
         }
@@ -64,6 +47,85 @@ struct ContentView: View {
             if deploymentStore.stage == .attached {
                 runtimeDataStore.automaticallySyncModelPricesIfNeeded(using: deploymentStore)
             }
+        }
+    }
+}
+
+/// The window's state line (toolbar subtitle) and the sidebar badges, from the deployment state.
+/// One phrase, with the client endpoint when the gateway is reachable.
+enum ShellStatus {
+    /// The client endpoint as `host:port` (for example `127.0.0.1:8317`).
+    static func endpointLabel(_ endpoints: DeploymentEndpoints) -> String {
+        let url = endpoints.clientAPIBaseURL
+        guard let host = url.host else { return url.absoluteString }
+        return url.port.map { "\(host):\($0)" } ?? host
+    }
+
+    static func subtitle(
+        stage: DeploymentStage,
+        topology: DeploymentTopology,
+        method: DeploymentMethod,
+        hasInstalledDeployment: Bool,
+        endpoint: String,
+        language: AppLanguage? = nil
+    ) -> String {
+        if MaintenanceLabels.showsUpgradeCallout(method: method, topology: topology, hasInstalledDeployment: hasInstalledDeployment) {
+            return OasesLocalization.localized("需要升级", language: language)
+        }
+        switch stage {
+        case .installing:
+            return OasesLocalization.localized("部署中", language: language)
+        case .connecting:
+            return OasesLocalization.localized("正在连接…", language: language)
+        case .attached:
+            return topology == .gateway
+                ? OasesLocalization.localizedFormat("网关运行中 · %@", language: language, endpoint)
+                : OasesLocalization.localizedFormat("已接入 · %@", language: language, endpoint)
+        case .failed:
+            return OasesLocalization.localized("需要处理", language: language)
+        case .idle, .ready, .cancelled:
+            return hasInstalledDeployment
+                ? OasesLocalization.localized("未连接", language: language)
+                : OasesLocalization.localized("未部署", language: language)
+        }
+    }
+
+    @MainActor
+    static func subtitle(_ deploymentStore: DeploymentStore) -> String {
+        subtitle(
+            stage: deploymentStore.stage,
+            topology: deploymentStore.topology,
+            method: deploymentStore.deploymentMethod,
+            hasInstalledDeployment: deploymentStore.hasInstalledDeployment,
+            endpoint: endpointLabel(deploymentStore.endpoints)
+        )
+    }
+
+    /// 连接与部署 needs the user: an installed legacy deployment waits for its upgrade.
+    @MainActor
+    static func deploymentNeedsUpgrade(_ deploymentStore: DeploymentStore) -> Bool {
+        MaintenanceLabels.showsUpgradeCallout(
+            method: deploymentStore.deploymentMethod,
+            topology: deploymentStore.topology,
+            hasInstalledDeployment: deploymentStore.hasInstalledDeployment
+        )
+    }
+
+    /// Badges only where something waits for the user: the pending account actions, and the
+    /// upgrade of a legacy deployment.
+    static func sidebarBadge(
+        for section: AppSection,
+        pendingAccountActions: Int,
+        deploymentNeedsUpgrade: Bool,
+        language: AppLanguage? = nil
+    ) -> Text? {
+        switch section {
+        case .accountActions where pendingAccountActions > 0:
+            return Text(verbatim: "\(pendingAccountActions)")
+        case .environments where deploymentNeedsUpgrade:
+            return Text(verbatim: OasesLocalization.localized("升级", language: language))
+        default:
+            return nil
         }
     }
 }
@@ -131,54 +193,6 @@ enum WorkspaceRefresh {
     }
 }
 
-#if !APP_STORE
-private struct AppUpdateToolbarButton: View {
-    @EnvironmentObject private var appUpdateService: AppUpdateService
-
-    var body: some View {
-        if appUpdateService.isUpdateAvailable,
-           let version = appUpdateService.availableUpdateVersion {
-            Button {
-                if appUpdateService.status == .downloaded {
-                    appUpdateService.openDownloadedUpdate()
-                } else {
-                    Task { await appUpdateService.downloadAvailableUpdate() }
-                }
-            } label: {
-                switch appUpdateService.status {
-                case .downloading:
-                    HStack(spacing: 6) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("正在下载")
-                    }
-                case .downloaded:
-                    versionLabel("打开更新 v%@", version: version, systemImage: "arrow.down.circle.fill")
-                case .failed:
-                    versionLabel("重试更新 v%@", version: version, systemImage: "exclamationmark.arrow.circlepath")
-                default:
-                    versionLabel("更新 v%@", version: version, systemImage: "arrow.down.circle.fill")
-                }
-            }
-            .disabled(appUpdateService.status == .downloading)
-            .help("下载 GitHub Releases 中的最新 DMG 安装包")
-            .accessibilityLabel("发现新版本 v\(version.description)")
-        }
-    }
-
-    private func versionLabel(
-        _ format: String,
-        version: SemanticVersion,
-        systemImage: String
-    ) -> some View {
-        Label {
-            Text(OasesLocalization.localizedFormat(format, version.description))
-        } icon: {
-            Image(systemName: systemImage)
-        }
-    }
-}
-#endif
 
 struct DetailWorkspaceView: View {
     @EnvironmentObject private var deploymentStore: DeploymentStore

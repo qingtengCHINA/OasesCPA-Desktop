@@ -601,6 +601,5 @@ private struct OAuthModelAliasEditorRow: View {
             .font(.caption)
         }
         .padding(14)
-        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }

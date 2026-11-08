@@ -91,7 +91,6 @@ struct InspectionView: View {
 
     private var header: some View {
         HStack(alignment: .bottom, spacing: 16) {
-            PageHeader(section: .codexInspection)
             Spacer()
 
             Button("巡检策略", systemImage: "slider.horizontal.3") {
@@ -305,7 +304,7 @@ struct InspectionView: View {
         } else {
             VStack(spacing: 12) {
                 Image(systemName: "list.bullet.rectangle")
-                    .font(.system(size: 30))
+                    .font(.title)
                     .foregroundStyle(.secondary)
                 Text("选择一条历史记录")
                     .font(.headline)
@@ -585,16 +584,9 @@ private struct InspectionRunRow: View {
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                isSelected ? Color.oasesBlue.opacity(0.10) : Color.primary.opacity(0.025),
-                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                isSelected ? Oases.Color.washStrong : Color.clear,
+                in: RoundedRectangle(cornerRadius: Oases.Radius.row, style: .continuous)
             )
-            .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(
-                        isSelected ? Color.oasesBlue.opacity(0.55) : Color.primary.opacity(0.07),
-                        lineWidth: isSelected ? 1.4 : 1
-                    )
-            }
         }
         .buttonStyle(.plain)
         .accessibilityLabel(
@@ -777,7 +769,6 @@ private struct InspectionRunDetailView: View {
             }
         }
         .padding(16)
-        .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private var logsPanel: some View {
@@ -803,7 +794,6 @@ private struct InspectionRunDetailView: View {
             )
         }
         .padding(16)
-        .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private var visibleResults: [RuntimeCodexInspectionResult] {
@@ -889,7 +879,7 @@ private struct InspectionMetric: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Text(value)
-                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .font(.title2.weight(.semibold).monospacedDigit())
             Text(OasesLocalization.localized(caption))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -897,7 +887,6 @@ private struct InspectionMetric: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(tint.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -912,7 +901,7 @@ private struct InspectionResultCard: View {
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 7) {
                         StatusPill(
-                            title: result.provider.isEmpty ? OasesLocalization.localized("未知 Provider") : result.provider.uppercased(),
+                            title: result.provider.isEmpty ? OasesLocalization.localized("未知 Provider") : result.provider,
                             tint: .oasesBlue,
                             systemImage: "network"
                         )
@@ -1000,11 +989,6 @@ private struct InspectionResultCard: View {
             }
         }
         .padding(16)
-        .background(.background.opacity(0.55), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-        }
     }
 
     @ViewBuilder

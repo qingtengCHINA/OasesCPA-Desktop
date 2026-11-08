@@ -89,7 +89,7 @@ struct UsageAnalyticsWorkbenchView: View {
     private var analyticsTitle: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text("用量分析")
-                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .font(.title2.weight(.semibold).monospacedDigit())
             Text("请求、Token、成本与成功率在同一时间范围内联动展示")
                 .foregroundStyle(.secondary)
         }
@@ -314,7 +314,7 @@ struct UsageAnalyticsWorkbenchView: View {
                         .foregroundStyle(card.3)
                         .font(.callout.weight(.semibold))
                     Text(card.1)
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .font(.title2.weight(.semibold).monospacedDigit())
                         .lineLimit(1)
                     Text(summarySubtitle(card.0, summary: summary))
                         .font(.caption)
@@ -322,7 +322,7 @@ struct UsageAnalyticsWorkbenchView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
-                .oasesCard(cornerRadius: 13)
+                .oasesCard()
             }
         }
     }
@@ -486,7 +486,6 @@ struct UsageAnalyticsWorkbenchView: View {
                 .frame(width: 90, alignment: .trailing)
         }
         .padding(11)
-        .background(Oases.Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private func heatmap(_ points: [RuntimeUsageAnalyticsHeatmapPoint]) -> some View {

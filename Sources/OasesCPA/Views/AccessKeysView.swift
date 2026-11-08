@@ -18,7 +18,6 @@ struct AccessKeysView: View {
             GatewayKeysView(store: store)
                 .padding(Oases.Space.page)
         }
-        .oasesCanvas()
         .task(id: reloadKey) {
             if store.isActive { store.refreshNow() } else { store.activate() }
         }
@@ -216,7 +215,7 @@ struct GatewayAccessSummaryCard: View {
                             .lineLimit(1)
                             .padding(.horizontal, Oases.Space.sm)
                             .padding(.vertical, Oases.Space.xs)
-                            .background(Oases.Color.wash, in: Capsule())
+                            .background(Oases.Color.wash, in: RoundedRectangle(cornerRadius: Oases.Radius.small, style: .continuous))
                     }
                 }
                 if models.count > 8 {

@@ -84,7 +84,6 @@ struct GatewayKeysView: View {
 
     private var header: some View {
         HStack(alignment: .bottom) {
-            PageHeader(section: .accessKeys)
             Spacer()
             if store.phase == .loading || store.isMutating {
                 ProgressView().controlSize(.small)

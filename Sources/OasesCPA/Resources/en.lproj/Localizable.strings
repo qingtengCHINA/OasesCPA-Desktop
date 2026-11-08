@@ -1494,7 +1494,7 @@
 "需人工复核" = "Requires manual review";
 "需关注" = "Needs Attention";
 "需处理" = "Need processing";
-"需要处理" = "Need to be processed";
+"需要处理" = "Needs attention";
 "需要完整控制？" = "Need complete control?";
 "需要排查调用问题时再查看" = "Check again when you need to troubleshoot calling issues";
 "需要排查采集失败" = "Need to troubleshoot collection failure";
@@ -2572,3 +2572,8 @@
 "SSH 主机需要首次指纹确认：%@:%lld（%@）" = "The SSH host fingerprint must be confirmed the first time: %@:%lld (%@)";
 "更新 %@ 失败：%@" = "Updating %@ failed: %@";
 "安装 %@ 失败：%@" = "Installing %@ failed: %@";
+
+/* App shell: toolbar subtitle and app menu */
+"需要升级" = "Upgrade needed";
+"网关运行中 · %@" = "Gateway running · %@";
+"检查更新…" = "Check for Updates…";

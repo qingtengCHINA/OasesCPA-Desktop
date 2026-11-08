@@ -182,7 +182,6 @@ struct ConfigurationView: View {
 
     private var header: some View {
         HStack(alignment: .bottom, spacing: 16) {
-            PageHeader(section: .config)
             Spacer()
 
             if deploymentStore.stage == .attached {
@@ -222,7 +221,6 @@ struct ConfigurationView: View {
         .labelsHidden()
         .frame(maxWidth: 680)
         .padding(6)
-        .background(Oases.Color.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private var cpaConfigCard: some View {

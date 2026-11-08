@@ -71,6 +71,9 @@ struct OasesCPAApp: App {
                 runtimeDataStore: runtimeDataStore,
                 completedOnboardingVersion: $completedOnboardingVersion
             )
+            #if !APP_STORE
+            AppUpdateCommands(appUpdateService: appUpdateService)
+            #endif
         }
 
         Settings {
@@ -227,3 +230,52 @@ struct OasesCommands: Commands {
         }
     }
 }
+
+#if !APP_STORE
+/// "检查更新…" in the app menu (HIG: no update button in the toolbar). It checks and opens
+/// Settings, where the update section shows the result; when an update exists, a second item
+/// downloads or opens it directly.
+struct AppUpdateCommands: Commands {
+    @ObservedObject var appUpdateService: AppUpdateService
+    @Environment(\.openSettings) private var openSettings
+    @AppStorage(AppLanguage.defaultsKey) private var languageRaw = AppLanguage.system.rawValue
+
+    private var language: AppLanguage { AppLanguage(rawValue: languageRaw) ?? .system }
+
+    var body: some Commands {
+        CommandGroup(after: .appInfo) {
+            if appUpdateService.isEnabled {
+                Button(OasesLocalization.localized("检查更新…", language: language)) {
+                    Task { await appUpdateService.checkForUpdates() }
+                    openSettings()
+                }
+                .disabled(appUpdateService.status == .checking || appUpdateService.status == .downloading)
+
+                if appUpdateService.isUpdateAvailable, let version = appUpdateService.availableUpdateVersion {
+                    Button(updateTitle(version: version)) {
+                        if appUpdateService.status == .downloaded {
+                            appUpdateService.openDownloadedUpdate()
+                        } else {
+                            Task { await appUpdateService.downloadAvailableUpdate() }
+                        }
+                    }
+                    .disabled(appUpdateService.status == .downloading)
+                }
+            }
+        }
+    }
+
+    private func updateTitle(version: SemanticVersion) -> String {
+        switch appUpdateService.status {
+        case .downloading:
+            OasesLocalization.localized("正在下载", language: language)
+        case .downloaded:
+            OasesLocalization.localizedFormat("打开更新 v%@", language: language, version.description)
+        case .failed:
+            OasesLocalization.localizedFormat("重试更新 v%@", language: language, version.description)
+        default:
+            OasesLocalization.localizedFormat("更新 v%@", language: language, version.description)
+        }
+    }
+}
+#endif

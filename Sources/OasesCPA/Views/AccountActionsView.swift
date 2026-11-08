@@ -15,7 +15,6 @@ struct AccountActionsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .bottom, spacing: 16) {
-                    PageHeader(section: .accountActions)
                     Spacer()
                     Button("认证文件", systemImage: "doc.badge.gearshape") {
                         store.selectSection(.authFiles)
@@ -55,7 +54,7 @@ struct AccountActionsView: View {
                     .disabled(runtimeDataStore.isLoadingAccountActions || runtimeDataStore.isSavingAccountActions)
                 }
                 .padding(14)
-                .oasesCard(cornerRadius: 14)
+                .oasesCard()
 
                 InfoBanner(
                     title: "只处理已发现的认证异常",
@@ -126,7 +125,7 @@ struct AccountActionsView: View {
         } else if visibleCandidates.isEmpty, !runtimeDataStore.isLoadingAccountActions {
             VStack(spacing: 10) {
                 Image(systemName: "checkmark.seal")
-                    .font(.system(size: 30))
+                    .font(.title)
                     .foregroundStyle(.secondary)
                 Text(LocalizedStringKey(emptyTitle))
                     .font(.headline)
@@ -289,7 +288,7 @@ private struct AccountActionCandidateCard: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(actionTint)
                     .frame(width: 38, height: 38)
-                    .oasesIconTile(cornerRadius: 999)
+                    .oasesIconTile()
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(candidate.accountTitle)
@@ -502,7 +501,7 @@ private struct AccountActionEvidenceSheet: View {
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(14)
-                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .background(Oases.Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: Oases.Radius.row, style: .continuous))
             }
         }
         .padding(24)

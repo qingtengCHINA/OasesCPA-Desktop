@@ -147,13 +147,11 @@ struct AuthFilesWorkbenchView: View {
         }
     }
 
+    /// The page title lives in the toolbar; the header keeps only the page's one sentence.
     private var authFilesTitle: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("认证文件")
-                .font(.largeTitle.weight(.bold))
-            Text("集中查看账号状态、套餐、配额证据和支持模型")
-                .foregroundStyle(.secondary)
-        }
+        Text("集中查看账号状态、套餐、配额证据和支持模型")
+            .font(.callout)
+            .foregroundStyle(.secondary)
     }
 
     private var headerActions: some View {
@@ -189,7 +187,7 @@ struct AuthFilesWorkbenchView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .background(Oases.Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: Oases.Radius.row, style: .continuous))
     }
 
     private var authFilterPickers: some View {
@@ -227,11 +225,6 @@ struct AuthFilesWorkbenchView: View {
             .frame(maxWidth: 430)
         }
         .padding(16)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(.primary.opacity(0.08), lineWidth: 1)
-        }
     }
 
     private func providerChip(
@@ -244,13 +237,10 @@ struct AuthFilesWorkbenchView: View {
         } label: {
             Text(LocalizedStringKey(title))
                 .font(.callout.weight(.medium))
-                .foregroundStyle(isSelected ? Oases.Color.inkContrast : Oases.Color.textSecondary)
-                .padding(.horizontal, 11)
-                .padding(.vertical, 5)
-                .background(isSelected ? Oases.Color.ink : Oases.Color.surface, in: Capsule())
-                .overlay {
-                    Capsule().strokeBorder(isSelected ? Color.clear : Oases.Color.borderStrong, lineWidth: 1)
-                }
+                .foregroundStyle(isSelected ? Oases.Color.textPrimary : Oases.Color.textSecondary)
+                .padding(.horizontal, Oases.Space.sm)
+                .padding(.vertical, Oases.Space.xs)
+                .background(isSelected ? Oases.Color.washStrong : Color.clear, in: RoundedRectangle(cornerRadius: Oases.Radius.row, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -339,7 +329,6 @@ struct AuthFilesWorkbenchView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
-        .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private func refresh() async {
@@ -499,9 +488,6 @@ private struct AuthFilesWorkbenchRow: View {
                             .textSelection(.enabled)
                         Text(file.providerTitle)
                             .font(.caption.weight(.semibold))
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3)
-                            .background(Color.accentColor.opacity(0.10), in: Capsule())
                         statusBadge
                     }
                     if let account = file.accountTitle {
@@ -532,20 +518,12 @@ private struct AuthFilesWorkbenchRow: View {
             }
         }
         .padding(compact ? 10 : 16)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: compact ? 10 : 14, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: compact ? 10 : 14, style: .continuous)
-                .strokeBorder(isSelected ? Color.accentColor.opacity(0.55) : Color.primary.opacity(0.08), lineWidth: isSelected ? 1.5 : 1)
-        }
     }
 
     private var statusBadge: some View {
         Text(file.displayStatus)
             .font(.caption.weight(.semibold))
             .foregroundStyle(file.needsAttention ? Color.oasesOrange : Color.oasesGreen)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background((file.needsAttention ? Color.oasesOrange : Color.oasesGreen).opacity(0.11), in: Capsule())
     }
 
     private func metadata(_ title: String, _ value: String?) -> some View {
@@ -605,7 +583,6 @@ private struct AuthFilesWorkbenchRow: View {
             }
         }
         .padding(10)
-        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
     }
 }
 

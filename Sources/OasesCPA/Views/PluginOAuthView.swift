@@ -169,12 +169,12 @@ struct PluginOAuthView: View {
             }
 
             Text(authorizationURL)
-                .font(.system(size: 12, design: .monospaced))
+                .font(.system(.callout, design: .monospaced))
                 .textSelection(.enabled)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
-                .background(Color.black.opacity(0.05), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(Oases.Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: Oases.Radius.row, style: .continuous))
 
             HStack(spacing: 10) {
                 if flowState == .waiting {
@@ -205,15 +205,15 @@ struct PluginOAuthView: View {
             )
 
             TextEditor(text: $callbackURL)
-                .font(.system(size: 12, design: .monospaced))
+                .font(.system(.callout, design: .monospaced))
                 .frame(minHeight: 92, maxHeight: 150)
                 .padding(8)
                 .scrollContentBackground(.hidden)
-                .background(Color.black.opacity(0.05), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(Oases.Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: Oases.Radius.row, style: .continuous))
                 .overlay(alignment: .topLeading) {
                     if callbackURL.isEmpty {
                         Text("粘贴包含 code 和 state 的完整回调 URL")
-                            .font(.system(size: 12, design: .monospaced))
+                            .font(.system(.callout, design: .monospaced))
                             .foregroundStyle(.tertiary)
                             .padding(14)
                             .allowsHitTesting(false)

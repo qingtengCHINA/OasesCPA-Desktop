@@ -71,7 +71,6 @@ struct OpenAICompatibilityEditorView: View {
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(Oases.Space.m)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Oases.Color.dangerBg, in: RoundedRectangle(cornerRadius: Oases.Radius.panel))
                     }
 
                     ProviderEditorSection(
@@ -261,7 +260,7 @@ struct OpenAICompatibilityEditorView: View {
     private var editorHeader: some View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: index == nil ? "plus.circle.fill" : "slider.horizontal.3")
-                .font(.system(size: 30, weight: .semibold))
+                .font(.title)
                 .foregroundStyle(Oases.Color.textSecondary)
                 .frame(width: 52, height: 52)
                 .oasesIconTile()
@@ -280,9 +279,6 @@ struct OpenAICompatibilityEditorView: View {
             Label(deploymentStore.targetTitle, systemImage: "server.rack")
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(Oases.Color.surface, in: Capsule())
                 .lineLimit(1)
         }
         .padding(20)
@@ -961,7 +957,6 @@ private struct EmptyEditorState: View {
             Spacer(minLength: 0)
         }
         .padding(14)
-        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -1002,7 +997,6 @@ private struct ProviderAPIKeyEditorCard: View {
             }
         }
         .padding(14)
-        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
     }
 }
 
@@ -1056,7 +1050,6 @@ private struct ProviderKeyAdvancedFields: View {
             }
         }
         .padding(14)
-        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -1128,7 +1121,6 @@ private struct ProviderModelEditorCard: View {
             .font(.subheadline)
         }
         .padding(16)
-        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
     }
 }
 

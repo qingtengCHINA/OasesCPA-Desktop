@@ -59,7 +59,6 @@ struct PluginsView: View {
 
     private var header: some View {
         HStack(alignment: .bottom, spacing: 16) {
-            PageHeader(section: .plugins)
             Picker("插件工作区", selection: $selectedTab) {
                 ForEach(PluginWorkspaceTab.allCases) { tab in
                     Text(tab.title).tag(tab)

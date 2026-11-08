@@ -84,7 +84,6 @@ struct ModelPricesView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .bottom) {
-                    PageHeader(section: .modelPrices)
                     Spacer()
                     if runtimeDataStore.isLoadingModelPrices {
                         ProgressView()
@@ -710,7 +709,6 @@ private struct ModelPriceSyncResultCard: View {
             }
         }
         .padding(Oases.Space.m)
-        .background(Oases.Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: Oases.Radius.panel, style: .continuous))
     }
 
     private func candidateDetail(_ candidate: RuntimeModelPriceCandidate) -> String {

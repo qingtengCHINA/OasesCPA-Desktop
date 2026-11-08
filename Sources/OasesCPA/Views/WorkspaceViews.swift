@@ -12,7 +12,6 @@ struct UsageAnalyticsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 HStack(alignment: .bottom) {
-                    PageHeader(section: .usageAnalytics)
                     Spacer()
                     StatusPill(
                         title: isRangeLive ? "实时数据" : (runtimeDataStore.isLoadingAnalytics ? OasesLocalization.localized("读取中") : OasesLocalization.localized("连接后显示")),
@@ -249,7 +248,6 @@ struct MonitoringView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .bottom) {
-                    PageHeader(section: .monitoring)
                     Spacer()
                     Button("账号待办", systemImage: "person.crop.circle.badge.exclamationmark") {
                         store.selectSection(.accountActions)
@@ -305,7 +303,7 @@ struct MonitoringView: View {
                     .buttonStyle(.bordered)
                 }
                 .padding(14)
-                .oasesCard(cornerRadius: 14)
+                .oasesCard()
 
                 advancedFilterBar
 
@@ -1055,7 +1053,6 @@ struct MonitoringAccountHistoryCard: View {
             Spacer(minLength: 0)
         }
         .padding(12)
-        .background(Color.oasesOrange.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
     }
 
     private func accountHistoryCompletion(
@@ -1070,7 +1067,6 @@ struct MonitoringAccountHistoryCard: View {
             Spacer(minLength: 0)
         }
         .padding(12)
-        .background(Color.oasesGreen.opacity(0.09), in: RoundedRectangle(cornerRadius: 10))
     }
 
     private func warningText(
@@ -1379,7 +1375,6 @@ struct ProvidersView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .center) {
-                    PageHeader(section: .aiProviders)
                     Spacer()
                     Button("添加 AI 服务", systemImage: "plus") {
                         presentProviderEditor(.createOpenAICompatibility)
@@ -1668,7 +1663,6 @@ struct AuthFilesView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .bottom) {
-                    PageHeader(section: .authFiles)
                     Spacer()
                     if runtimeDataStore.isLoadingAuthFiles {
                         ProgressView()
@@ -1971,10 +1965,7 @@ struct RuntimeAuthFileRow: View {
                     if let provider = file.provider ?? file.type, !provider.isEmpty {
                         Text(provider)
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.oasesBlue)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3)
-                            .background(Color.oasesBlue.opacity(0.10), in: Capsule())
+                            .foregroundStyle(Oases.Color.textSecondary)
                     }
                 }
                 Text(detail)
@@ -2051,10 +2042,7 @@ struct AccountRow: View {
                     Text(account.name).font(.headline)
                     Text(account.provider)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.oasesBlue)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(Color.oasesBlue.opacity(0.10), in: Capsule())
+                        .foregroundStyle(Oases.Color.textSecondary)
                 }
                 Text(OasesLocalization.localizedFormat("%@ · 脱敏状态摘要", account.plan))
                     .font(.caption)
@@ -2121,7 +2109,6 @@ struct QuotaView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .bottom) {
-                    PageHeader(section: .quota)
                     Spacer()
                     Button("刷新证据", systemImage: "arrow.clockwise") {
                         runtimeDataStore.refreshQuota(using: deploymentStore)
@@ -2363,10 +2350,7 @@ struct QuotaCooldownRow: View {
                     if let provider = cooldown.provider, !provider.isEmpty {
                         Text(provider)
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.oasesBlue)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3)
-                            .background(Color.oasesBlue.opacity(0.1), in: Capsule())
+                            .foregroundStyle(Oases.Color.textSecondary)
                     }
                 }
                 Text(cooldownDetail)
@@ -2424,12 +2408,9 @@ struct QuotaEvidenceCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
                         Text(evidence.fileName).font(.headline)
-                        Text(evidence.provider.uppercased())
+                        Text(evidence.provider)
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(statusTint)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3)
-                            .background(statusTint.opacity(0.1), in: Capsule())
                     }
                     Text(evidenceSummary)
                         .font(.caption)
@@ -2554,7 +2535,7 @@ struct QuotaCard: View {
             Text(quota.title)
                 .font(.headline)
             Text(OasesLocalization.localizedFormat("剩余 %@", quota.remaining.formatted(.percent.precision(.fractionLength(0)))))
-                .font(.system(size: 27, weight: .bold, design: .rounded))
+                .font(.title2.weight(.semibold).monospacedDigit())
 
             ProgressView(value: quota.remaining)
                 .tint(quota.tint)
@@ -2567,6 +2548,8 @@ struct QuotaCard: View {
     }
 }
 
+/// Compatibility shim for the former tinted banner: an inline row of an SF Symbol in the
+/// status colour and the text. No fill, no border.
 struct InfoBanner: View {
     let title: String
     let message: String
@@ -2574,26 +2557,24 @@ struct InfoBanner: View {
     let tint: Color
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .firstTextBaseline, spacing: Oases.Space.sm) {
             Image(systemName: systemImage)
-                .font(.title3)
                 .foregroundStyle(tint)
-                .frame(width: 24)
+                .frame(width: 18)
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(LocalizedStringKey(title)).font(.callout.weight(.semibold))
+            VStack(alignment: .leading, spacing: Oases.Space.xxs) {
+                Text(LocalizedStringKey(title))
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(Oases.Color.textPrimary)
                 Text(LocalizedStringKey(message))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.callout)
+                    .foregroundStyle(Oases.Color.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }
-        .padding(Oases.Space.md)
-        .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: Oases.Radius.panel, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: Oases.Radius.panel, style: .continuous)
-                .strokeBorder(tint.opacity(0.28), lineWidth: 1)
-        }
+        .padding(.vertical, Oases.Space.xs)
+        .accessibilityElement(children: .combine)
     }
 }

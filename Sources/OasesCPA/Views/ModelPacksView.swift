@@ -51,7 +51,6 @@ struct ModelPacksView: View {
             .padding(Oases.Space.page)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .oasesCanvas()
         .task(id: reloadKey) {
             if store.isActive { store.refreshNow() } else { store.activate() }
         }
@@ -104,7 +103,6 @@ struct ModelPacksView: View {
 
     private var header: some View {
         HStack(alignment: .bottom) {
-            PageHeader(section: .modelPacks)
             Spacer()
             if store.phase == .loading || store.isMutating {
                 ProgressView().controlSize(.small)

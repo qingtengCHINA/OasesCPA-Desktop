@@ -206,7 +206,8 @@ struct ConnectionCenterView: View {
         HStack(alignment: .top, spacing: 18) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("准备好开始")
-                    .font(.largeTitle.weight(.bold))
+                    .font(.title3.weight(.semibold))
+                    .accessibilityAddTraits(.isHeader)
                 Text(LocalizedStringKey(deploymentStore.targetKind == .local
                     ? "在这台 Mac 上部署你的 CPA Proxy API。"
                     : "连接远程目标并部署你的 CPA Proxy API。"))
@@ -857,7 +858,7 @@ struct ConnectionCenterView: View {
                         .padding(10)
                 }
                 .frame(maxHeight: 190)
-                .background(Color.black.opacity(0.06), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(Oases.Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: Oases.Radius.row, style: .continuous))
             }
         }
         .padding(20)
@@ -1095,11 +1096,6 @@ struct TargetOptionCard: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Oases.Color.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(isSelected ? Color.oasesBlue.opacity(0.58) : Color.primary.opacity(0.08), lineWidth: isSelected ? 1.5 : 1)
-        }
     }
 }
 
@@ -1112,10 +1108,6 @@ struct SavedTargetRow: View {
             Image(systemName: profile.targetKind.systemImage)
                 .foregroundStyle(isActive ? Color.oasesBlue : Color.secondary)
                 .frame(width: 30, height: 30)
-                .background(
-                    (isActive ? Color.oasesBlue : Color.secondary).opacity(0.12),
-                    in: RoundedRectangle(cornerRadius: 9, style: .continuous)
-                )
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(profile.displayName)
@@ -1136,13 +1128,9 @@ struct SavedTargetRow: View {
         }
         .padding(12)
         .background(
-            isActive ? Color.oasesBlue.opacity(0.07) : Color.primary.opacity(0.035),
-            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            isActive ? Oases.Color.washStrong : Color.clear,
+            in: RoundedRectangle(cornerRadius: Oases.Radius.row, style: .continuous)
         )
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(isActive ? Color.oasesBlue.opacity(0.35) : Color.primary.opacity(0.07), lineWidth: 1)
-        }
     }
 }
 

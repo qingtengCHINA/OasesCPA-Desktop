@@ -69,7 +69,6 @@ struct SystemInfoView: View {
 
     private var header: some View {
         HStack(alignment: .bottom) {
-            PageHeader(section: .system)
             Spacer()
             StatusPill(
                 title: runtimeDataStore.systemStatus == nil ? OasesLocalization.localized("连接后读取") : OasesLocalization.localized("实时状态"),
@@ -257,10 +256,7 @@ struct SystemInfoView: View {
                     .font(.headline)
                 Text("\(group.models.count)")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.oasesBlue)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.oasesBlue.opacity(0.1), in: Capsule())
+                    .foregroundStyle(Oases.Color.textSecondary)
                 Spacer()
             }
 
@@ -275,7 +271,6 @@ struct SystemInfoView: View {
             }
         }
         .padding(14)
-        .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func modelRow(_ model: RuntimeGatewayModel) -> some View {
@@ -306,7 +301,6 @@ struct SystemInfoView: View {
             }
             .padding(11)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
         .help("点击复制模型 ID")
@@ -453,7 +447,6 @@ private struct QuickLinkButton: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
         }
         .buttonStyle(.plain)
         .help("在浏览器中打开 \(title)")

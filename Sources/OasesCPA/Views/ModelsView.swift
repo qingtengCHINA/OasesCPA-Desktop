@@ -22,7 +22,6 @@ struct ModelsView: View {
                 }
                 .padding(Oases.Space.page)
             }
-            .oasesCanvas()
             .navigationDestination(for: String.self) { modelID in
                 ModelDetailView(modelID: modelID, deploymentStore: deploymentStore)
             }
@@ -64,7 +63,6 @@ struct ModelsView: View {
 
     private var header: some View {
         HStack(alignment: .bottom) {
-            PageHeader(section: .models)
             Spacer()
             if store.phase == .loading || store.isMutating {
                 ProgressView().controlSize(.small)

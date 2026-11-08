@@ -588,9 +588,6 @@ private struct StoreBadge: View {
         Text(OasesLocalization.localized(title))
             .font(.caption2.weight(.semibold))
             .foregroundStyle(tint)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(tint.opacity(0.10), in: Capsule())
     }
 }
 

@@ -290,7 +290,7 @@ struct SettingsView: View {
             .padding(24)
 
             Text(appVersion.displayText)
-                .font(.system(.caption2, design: .rounded, weight: .medium))
+                .font(.caption2.weight(.medium))
                 .foregroundStyle(.tertiary)
                 .monospacedDigit()
                 .textSelection(.enabled)

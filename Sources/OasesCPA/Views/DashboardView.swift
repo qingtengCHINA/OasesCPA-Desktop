@@ -61,7 +61,6 @@ struct DashboardView: View {
             }
             .padding(Oases.Space.page)
         }
-        .background(Oases.Color.background)
         .task(id: liveRefreshTaskID) {
             guard scenePhase == .active, deploymentStore.stage == .attached else { return }
 
@@ -142,7 +141,7 @@ struct DashboardView: View {
         }
         .padding(.horizontal, Oases.Space.l)
         .padding(.vertical, Oases.Space.md)
-        .oasesCard(fill: heroTone == .warning ? Oases.Color.warningBg : Oases.Color.surface)
+        .oasesCard()
     }
 
     private var runtimeMetrics: [MetricSummary] {
@@ -272,13 +271,13 @@ struct TrafficChartCard: View {
                         y: .value("调用", point.requests)
                     )
                     .foregroundStyle(Oases.Color.accent.opacity(0.55))
-                    .cornerRadius(3)
+                    .cornerRadius(Oases.Radius.small)
 
                     LineMark(
                         x: .value("时间", point.label),
                         y: .value("Token", point.tokens)
                     )
-                    .foregroundStyle(Oases.Color.violet)
+                    .foregroundStyle(Oases.Color.textSecondary)
                     .lineStyle(StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
                     .interpolationMethod(.monotone)
                 }
@@ -316,7 +315,7 @@ struct HealthTimelineCard: View {
                 } else {
                     LazyVGrid(columns: columns, spacing: 5) {
                         ForEach(Array(points.enumerated()), id: \.offset) { _, point in
-                            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            RoundedRectangle(cornerRadius: Oases.Radius.small, style: .continuous)
                                 .fill(color(for: point))
                                 .frame(height: 15)
                         }
@@ -375,7 +374,7 @@ struct TokenBreakdownCard: View {
             CardTitle(title: "Token 构成", subtitle: "今日请求的用量分布", icon: "chart.pie")
 
             Text(totalTokens)
-                .font(.system(size: 26, weight: .semibold).monospacedDigit())
+                .font(.title2.weight(.semibold).monospacedDigit())
 
             if rows.isEmpty {
                 Text(dashboard == nil ? "连接目标环境后显示真实构成" : "当前摘要未返回 Token 构成")
@@ -397,10 +396,10 @@ struct TokenBreakdownCard: View {
                             .font(.caption)
 
                             GeometryReader { proxy in
-                                Capsule()
+                                RoundedRectangle(cornerRadius: Oases.Radius.small, style: .continuous)
                                     .fill(Oases.Color.track)
                                     .overlay(alignment: .leading) {
-                                        Capsule()
+                                        RoundedRectangle(cornerRadius: Oases.Radius.small, style: .continuous)
                                             .fill(row.tint)
                                             .frame(width: max(6, proxy.size.width * row.share))
                                     }
@@ -446,9 +445,9 @@ struct TokenBreakdownCard: View {
     private func tokenTint(_ key: String) -> Color {
         switch key {
         case "input": return Oases.Color.accent
-        case "output": return Oases.Color.violet
-        case "reasoning": return Oases.Color.textSecondary
-        default: return Oases.Color.textTertiary
+        case "output": return Oases.Color.textSecondary
+        case "reasoning": return Oases.Color.textTertiary
+        default: return Oases.Color.textQuaternary
         }
     }
 
@@ -532,10 +531,10 @@ struct ModelCostCard: View {
             }
 
             GeometryReader { proxy in
-                Capsule()
+                RoundedRectangle(cornerRadius: Oases.Radius.small, style: .continuous)
                     .fill(Oases.Color.track)
                     .overlay(alignment: .leading) {
-                        Capsule()
+                        RoundedRectangle(cornerRadius: Oases.Radius.small, style: .continuous)
                             .fill(Oases.Color.accent)
                             .frame(width: proxy.size.width * model.weight)
                     }
@@ -704,8 +703,10 @@ struct CollectorStatusCard: View {
     }
 }
 
-/// Card heading: neutral icon, title, one-line subtitle. With `destination`, the title
-/// becomes a "›" link to that section so dashboard cards are never dead ends.
+/// Section header (compatibility name of the former card heading): the title as headline
+/// text and the subtitle as one secondary line after it, no icon. With `destination`, the title
+/// becomes a "›" link to that section so dashboard sections are never dead ends. `icon` is
+/// ignored and kept only so existing call sites compile.
 struct CardTitle: View {
     @EnvironmentObject private var store: AppStore
     let title: String
@@ -714,38 +715,48 @@ struct CardTitle: View {
     var destination: AppSection?
 
     var body: some View {
-        HStack(alignment: .top, spacing: Oases.Space.sm) {
-            Image(systemName: icon)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Oases.Color.textTertiary)
-                .frame(width: 18, height: 18)
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 2) {
-                if let destination {
-                    Button {
-                        store.selectSection(destination)
-                    } label: {
-                        HStack(spacing: Oases.Space.xs) {
-                            Text(LocalizedStringKey(title))
-                            Image(systemName: "chevron.right").font(.caption2.weight(.bold))
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .font(.headline)
-                    .foregroundStyle(Oases.Color.textPrimary)
-                    .help(OasesLocalization.localizedFormat("打开%@", destination.title))
-                } else {
-                    Text(LocalizedStringKey(title))
-                        .font(.headline)
-                        .foregroundStyle(Oases.Color.textPrimary)
-                }
-                Text(LocalizedStringKey(subtitle))
-                    .font(.caption)
-                    .foregroundStyle(Oases.Color.textSecondary)
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: Oases.Space.sm) {
+                titleView
+                Spacer(minLength: Oases.Space.sm)
+                subtitleView
+            }
+            VStack(alignment: .leading, spacing: Oases.Space.xxs) {
+                titleView
+                subtitleView
             }
         }
+    }
+
+    @ViewBuilder
+    private var titleView: some View {
+        Group {
+            if let destination {
+                Button {
+                    store.selectSection(destination)
+                } label: {
+                    HStack(spacing: Oases.Space.xs) {
+                        Text(LocalizedStringKey(title))
+                        Image(systemName: "chevron.right").font(.caption2.weight(.bold))
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(OasesLocalization.localizedFormat("打开%@", destination.title))
+            } else {
+                Text(LocalizedStringKey(title))
+            }
+        }
+        .font(.headline)
+        .foregroundStyle(Oases.Color.textPrimary)
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    private var subtitleView: some View {
+        Text(LocalizedStringKey(subtitle))
+            .font(.callout)
+            .foregroundStyle(Oases.Color.textSecondary)
+            .lineLimit(2)
     }
 }
 

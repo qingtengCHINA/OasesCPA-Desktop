@@ -54,7 +54,8 @@ struct CPAQuickConfigurationView: View {
             if !embeddedMode {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("CLIProxyAPI 快速配置")
-                        .font(.largeTitle.weight(.bold))
+                        .font(.title3.weight(.semibold))
+                        .accessibilityAddTraits(.isHeader)
                     Text("面向日常使用的常用开关。复杂的完整配置仍可在配置面板中编辑。")
                         .foregroundStyle(.secondary)
                 }
@@ -114,7 +115,7 @@ struct CPAQuickConfigurationView: View {
             }
         }
         .padding(16)
-        .oasesCard(cornerRadius: 14)
+        .oasesCard()
     }
 
     private var partialErrorCard: some View {
@@ -131,7 +132,7 @@ struct CPAQuickConfigurationView: View {
                 .foregroundStyle(Color.oasesOrange)
         }
         .padding(16)
-        .oasesCard(cornerRadius: 14)
+        .oasesCard()
     }
 
     private func configGroup(_ group: RuntimeCPAQuickConfigGroup) -> some View {
@@ -154,7 +155,7 @@ struct CPAQuickConfigurationView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .oasesCard(cornerRadius: 14)
+            .oasesCard()
         }
     }
 
@@ -304,7 +305,7 @@ struct CPAQuickConfigurationView: View {
             }
         }
         .padding(16)
-        .oasesCard(cornerRadius: 14)
+        .oasesCard()
     }
 
     private func integerValue(for field: RuntimeCPAQuickConfigField) -> Int {

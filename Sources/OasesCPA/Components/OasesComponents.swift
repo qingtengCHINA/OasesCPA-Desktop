@@ -1,44 +1,19 @@
 import AppKit
 import SwiftUI
 
-// Panel primitives for macOS: ink primary button, status dot and badge, section header,
-// grouped rows, label/value rows, monospaced copyable values and empty states.
+// Native primitives: the primary button maps to the system prominent style, status is a dot
+// plus text, section headers are plain headline text, rows are separated by hairlines.
 
-/// Ink primary action (black in light, white in dark). One per view; honours `controlSize`.
-struct OasesPrimaryButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var isEnabled
-    @Environment(\.controlSize) private var controlSize
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func makeBody(configuration: Configuration) -> some View {
-        let height: CGFloat = switch controlSize {
-        case .mini: 20
-        case .small: 24
-        case .large, .extraLarge: 34
-        default: 28
-        }
-        configuration.label
-            .font(controlSize == .small || controlSize == .mini ? .caption.weight(.medium) : .callout.weight(.medium))
-            .foregroundStyle(Oases.Color.inkContrast)
-            .padding(.horizontal, controlSize == .large || controlSize == .extraLarge ? 16 : 11)
-            .frame(minHeight: height)
-            .background(
-                configuration.isPressed ? Oases.Color.inkPressed : Oases.Color.ink,
-                in: RoundedRectangle(cornerRadius: Oases.Radius.button, style: .continuous)
-            )
-            .opacity(isEnabled ? 1 : 0.4)
-            .contentShape(Rectangle())
-            .animation(Oases.Motion.press(reduceMotion: reduceMotion), value: configuration.isPressed)
-    }
+extension PrimitiveButtonStyle where Self == BorderedProminentButtonStyle {
+    /// Compatibility name for the one primary action of a view: the native
+    /// `.borderedProminent` style in the system accent colour.
+    static var oasesPrimary: BorderedProminentButtonStyle { .borderedProminent }
 }
 
-extension ButtonStyle where Self == OasesPrimaryButtonStyle {
-    static var oasesPrimary: OasesPrimaryButtonStyle { OasesPrimaryButtonStyle() }
-}
-
+/// An 8 pt status dot. Status colour lives here, never in a fill or a capsule.
 struct StatusDot: View {
     var tone: Oases.Tone
-    var size: CGFloat = 7
+    var size: CGFloat = 8
 
     var body: some View {
         Circle()
@@ -48,26 +23,24 @@ struct StatusDot: View {
     }
 }
 
+/// Compatibility shim for the former tinted badge: a status dot and the word.
 struct ToneBadge: View {
     var text: String
     var tone: Oases.Tone
 
     var body: some View {
-        Text(LocalizedStringKey(text))
-            .font(.caption.weight(.medium))
-            .foregroundStyle(tone.text)
-            .lineLimit(1)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 2)
-            .background(tone.background, in: RoundedRectangle(cornerRadius: Oases.Radius.small, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: Oases.Radius.small, style: .continuous)
-                    .strokeBorder(tone.border, lineWidth: 1)
-            )
+        HStack(spacing: Oases.Space.xs + 2) {
+            StatusDot(tone: tone)
+            Text(LocalizedStringKey(text))
+                .lineLimit(1)
+        }
+        .font(.callout)
+        .foregroundStyle(Oases.Color.textPrimary)
+        .accessibilityElement(children: .combine)
     }
 }
 
-/// Title above a card, optionally a "›" link to the full view.
+/// Section title, optionally a "›" link to the full view.
 struct OasesSectionHeader: View {
     var title: String
     var trailing: String?
@@ -101,7 +74,7 @@ struct OasesSectionHeader: View {
     }
 }
 
-/// Rows inside one bordered card with 1 pt dividers.
+/// Rows separated by hairlines, as one flat section.
 struct OasesRowGroup<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
@@ -159,7 +132,7 @@ struct OasesLinkRow<Trailing: View>: View {
         HStack(spacing: Oases.Space.m) {
             if let systemImage {
                 Image(systemName: systemImage)
-                    .font(.system(size: 13))
+                    .font(.body)
                     .foregroundStyle(Oases.Color.textSecondary)
                     .frame(width: 18)
                     .overlay(alignment: .topTrailing) {
@@ -273,14 +246,10 @@ struct OasesMonoValue: View {
         .padding(.horizontal, Oases.Space.sm)
         .padding(.vertical, Oases.Space.xs)
         .background(Oases.Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: Oases.Radius.small, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: Oases.Radius.small, style: .continuous)
-                .strokeBorder(Oases.Color.border, lineWidth: 1)
-        )
     }
 }
 
-/// Empty or not-yet-connected state inside a card.
+/// Empty or not-yet-connected state: symbol, one title, one sentence, at most one action.
 struct OasesEmptyState: View {
     var systemImage: String
     var title: String
@@ -291,7 +260,7 @@ struct OasesEmptyState: View {
     var body: some View {
         VStack(spacing: Oases.Space.sm) {
             Image(systemName: systemImage)
-                .font(.system(size: 22, weight: .regular))
+                .font(.title2)
                 .foregroundStyle(Oases.Color.textTertiary)
                 .accessibilityHidden(true)
             Text(LocalizedStringKey(title))
@@ -313,18 +282,13 @@ struct OasesEmptyState: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, Oases.Space.xl)
         .padding(.horizontal, Oases.Space.md)
-        .oasesCard()
     }
 }
 
 extension View {
-    /// Neutral square behind a row icon: subtle fill and hairline border, no brand tint.
-    func oasesIconTile(cornerRadius: CGFloat = Oases.Radius.control) -> some View {
+    /// Compatibility shim for the former icon tile: icons are no longer boxed, so this leaves
+    /// the icon as it is. Call sites drop it as pages are reworked.
+    func oasesIconTile(cornerRadius: CGFloat? = nil) -> some View {
         self
-            .background(Oases.Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(Oases.Color.border, lineWidth: 1)
-            )
     }
 }

@@ -29,7 +29,6 @@ struct ModelDetailView: View {
             .padding(Oases.Space.page)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .oasesCanvas()
         .navigationTitle(store.modelID)
         .task(id: reloadKey) {
             if store.isActive { store.refreshNow() } else { store.activate() }

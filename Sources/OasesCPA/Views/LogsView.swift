@@ -40,7 +40,6 @@ struct LogsView: View {
                             .disabled(runtimeDataStore.isLoadingLogs)
                         }
                         .padding(14)
-                        .background(Color.oasesOrange.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                 }
 
@@ -83,7 +82,6 @@ struct LogsView: View {
 
     private var header: some View {
         HStack(alignment: .bottom, spacing: 12) {
-            PageHeader(section: .logs)
             Spacer()
             Button("刷新", systemImage: "arrow.clockwise") {
                 runtimeDataStore.refreshLogs(using: deploymentStore)
@@ -259,13 +257,13 @@ struct LogsView: View {
                 } else {
                     ScrollView([.vertical, .horizontal]) {
                         Text(InternalModelID.publicText(logs.lines.joined(separator: "\n")))
-                            .font(.system(size: 12, design: .monospaced))
+                            .font(.system(.callout, design: .monospaced))
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(14)
                     }
                     .frame(minHeight: 300, maxHeight: 640)
-                    .background(Color.black.opacity(0.07), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(Oases.Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: Oases.Radius.row, style: .continuous))
                 }
             } else if deploymentStore.stage == .attached && runtimeDataStore.isLoadingLogs {
                 ProgressView("正在读取当前目标日志…")

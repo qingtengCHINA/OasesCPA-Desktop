@@ -1,11 +1,11 @@
 import SwiftUI
 
-/// Sidebar groups of the app:
-/// 概览 / 账号 / 网关 / 配置 / 运维.
+/// Sidebar groups of the app, in the order of the user's journey (the gateway before the
+/// accounts behind it): 概览 / 网关 / 账号 / 配置 / 运维.
 enum SectionGroup: String, CaseIterable, Identifiable {
     case overview
-    case accounts
     case gateway
+    case accounts
     case configuration
     case operations
 

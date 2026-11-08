@@ -88,10 +88,10 @@ struct PluginConfigEditorView: View {
                         .textEditorStyle(.plain)
                         .frame(minHeight: 420)
                         .padding(8)
-                        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .background(Oases.Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: Oases.Radius.row, style: .continuous))
                         .overlay {
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .strokeBorder(.primary.opacity(0.10), lineWidth: 1)
+                            RoundedRectangle(cornerRadius: Oases.Radius.row, style: .continuous)
+                                .strokeBorder(Oases.Color.border, lineWidth: 1)
                         }
                 } header: {
                     Text("仅当前编辑会话")

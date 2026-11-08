@@ -1,31 +1,29 @@
 import SwiftUI
 
-/// Panel badge: tinted label on a faint tint with a hairline border. The default
-/// `circle.fill` symbol renders as a 6 pt status dot.
+/// Compatibility shim for the former tinted capsule: a status dot (or the given SF Symbol) in
+/// the status colour, followed by the word in the label colour. No fill, no border.
 struct StatusPill: View {
     let title: String
     let tint: Color
     var systemImage: String = "circle.fill"
 
     var body: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: Oases.Space.xs + 2) {
             if systemImage == "circle.fill" {
                 Circle()
                     .fill(tint)
-                    .frame(width: 6, height: 6)
+                    .frame(width: 8, height: 8)
             } else {
                 Image(systemName: systemImage)
-                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .imageScale(.small)
             }
             Text(LocalizedStringKey(title))
+                .foregroundStyle(Oases.Color.textPrimary)
                 .lineLimit(1)
         }
-        .font(.caption.weight(.medium))
-        .foregroundStyle(tint)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3)
-        .background(tint.opacity(0.10), in: Capsule())
-        .overlay(Capsule().strokeBorder(tint.opacity(0.28), lineWidth: 1))
+        .font(.callout)
+        .fixedSize()
         .accessibilityElement(children: .combine)
     }
 }
