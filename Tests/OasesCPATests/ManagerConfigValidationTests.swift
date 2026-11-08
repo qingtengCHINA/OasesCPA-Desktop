@@ -14,6 +14,19 @@ final class ManagerConfigValidationTests: XCTestCase {
         XCTAssertNil(ManagerUpstreamValidation.error(for: "http://127.0.0.1:8317", topology: .legacy))
     }
 
+    /// Legacy topology: any http(s) engine address (a Docker stack uses the container name), but
+    /// never CPA Manager Plus's own loopback address 18317.
+    func testLegacyTopologyRefusesCPAMPsOwnAddress() throws {
+        for address in ["http://127.0.0.1:18317", "http://localhost:18317", "http://[::1]:18317", "https://127.0.0.1:18317/"] {
+            let message = try XCTUnwrap(ManagerUpstreamValidation.error(for: address, topology: .legacy), address)
+            XCTAssertTrue(message.contains("18317"), message)
+            XCTAssertTrue(message.contains("http://127.0.0.1:8317"), "names the legacy engine: \(message)")
+        }
+        for address in ["http://127.0.0.1:8317", "http://cli-proxy-api:8317", "https://203.0.113.5:18317"] {
+            XCTAssertNil(ManagerUpstreamValidation.error(for: address, topology: .legacy), address)
+        }
+    }
+
     func testGatewayTopologyIsIPv4LoopbackOnly() {
         for address in [
             "http://localhost:18316",

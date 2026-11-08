@@ -42,7 +42,7 @@ downloads the pinned packages from GitHub and nodejs.org (SHA-256 checked by the
 
 | # | Where | Expected | Result |
 |---|---|---|---|
-| 2.1 | CPA Manager Plus settings (连接与部署 / 配置面板 → CPAMP 设置): save without a change right after the fresh deployment | KNOWN DEFECT from the scripted drill: refused with "at least one inspection target type is required" (HTTP 500). Record what the page shows. | |
+| 2.1 | CPA Manager Plus settings (连接与部署 / 配置面板 → CPAMP 设置): save without a change right after the fresh deployment | Saved without an error (the scripted drill's defect — HTTP 500 "at least one inspection target type is required" — is fixed in batch 9 and the drill step re-run green against the real CPA Manager Plus; confirm it in the GUI). | |
 | 2.2 | Config editor (YAML) | the note under the editor says the engine has no file version and the last save wins | |
 | 2.3 | One-time key sheets (API key, pack key) | shown once; closing the page forgets the key; the hand-off from the editor sheet to the key sheet works | |
 | 2.4 | Model detail drag and drop and the dry-run sheet; a changed plan between dry run and apply is surfaced | as described | |

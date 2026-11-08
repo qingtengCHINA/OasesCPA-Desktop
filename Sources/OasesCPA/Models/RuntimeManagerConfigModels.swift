@@ -83,7 +83,9 @@ struct RuntimeCPAConnectionConfig: Codable, Equatable {
 /// Legacy topology: any http(s) address (a legacy Docker stack uses the container name).
 enum ManagerUpstreamValidation {
     static let invalidAddressSource = "请输入完整的 http 地址，例如 %@。"
-    static let gatewayPortSource = "%1$lld 是网关或 CPAMP 自己的端口，不是引擎；CPAMP 的上游应为 %2$@。"
+    /// The port is passed as text: a number argument would be shown with digit grouping
+    /// ("18,317").
+    static let gatewayPortSource = "%1$@ 是网关或 CPAMP 自己的端口，不是引擎；CPAMP 的上游应为 %2$@。"
     static let loopbackOnlySource = "网关部署中的引擎只监听本机 IPv4 回环地址，CPAMP 的上游应为 %@。"
 
     /// The localization keys of every message (tests check the English translations).
@@ -99,9 +101,16 @@ enum ManagerUpstreamValidation {
         }
         switch topology {
         case .legacy:
-            return scheme == "http" || scheme == "https"
-                ? nil
-                : OasesLocalization.localizedFormat(invalidAddressSource, engineAddress)
+            guard scheme == "http" || scheme == "https" else {
+                return OasesLocalization.localizedFormat(invalidAddressSource, engineAddress)
+            }
+            // CPA Manager Plus listens on 18317 itself: pointing it at its own loopback address
+            // makes it read its own API as the engine's. Other hosts (a Docker container name)
+            // stay allowed.
+            if let port = components.port, port == DeploymentPorts.cpamp, Self.isLoopback(host) {
+                return OasesLocalization.localizedFormat(gatewayPortSource, String(port), engineAddress)
+            }
+            return nil
         case .gateway:
             guard scheme == "http" else {
                 return OasesLocalization.localizedFormat(invalidAddressSource, engineAddress)
@@ -119,10 +128,18 @@ enum ManagerUpstreamValidation {
                 return nil
             }
             if [DeploymentPorts.gatewayAPI, DeploymentPorts.gatewayAdmin, DeploymentPorts.cpamp].contains(port) {
-                return OasesLocalization.localizedFormat(gatewayPortSource, Int64(port), engineAddress)
+                return OasesLocalization.localizedFormat(gatewayPortSource, String(port), engineAddress)
             }
             return OasesLocalization.localizedFormat(invalidAddressSource, engineAddress)
         }
+    }
+
+    /// `127.0.0.0/8`, `localhost` and `::1` (URLComponents gives the IPv6 host without brackets).
+    static func isLoopback(_ host: String) -> Bool {
+        let lowered = host.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+        if lowered == "localhost" || lowered == "::1" || lowered == "0:0:0:0:0:0:0:1" { return true }
+        let octets = lowered.split(separator: ".", omittingEmptySubsequences: false)
+        return octets.count == 4 && octets[0] == "127" && octets.allSatisfy { UInt8($0) != nil }
     }
 }
 
@@ -297,6 +314,47 @@ struct RuntimeCodexInspectionConfig: Codable, Equatable {
         sampleSize = try container.decodeIfPresent(Int.self, forKey: .sampleSize) ?? 0
         autoActionMode = try container.decodeIfPresent(String.self, forKey: .autoActionMode) ?? "none"
         autoRecoverEnabled = try container.decodeIfPresent(Bool.self, forKey: .autoRecoverEnabled) ?? false
+    }
+
+    /// The supported targets as CPA Manager Plus normalises them
+    /// (`NormalizeCodexInspectionTargetTypes`): lower-cased, de-duplicated, in the order
+    /// codex, xai.
+    static func normalizedTargetTypes(_ values: [String]) -> [String] {
+        let selected = Set(values.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() })
+        return ["codex", "xai"].filter(selected.contains)
+    }
+
+    /// The `targetTypes` a save sends. CPA Manager Plus v1.14.10 refuses an explicit empty list
+    /// with HTTP 500 "at least one inspection target type is required", and a fresh deployment's
+    /// configuration has only the legacy `targetType` (no `targetTypes`, decoded here as `[]`).
+    /// An empty list is therefore derived from `targetType`, as the server does for a missing
+    /// list; nil (the key is left out, the server keeps or derives its own value) when that
+    /// gives nothing either. A non-empty list is sent as it is.
+    var targetTypesForSaving: [String]? {
+        if !targetTypes.isEmpty { return targetTypes }
+        let derived = Self.normalizedTargetTypes([targetType])
+        return derived.isEmpty ? nil : derived
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(enabled, forKey: .enabled)
+        try container.encode(schedule, forKey: .schedule)
+        try container.encodeIfPresent(targetTypesForSaving, forKey: .targetTypes)
+        try container.encode(targetType, forKey: .targetType)
+        try container.encode(workers, forKey: .workers)
+        try container.encode(deleteWorkers, forKey: .deleteWorkers)
+        try container.encode(timeout, forKey: .timeout)
+        try container.encode(retries, forKey: .retries)
+        try container.encode(userAgent, forKey: .userAgent)
+        try container.encode(xaiInferenceUserAgent, forKey: .xaiInferenceUserAgent)
+        try container.encode(xaiInferenceEnabled, forKey: .xaiInferenceEnabled)
+        try container.encode(xaiInferenceModel, forKey: .xaiInferenceModel)
+        try container.encode(xaiInferencePrompt, forKey: .xaiInferencePrompt)
+        try container.encode(usedPercentThreshold, forKey: .usedPercentThreshold)
+        try container.encode(sampleSize, forKey: .sampleSize)
+        try container.encode(autoActionMode, forKey: .autoActionMode)
+        try container.encode(autoRecoverEnabled, forKey: .autoRecoverEnabled)
     }
 }
 

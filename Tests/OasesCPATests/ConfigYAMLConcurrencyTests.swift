@@ -135,6 +135,59 @@ final class ConfigYAMLConcurrencyTests: XCTestCase {
         }
     }
 
+    /// The configuration a FRESH CPA Manager Plus v1.14.10 deployment returns (measured in the
+    /// acceptance drill: `source: env`, no `updatedAtMs`, no ETag): `codexInspection` is
+    /// `DefaultCodexInspectionConfig()` with `omitempty` fields, so it has `targetType: "codex"`
+    /// and NO `targetTypes`. The stub refuses an explicit empty list exactly like
+    /// `ValidateCodexInspectionConfig` (HTTP 500 `request_failed`).
+    func testFreshManagerConfigSaveNeverSendsAnEmptyTargetTypesList() async throws {
+        let freshInspection = #"{"enabled":false,"schedule":{"mode":"interval","intervalMinutes":60},"targetType":"codex","workers":4,"deleteWorkers":4,"timeout":15000,"userAgent":"codex_cli_rs/0.76.0 (Debian 13.0.0; x86_64) WindowsTerminal","xaiInferenceUserAgent":"xai-grok-workspace/0.2.101","xaiInferenceModel":"grok-4.5","xaiInferencePrompt":"Reply with exactly OK.","usedPercentThreshold":100,"autoActionMode":"none"}"#
+        @Sendable func freshBody(_ inspection: String) -> String {
+            #"{"config":{"cpaConnection":{"cpaBaseUrl":"http://127.0.0.1:18316"},"collector":{"collectorMode":"auto","queue":"usage","popSide":"right","batchSize":100,"pollIntervalMs":500,"queryLimit":50000},"codexInspection":"# + inspection + #"},"source":"env"}"#
+        }
+        func installCPAMP(_ inspection: String) {
+            URLProtocolStub.install { request, body in
+                if request.httpMethod == "GET" { return .json(200, freshBody(inspection), for: request) }
+                let object = (try? JSONSerialization.jsonObject(with: body ?? Data())) as? [String: Any]
+                let sent = (object?["config"] as? [String: Any])?["codexInspection"] as? [String: Any]
+                if let list = sent?["targetTypes"] as? [Any], list.isEmpty {
+                    return .json(500, #"{"code":"request_failed","error":"at least one inspection target type is required"}"#, for: request)
+                }
+                return .json(200, freshBody(inspection), for: request)
+            }
+        }
+        func sentInspection() throws -> [String: Any] {
+            let put = try XCTUnwrap(URLProtocolStub.recordedRequests.first { $0.0.httpMethod == "PUT" })
+            let object = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(put.1)) as? [String: Any])
+            return try XCTUnwrap((object["config"] as? [String: Any])?["codexInspection"] as? [String: Any])
+        }
+        let client = ManagementAPIClient(session: URLProtocolStub.makeSession())
+
+        // The fresh shape: the list is derived from `targetType`, as the server does.
+        installCPAMP(freshInspection)
+        let fresh = try await client.managerConfig(baseURL: cpampURL, managementKey: key)
+        XCTAssertEqual(fresh.config.codexInspection?.targetTypes, [], "a missing list decodes as empty")
+        _ = try await client.saveManagerConfig(fresh.config, baseURL: cpampURL, managementKey: key)
+        var inspection = try sentInspection()
+        XCTAssertEqual(inspection["targetTypes"] as? [String], ["codex"])
+        XCTAssertEqual(inspection["targetType"] as? String, "codex")
+        XCTAssertEqual((inspection["workers"] as? NSNumber)?.intValue, 4, "the other fields are sent as read")
+        XCTAssertEqual(inspection["autoActionMode"] as? String, "none")
+
+        // Neither a list nor a usable `targetType`: the key is left out, never `[]`.
+        installCPAMP(#"{"enabled":false,"targetType":"","workers":4}"#)
+        let bare = try await client.managerConfig(baseURL: cpampURL, managementKey: key)
+        _ = try await client.saveManagerConfig(bare.config, baseURL: cpampURL, managementKey: key)
+        inspection = try sentInspection()
+        XCTAssertNil(inspection["targetTypes"], "an empty list is never sent")
+
+        // A stored list is sent as it is.
+        installCPAMP(#"{"targetTypes":["codex","xai"],"targetType":"codex"}"#)
+        let stored = try await client.managerConfig(baseURL: cpampURL, managementKey: key)
+        _ = try await client.saveManagerConfig(stored.config, baseURL: cpampURL, managementKey: key)
+        XCTAssertEqual(try sentInspection()["targetTypes"] as? [String], ["codex", "xai"])
+    }
+
     func testManagerConfigPayloadCarriesUpdatedAtMsAndIfMatch() async throws {
         let config = RuntimeManagerConfig(
             cpaConnection: .init(engineBaseURL: "http://127.0.0.1:18316", managementKey: key),

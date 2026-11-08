@@ -219,6 +219,8 @@ final class AcceptanceDrillTests: XCTestCase {
                     drill.note("- \(label): read `updatedAtMs` \(current.config.updatedAtMs.map(String.init) ?? "none"), sends `codexInspection.targetTypes` \(targets): accepted, `updatedAtMs` now \(saved.config.updatedAtMs.map(String.init) ?? "none")")
                 } catch {
                     drill.note("- \(label): read `updatedAtMs` \(current.config.updatedAtMs.map(String.init) ?? "none"), sends `codexInspection.targetTypes` \(targets): REFUSED: \(error.localizedDescription.replacingOccurrences(of: "\n", with: " "))")
+                    // The fresh-deployment defect of batch 8: the app's save must be accepted.
+                    XCTFail("\(label): the app's save was refused: \(error.localizedDescription)")
                 }
             } catch {
                 drill.note("- \(label): read failed: \(error.localizedDescription)")
