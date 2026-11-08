@@ -39,12 +39,13 @@ struct DeploymentStoreServices: Sendable {
             trash: InstallAttemptTrash.liveTrash
         )
     }
-    /// The first fixed loopback port a fresh install on this Mac needs that is already taken,
-    /// and the program holding it when `lsof` names it.
-    var busyLocalPort: @Sendable () async -> (port: Int, process: String?)? = {
-        let ports = [DeploymentPorts.gatewayAPI, DeploymentPorts.cpamp, DeploymentPorts.engine, DeploymentPorts.gatewayAdmin]
-        guard let port = LocalPortCheck.firstBusyPort(ports) else { return nil }
-        return (port, await LocalPortCheck.processName(listeningOn: port))
+    /// The fixed loopback ports a fresh install on this Mac needs that are already taken, in
+    /// order, each with the program holding it and the command lines of its listeners
+    /// (`InstallAttemptPortOwnership` decides which of them stop the install).
+    var busyLocalPorts: @Sendable () async -> [LocalPortListener] = {
+        await LocalPortCheck.busyListeners([
+            DeploymentPorts.gatewayAPI, DeploymentPorts.cpamp, DeploymentPorts.engine, DeploymentPorts.gatewayAdmin,
+        ])
     }
 
     static let live = DeploymentStoreServices(

@@ -481,6 +481,47 @@ final class NativeInstallScriptTests: XCTestCase {
         XCTAssertNotEqual(try run.text("gateway-data/permissions.json"), "stale\n")
     }
 
+    /// I1, the script/app interplay of a retry: a process the failed attempt left running (pid
+    /// file, binary under the root) is what the app's port check accepts as the attempt's own
+    /// (`InstallAttemptPortOwnership`), and the retried script stops it before it moves the
+    /// attempt to backups — so letting that port through never leaves it busy.
+    func testRetryStopsWhatTheFailedAttemptLeftRunning() throws {
+        let fake = try FakeArtifacts.make(caseName: "retry-leftover")
+        var leftover: Process?
+        defer { if leftover?.isRunning == true { leftover?.terminate() } }
+        let run = try install(fake) { root in
+            let directory = root.appendingPathComponent("cli-proxy-api", isDirectory: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let binary = directory.appendingPathComponent("leftover-sleep")
+            try FileManager.default.copyItem(atPath: "/bin/sleep", toPath: binary.path)
+            let process = Process()
+            process.executableURL = binary
+            process.arguments = ["300"]
+            try process.run()
+            leftover = process
+            try Data("\(process.processIdentifier)\n".utf8).write(to: root.appendingPathComponent("cli-proxy-api.pid"))
+            try Data("stage=wait-gateway\nexit_status=26\n".utf8).write(to: root.appendingPathComponent(".oases-cpa-failed"))
+
+            let ps = Process()
+            let pipe = Pipe()
+            ps.executableURL = URL(fileURLWithPath: "/bin/ps")
+            ps.arguments = ["-ww", "-p", String(process.processIdentifier), "-o", "command="]
+            ps.standardOutput = pipe
+            try ps.run()
+            ps.waitUntilExit()
+            let command = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            XCTAssertTrue(InstallAttemptPortOwnership.hasUnfinishedAttempt(root: root))
+            XCTAssertTrue(InstallAttemptPortOwnership.isOwned(command: command, root: root.path), command)
+        }
+        XCTAssertEqual(run.result.status, 0, run.result.stderr)
+        let process = try XCTUnwrap(leftover)
+        for _ in 0..<50 where process.isRunning { Thread.sleep(forTimeInterval: 0.1) }
+        XCTAssertFalse(process.isRunning, "the retried script stops what the failed attempt left running")
+        let backups = try FileManager.default.contentsOfDirectory(atPath: run.root.appendingPathComponent("backups").path)
+        XCTAssertTrue(backups.contains { $0.hasPrefix("auto-recovery-") })
+    }
+
     // MARK: - Models
 
     func testProfileKeepsTheEngineKeyFingerprint() throws {

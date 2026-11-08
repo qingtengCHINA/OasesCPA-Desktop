@@ -272,7 +272,9 @@ final class DeploymentStore: ObservableObject {
 
     /// "安装并启动": a native install on the selected target in one action. The click is the
     /// consent (the screen states what is downloaded and where), so the plan is acknowledged as
-    /// soon as the probe has prepared it. On this Mac the fixed ports are checked first.
+    /// soon as the probe has prepared it. On this Mac the fixed ports are checked first; a port
+    /// held by what an unfinished earlier attempt in the same root left running does not count
+    /// (the script stops those processes before it retries, `InstallAttemptPortOwnership`).
     func startOneClickInstall() {
         guard !isDeploying, !isMaintaining, !isRemovingDeployment, !isProbing, !profileIsInstalled,
               !isPreparingOneClickInstall else { return }
@@ -286,9 +288,17 @@ final class DeploymentStore: ObservableObject {
         stage = .connecting
         statusMessage = OasesLocalization.localized("正在检查这台 Mac…")
         let checksPorts = targetKind == .local
-        let busyLocalPort = services.busyLocalPort
+        let busyLocalPorts = services.busyLocalPorts
+        let root = InstallProgressReader.expandedRoot(installDirectory)
         Task { [weak self] in
-            let busy = checksPorts ? await busyLocalPort() : nil
+            var busy: LocalPortListener?
+            if checksPorts {
+                let listeners = await busyLocalPorts()
+                let attemptRoot = listeners.isEmpty || !InstallAttemptPortOwnership.hasUnfinishedAttempt(root: root)
+                    ? nil
+                    : root.path
+                busy = InstallAttemptPortOwnership.blockingListener(listeners, attemptRoot: attemptRoot)
+            }
             guard let self else { return }
             if let busy {
                 self.isPreparingOneClickInstall = false

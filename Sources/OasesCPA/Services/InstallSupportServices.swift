@@ -154,4 +154,97 @@ enum LocalPortCheck {
         ) else { return nil }
         return processName(fromLsofOutput: result.standardOutput)
     }
+
+    /// The process ids `lsof -Fp` reports (`p<pid>` lines), in order, without duplicates.
+    static func processIDs(fromLsofOutput output: String) -> [Int32] {
+        var seen = Set<Int32>()
+        return output.split(separator: "\n").compactMap { line -> Int32? in
+            guard line.hasPrefix("p"), let pid = Int32(line.dropFirst()), pid > 1, seen.insert(pid).inserted else { return nil }
+            return pid
+        }
+    }
+
+    /// Every busy port of `ports`, in order, with the command name of its listener and the
+    /// command lines of the listening processes. When `lsof` or `ps` do not answer, the command
+    /// lines stay empty, which no ownership rule accepts (fails closed).
+    static func busyListeners(_ ports: [Int]) async -> [LocalPortListener] {
+        var listeners: [LocalPortListener] = []
+        for port in ports where isListening(port: port) {
+            let lsof = try? await BoundedProcessRunner.run(
+                executable: "/usr/sbin/lsof",
+                arguments: ["-nP", "-iTCP:\(port)", "-sTCP:LISTEN", "-Fpc"],
+                timeout: 2,
+                maximumOutputBytes: 16_384
+            )
+            let output = lsof?.standardOutput ?? ""
+            var commands: [String] = []
+            for pid in processIDs(fromLsofOutput: output) {
+                guard let ps = try? await BoundedProcessRunner.run(
+                    executable: "/bin/ps",
+                    arguments: ["-ww", "-p", String(pid), "-o", "command="],
+                    timeout: 2,
+                    maximumOutputBytes: 65_536
+                ) else {
+                    commands = []
+                    break
+                }
+                let command = ps.standardOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !command.isEmpty else {
+                    commands = []
+                    break
+                }
+                commands.append(command)
+            }
+            listeners.append(LocalPortListener(port: port, process: processName(fromLsofOutput: output), commands: commands))
+        }
+        return listeners
+    }
+}
+
+/// A fixed loopback port that is already taken: the port, the command name `lsof` reports and
+/// the full command lines of the processes listening on it (empty when they could not be read).
+struct LocalPortListener: Equatable, Sendable {
+    let port: Int
+    let process: String?
+    var commands: [String] = []
+}
+
+/// Which busy ports may stop a retry of a fresh install. A port counts as ours only when an
+/// earlier attempt in the same install root did not finish (`.oases-cpa-failed` or
+/// `.oases-cpa-installing` is there) and every process listening on it runs from a managed
+/// directory of that root — the rule the install script uses for its managed processes
+/// (`oases_managed_process_alive_under`: the `ps` command line contains `<root>/<dir>/`). The
+/// script stops those processes itself before it moves the attempt to `backups`. Anything else
+/// (another program, an unreadable owner, no unfinished attempt) still stops the retry.
+enum InstallAttemptPortOwnership {
+    static let attemptMarkers = [".oases-cpa-failed", ".oases-cpa-installing"]
+
+    /// Whether `root` holds the marker of an attempt that did not finish. Read only.
+    static func hasUnfinishedAttempt(root: URL) -> Bool {
+        attemptMarkers.contains { marker in
+            let path = root.appendingPathComponent(marker).path
+            var isDirectory: ObjCBool = false
+            return FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) && !isDirectory.boolValue
+        }
+    }
+
+    /// Whether a `ps` command line runs from one of the managed directories of `root`. The
+    /// trailing slash keeps `<root>/gateway/` from matching `<root>/gateway-data/…`.
+    static func isOwned(command: String, root: String) -> Bool {
+        let base = root == "/" ? "" : (root.hasSuffix("/") ? String(root.dropLast()) : root)
+        guard !base.isEmpty else { return false }
+        return DeploymentScriptFragments.managedProcesses(topology: .gateway).contains { process in
+            command.contains("\(base)/\(process.ownedPath)/")
+        }
+    }
+
+    /// The first listener that stops the retry; nil when every busy port belongs to the
+    /// unfinished attempt under `attemptRoot`. Without an unfinished attempt every busy port
+    /// stops it.
+    static func blockingListener(_ listeners: [LocalPortListener], attemptRoot: String?) -> LocalPortListener? {
+        guard let attemptRoot else { return listeners.first }
+        return listeners.first { listener in
+            listener.commands.isEmpty || !listener.commands.allSatisfy { isOwned(command: $0, root: attemptRoot) }
+        }
+    }
 }

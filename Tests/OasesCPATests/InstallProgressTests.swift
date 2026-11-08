@@ -115,6 +115,43 @@ final class InstallProgressTests: XCTestCase {
         XCTAssertNil(LocalPortCheck.firstBusyPort([8317], isListening: { _ in false }))
         XCTAssertEqual(LocalPortCheck.processName(fromLsofOutput: "p4242\ncnode\nf23\n"), "node")
         XCTAssertNil(LocalPortCheck.processName(fromLsofOutput: ""))
+        XCTAssertEqual(LocalPortCheck.processIDs(fromLsofOutput: "p4242\ncnode\nf23\np77\ncnode\np4242\n"), [4242, 77])
+        XCTAssertEqual(LocalPortCheck.processIDs(fromLsofOutput: "p1\npabc\n"), [])
+    }
+
+    /// The ownership rule of a retry: only listeners that run from a managed directory of the
+    /// unfinished attempt's root are ours (the script's `oases_managed_process_alive_under`).
+    func testRetryPortOwnershipFollowsTheScriptsManagedDirectories() {
+        let root = "/var/empty/oases-root/.oases-cpa"
+        XCTAssertTrue(InstallAttemptPortOwnership.isOwned(command: "\(root)/cli-proxy-api/cli-proxy-api -config \(root)/cli-proxy-api/config.yaml", root: root))
+        XCTAssertTrue(InstallAttemptPortOwnership.isOwned(command: "\(root)/node/bin/node \(root)/cpamp/server.js", root: root))
+        XCTAssertTrue(InstallAttemptPortOwnership.isOwned(command: "\(root)/node/bin/node \(root)/gateway/dist/index.js", root: root + "/"))
+        XCTAssertFalse(InstallAttemptPortOwnership.isOwned(command: "\(root)/node/bin/node \(root)/gateway-data/x.js", root: root), "gateway-data is not gateway/")
+        XCTAssertFalse(InstallAttemptPortOwnership.isOwned(command: "/usr/local/bin/node server.js", root: root))
+        XCTAssertFalse(InstallAttemptPortOwnership.isOwned(command: "/var/empty/oases-root/.oases-cpa-other/cli-proxy-api/cli-proxy-api", root: root))
+        XCTAssertFalse(InstallAttemptPortOwnership.isOwned(command: "/cli-proxy-api/cli-proxy-api", root: "/"))
+
+        let ours = LocalPortListener(port: 8317, process: "node", commands: ["\(root)/node/bin/node \(root)/gateway/dist/index.js"])
+        let foreign = LocalPortListener(port: 18317, process: "python3", commands: ["/usr/bin/python3 -m http.server 18317"])
+        let unknown = LocalPortListener(port: 18316, process: nil, commands: [])
+        let mixed = LocalPortListener(port: 8317, process: "node", commands: ours.commands + foreign.commands)
+        XCTAssertNil(InstallAttemptPortOwnership.blockingListener([ours], attemptRoot: root))
+        XCTAssertEqual(InstallAttemptPortOwnership.blockingListener([ours], attemptRoot: nil), ours, "without an unfinished attempt every busy port stops the install")
+        XCTAssertEqual(InstallAttemptPortOwnership.blockingListener([ours, foreign], attemptRoot: root), foreign)
+        XCTAssertEqual(InstallAttemptPortOwnership.blockingListener([unknown], attemptRoot: root), unknown, "an unreadable owner fails closed")
+        XCTAssertEqual(InstallAttemptPortOwnership.blockingListener([mixed], attemptRoot: root), mixed)
+        XCTAssertNil(InstallAttemptPortOwnership.blockingListener([], attemptRoot: nil))
+    }
+
+    func testUnfinishedAttemptMarkers() throws {
+        let root = FakeArtifacts.scratchRoot.appendingPathComponent("attempt-\(UUID().uuidString.prefix(8))", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        XCTAssertFalse(InstallAttemptPortOwnership.hasUnfinishedAttempt(root: root))
+        try Data("stage=wait-gateway\n".utf8).write(to: root.appendingPathComponent(".oases-cpa-failed"))
+        XCTAssertTrue(InstallAttemptPortOwnership.hasUnfinishedAttempt(root: root))
+        try FileManager.default.removeItem(at: root.appendingPathComponent(".oases-cpa-failed"))
+        try Data().write(to: root.appendingPathComponent(".oases-cpa-installing"))
+        XCTAssertTrue(InstallAttemptPortOwnership.hasUnfinishedAttempt(root: root))
     }
 }
 
@@ -156,6 +193,7 @@ final class OneClickInstallStoreTests: XCTestCase {
     private func services(
         directory: String,
         busyPort: (Int, String?)? = nil,
+        busyCommands: [String] = [],
         execute: @escaping @Sendable (DeploymentExecutionRequest, String) async throws -> DeploymentExecutionResult,
         trash: @escaping @Sendable (DeploymentExecutionRequest) async throws -> Void = { _ in }
     ) -> DeploymentStoreServices {
@@ -173,7 +211,9 @@ final class OneClickInstallStoreTests: XCTestCase {
             rollback: { _ in throw DeploymentExecutionError.missingResult },
             healthSession: URLProtocolStub.makeSession()
         )
-        services.busyLocalPort = { busyPort.map { (port: $0.0, process: $0.1) } }
+        services.busyLocalPorts = {
+            busyPort.map { [LocalPortListener(port: $0.0, process: $0.1, commands: busyCommands)] } ?? []
+        }
         services.readInstallProgress = { _, _ in InstallProgressSnapshot(stage: "install-node", receivedBytes: nil) }
         services.trashInstallAttempt = trash
         return services
@@ -222,4 +262,87 @@ final class OneClickInstallStoreTests: XCTestCase {
             )
         }
     }
+
+    /// I1: after a failed install (health timeout, exit 26) the attempt's processes still listen
+    /// on the fixed ports. Retrying must reach the script (which stops them and moves the attempt
+    /// to backups) instead of stopping at "port in use".
+    func testRetryAfterAFailedAttemptIgnoresPortsHeldByThatAttempt() async throws {
+        try await withIsolation {
+            let directory = scratchDirectory
+            let root = InstallProgressReader.expandedRoot(directory)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            try Data("stage=wait-gateway\nreason=exit-26\n".utf8).write(to: root.appendingPathComponent(".oases-cpa-failed"))
+            let result = DeploymentExecutionResult(cpaManagementKey: "cpa_test", cpampAdminKey: "cpamp_test")
+            let ran = LockedFlag()
+            let store = DeploymentStore(autoProbe: false, services: services(
+                directory: directory,
+                busyPort: (8317, "node"),
+                busyCommands: ["\(root.path)/node/bin/node \(root.path)/gateway/dist/index.js"],
+                execute: { _, _ in
+                    ran.set()
+                    return result
+                }
+            ))
+            store.installDirectory = directory
+            store.startOneClickInstall()
+            try await waitUntil({ store.stage == .attached || store.stage == .failed }, "retry")
+            XCTAssertNil(store.oneClickPreflightFailure, "a port held by the failed attempt must not stop the retry")
+            XCTAssertTrue(ran.value, "the install script runs (it stops the attempt's processes itself)")
+            XCTAssertEqual(store.stage, .attached, store.deploymentError ?? "")
+        }
+    }
+
+    /// The port-busy protection still holds for a foreign program, with or without an
+    /// unfinished attempt in the root.
+    func testRetryAfterAFailedAttemptStillStopsForAForeignListener() async throws {
+        try await withIsolation {
+            let directory = scratchDirectory
+            let root = InstallProgressReader.expandedRoot(directory)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            try Data("stage=wait-gateway\n".utf8).write(to: root.appendingPathComponent(".oases-cpa-failed"))
+            let store = DeploymentStore(autoProbe: false, services: services(
+                directory: directory,
+                busyPort: (18317, "python3"),
+                busyCommands: ["/usr/bin/python3 -m http.server 18317"],
+                execute: { _, _ in
+                    XCTFail("nothing may run")
+                    throw DeploymentExecutionError.missingResult
+                }
+            ))
+            store.installDirectory = directory
+            store.startOneClickInstall()
+            try await waitUntil({ store.stage == .failed }, "port check")
+            XCTAssertNil(store.probe)
+            XCTAssertEqual(store.oneClickPreflightFailure?.kind, .portBusy(port: 18317, process: "python3"))
+        }
+    }
+
+    /// A listener that runs from the root but without an unfinished attempt there (for example
+    /// a deployment someone started by hand) still stops the install.
+    func testOwnedLookingListenerWithoutAnUnfinishedAttemptStillStops() async throws {
+        try await withIsolation {
+            let directory = scratchDirectory
+            let root = InstallProgressReader.expandedRoot(directory)
+            let store = DeploymentStore(autoProbe: false, services: services(
+                directory: directory,
+                busyPort: (8317, "node"),
+                busyCommands: ["\(root.path)/node/bin/node \(root.path)/gateway/dist/index.js"],
+                execute: { _, _ in
+                    XCTFail("nothing may run")
+                    throw DeploymentExecutionError.missingResult
+                }
+            ))
+            store.installDirectory = directory
+            store.startOneClickInstall()
+            try await waitUntil({ store.stage == .failed }, "port check")
+            XCTAssertEqual(store.oneClickPreflightFailure?.kind, .portBusy(port: 8317, process: "node"))
+        }
+    }
+}
+
+private final class LockedFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var flag = false
+    func set() { lock.lock(); flag = true; lock.unlock() }
+    var value: Bool { lock.lock(); defer { lock.unlock() }; return flag }
 }
