@@ -48,7 +48,7 @@ struct OasesCPAApp: App {
                     #if !APP_STORE
                     appUpdateService.startMonitoring()
                     #endif
-                    appDelegate.installTerminationHandler { [weak deploymentStore] in
+                    appDelegate.installTerminationHandler { [weak deploymentStore = deploymentStore] in
                         deploymentStore?.prepareForApplicationTermination()
                     }
                 }

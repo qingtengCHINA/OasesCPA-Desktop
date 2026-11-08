@@ -585,7 +585,8 @@ final class UpgradeScriptTests: XCTestCase {
 
     /// The migration only moves an engine bound to loopback: any other host fails closed.
     func testLegacyMigrationRefusesANonLoopbackEngineHost() throws {
-        for (index, host) in ["host: \"0.0.0.0\"", "host: \"\"", "host: 192.168.1.20"].enumerated() {
+        // ::1 is loopback, but the gateway and CPA Manager Plus dial 127.0.0.1 (IPv4 only).
+        for (index, host) in ["host: \"0.0.0.0\"", "host: \"\"", "host: 192.168.1.20", "host: \"::1\"", "host: ::1", "host: \"[::1]\""].enumerated() {
             let fake = try FakeArtifacts.make(caseName: "migrate-host-\(index)")
             let root = try legacyLayout(fake)
             let config = Self.legacyConfig(root: root).replacingOccurrences(of: "host: \"127.0.0.1\"", with: host)
@@ -621,6 +622,119 @@ final class UpgradeScriptTests: XCTestCase {
         XCTAssertEqual(rolledBack.status, 0, rolledBack.stderr)
         XCTAssertNil(data(root, ".oases-cpa-versions"))
         XCTAssertTrue(text(root, "backups/\(backup)/versions-after-upgrade.json").contains(FakeArtifacts.engineTag), "moved, not deleted")
+    }
+
+    // MARK: - Batch-4 review follow-ups (batch 6, step 0)
+
+    /// A bin directory with one executable `name` (bash text), first on PATH before the fakes.
+    private func shadowingTool(_ fake: FakeArtifacts, _ name: String, _ body: String) throws -> [String: String] {
+        let bin = fake.caseDirectory.appendingPathComponent("shadow-\(name)-bin", isDirectory: true)
+        try write("#!/bin/bash\n" + body, bin, name)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bin.appendingPathComponent(name).path)
+        return ["PATH": "\(bin.path):\(fake.binDirectory.path):/usr/bin:/bin:/usr/sbin:/sbin"]
+    }
+
+    /// 28 is also curl's timeout code: once the backup is ready, a failure with status 28 must
+    /// restore the previous version and start it again like any other failure.
+    func testExit28AfterTheBackupIsReadyStillRestoresAndRestarts() throws {
+        let (fake, root) = try installed("exit28-after-backup")
+        let versionsBefore = data(root, ".oases-cpa-versions")
+        let configBefore = data(root, "cli-proxy-api/config.yaml")
+        let environment = try shadowingTool(fake, "tar", """
+        if [ "$1" = "-xzf" ]; then case "$2" in */.oases-cpa-upgrade-*/cli-proxy-api/*) exit 28 ;; esac; fi
+        exec /usr/bin/tar "$@"
+
+        """)
+        let result = try upgrade(try fake.withGateway(version: "0.9.1-test"), root, extraEnvironment: environment)
+        XCTAssertEqual(result.status, 28, result.stderr)
+        XCTAssertTrue(result.stderr.contains("正在恢复升级前的版本"), result.stderr)
+        XCTAssertEqual(data(root, ".oases-cpa-versions"), versionsBefore)
+        XCTAssertEqual(data(root, "cli-proxy-api/config.yaml"), configBefore)
+        XCTAssertEqual(link(root, "gateway/current"), fake.gatewayVersion)
+        let pids = DeploymentScriptFragments.managedProcesses(topology: .gateway).compactMap { pid(root, $0.pidFile) }
+        XCTAssertEqual(pids.count, 3, "the previous version was started again")
+        for pid in pids { XCTAssertEqual(kill(pid, 0), 0, "\(pid) runs") }
+    }
+
+    /// A backup that failed half way is moved to backups/incomplete-* (never deleted), so a
+    /// later rollback cannot take it for the newest backup.
+    func testFailedBackupCopyMovesThePartialBackupAsideAndRollbackFindsNone() throws {
+        let (fake, root) = try installed("partial-backup")
+        let counter = fake.caseDirectory.appendingPathComponent("cp-count")
+        let environment = try shadowingTool(fake, "cp", """
+        for arg in "$@"; do
+          case "$arg" in
+            */backups/upgrade-*)
+              n="$(cat '\(counter.path)' 2>/dev/null || echo 0)"; n=$((n + 1)); printf '%s\\n' "$n" > '\(counter.path)'
+              [ "$n" -ne 3 ] || exit 1
+              break ;;
+          esac
+        done
+        exec /bin/cp "$@"
+
+        """)
+        let versionsBefore = data(root, ".oases-cpa-versions")
+        let failed = try upgrade(try fake.withGateway(version: "0.9.1-test"), root, extraEnvironment: environment)
+        XCTAssertNotEqual(failed.status, 0)
+        XCTAssertTrue(failed.stderr.contains("升级在备份完成前失败"), failed.stderr)
+        XCTAssertEqual(upgradeBackups(root), [], "no upgrade-* directory is left")
+        let incomplete = ((try? FileManager.default.contentsOfDirectory(atPath: root.appendingPathComponent("backups").path)) ?? [])
+            .filter { $0.hasPrefix("incomplete-") }
+        XCTAssertEqual(incomplete.count, 1, "the partial backup is kept: \(incomplete)")
+        let kept = try XCTUnwrap(incomplete.first)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("backups/\(kept)/cli-proxy-api-run.sh").path))
+        XCTAssertEqual(data(root, ".oases-cpa-versions"), versionsBefore)
+        let pids = DeploymentScriptFragments.managedProcesses(topology: .gateway).compactMap { pid(root, $0.pidFile) }
+        for pid in pids { XCTAssertEqual(kill(pid, 0), 0, "\(pid) runs again") }
+
+        let rolledBack = try rollback(fake, root)
+        XCTAssertEqual(rolledBack.status, 19, rolledBack.stderr)
+        XCTAssertEqual(data(root, ".oases-cpa-versions"), versionsBefore, "nothing was moved aside")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("gateway-data").path))
+    }
+
+    /// A backup this app started (marker `backup-started`) without its last marker
+    /// (`backup-complete`, written after the last copy) is refused by the rollback; a backup
+    /// without any marker (app 0.1.4 and earlier builds) is still accepted.
+    func testRollbackRefusesABackupWithoutItsCompletionMarker() throws {
+        let (fake, root) = try installed("backup-marker")
+        XCTAssertEqual(try upgrade(try fake.withGateway(version: "0.9.1-test"), root).status, 0)
+        let backup = try XCTUnwrap(upgradeBackups(root).last)
+        let complete = root.appendingPathComponent("backups/\(backup)/backup-complete")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("backups/\(backup)/backup-started").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: complete.path))
+        try FileManager.default.removeItem(at: complete)
+        let versions = data(root, ".oases-cpa-versions")
+
+        let refused = try rollback(fake, root)
+        XCTAssertEqual(refused.status, 19, refused.stderr)
+        XCTAssertTrue(refused.stderr.contains("不完整"), refused.stderr)
+        XCTAssertEqual(data(root, ".oases-cpa-versions"), versions)
+        XCTAssertFalse(try fake.run(maintenance.latestBackupScriptForVerification(installDirectory: root.path)).stdout.contains("OASES_CPA_BACKUP="),
+                       "an incomplete backup is not offered")
+    }
+
+    /// The Docker rollback keeps the current compose.yaml and .env inside the backup before it
+    /// puts the backup's copies back.
+    func testDockerRollbackKeepsTheCurrentComposeAndEnvAside() throws {
+        let fake = try FakeArtifacts.make(caseName: "docker-rollback-keeps")
+        let root = fake.caseDirectory.appendingPathComponent("root", isDirectory: true)
+        try write("", root, ".oases-cpa-installed")
+        try write("services:\n  cpa:\n    image: before\n", root, "compose.yaml")
+        try write("CPA_PORT=8317\n", root, ".env")
+        let environment = try shadowingTool(fake, "docker", "exit 0\n")
+        XCTAssertEqual(try fake.run(maintenance.upgradeScriptForVerification(method: .docker, installDirectory: root.path, pins: fake.pins),
+                                    extraEnvironment: environment).status, 0)
+        try write("services:\n  cpa:\n    image: edited-after\n", root, "compose.yaml")
+        try write("CPA_PORT=9999\n", root, ".env")
+
+        let rolledBack = try fake.run(maintenance.rollbackScriptForVerification(method: .docker, installDirectory: root.path), extraEnvironment: environment)
+        XCTAssertEqual(rolledBack.status, 0, rolledBack.stderr)
+        XCTAssertEqual(text(root, "compose.yaml"), "services:\n  cpa:\n    image: before\n")
+        XCTAssertEqual(text(root, ".env"), "CPA_PORT=8317\n")
+        let backup = try XCTUnwrap(upgradeBackups(root).last)
+        XCTAssertEqual(text(root, "backups/\(backup)/compose.yaml.after-upgrade"), "services:\n  cpa:\n    image: edited-after\n")
+        XCTAssertEqual(text(root, "backups/\(backup)/.env.after-upgrade"), "CPA_PORT=9999\n")
     }
 
     // MARK: - Docker (10a)

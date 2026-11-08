@@ -193,6 +193,29 @@ final class GatewayKeyPolicyContractTests: XCTestCase {
         XCTAssertEqual(encoded["allowed_models"] as? [String], [])
     }
 
+    /// An allowlist with an explicit `legacy_default_allow: true` (written by an older client):
+    /// unticking its last model through the picker must not widen it to every model (the
+    /// panel's `withScopedModels` sets the marker to false on every list edit).
+    func testUntickingTheLastModelOfAMarkedAllowlistNeverAllowsAll() throws {
+        var draft = GatewayKeyPolicyDraft(baseline: GatewayKeyPolicy(allowedModels: ["glm-5"], legacyDefaultAllow: true))
+        XCTAssertFalse(draft.allowsAllModels)
+        draft.scopedAllowedModels = []
+        XCTAssertFalse(draft.allowsAllModels)
+        let encoded = try json(draft.policy)
+        XCTAssertEqual(encoded["legacy_default_allow"] as? Bool, false)
+        XCTAssertEqual(encoded["allowed_models"] as? [String], [])
+
+        // Switching the rule (panel `withModelScope`) also clears the marker.
+        var switched = GatewayKeyPolicyDraft(baseline: GatewayKeyPolicy(mode: .denylist, legacyDefaultAllow: true))
+        switched.policyMode = .allowlist
+        XCTAssertFalse(switched.allowsAllModels, "an empty allowlist chosen by the user allows nothing")
+        XCTAssertEqual(try json(switched.policy)["legacy_default_allow"] as? Bool, false)
+        var denied = GatewayKeyPolicyDraft(baseline: GatewayKeyPolicy(legacyDefaultAllow: true))
+        denied.scopedDeniedModels = ["glm-5"]
+        XCTAssertEqual(denied.policy.deniedModels, ["glm-5"])
+        XCTAssertEqual(try json(denied.policy)["legacy_default_allow"] as? Bool, false)
+    }
+
     func testAllModelsToggleEncodesTrueWithEmptyList() throws {
         var draft = GatewayKeyPolicyDraft(baseline: GatewayKeyPolicy(allowedModels: ["glm-5"], legacyDefaultAllow: false))
         XCTAssertFalse(draft.allowsAllModels)

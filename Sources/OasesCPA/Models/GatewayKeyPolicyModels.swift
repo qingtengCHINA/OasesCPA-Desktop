@@ -452,6 +452,37 @@ struct GatewayKeyPolicyDraft: Equatable, Sendable {
         }
     }
 
+    /// The rule picker (panel `withModelScope`): choosing allow- or denylist explicitly makes an
+    /// empty list mean "no model", never "every model" (`legacy_default_allow` false).
+    var policyMode: GatewayPolicyMode {
+        get { policy.mode }
+        set {
+            policy.mode = newValue
+            policy.legacyDefaultAllow = false
+        }
+    }
+
+    /// The allowlist as the model picker edits it (panel `withScopedModels`): every edit sets
+    /// `legacy_default_allow` false, so unticking the last model of a list that still carries an
+    /// explicit `true` (an older client's marker) can never widen the key to every model. Pins of
+    /// models taken out stay until the save, where the editor asks before dropping them.
+    var scopedAllowedModels: [String] {
+        get { policy.allowedModels }
+        set {
+            policy.allowedModels = newValue
+            policy.legacyDefaultAllow = false
+        }
+    }
+
+    /// The denylist as the model picker edits it (panel `withScopedModels`, denylist branch).
+    var scopedDeniedModels: [String] {
+        get { policy.deniedModels }
+        set {
+            policy.deniedModels = newValue
+            policy.legacyDefaultAllow = false
+        }
+    }
+
     /// Sets or removes (nil) the pin of `model`, keyed by its canonical id. Only for allowlist keys.
     mutating func setPin(_ pin: GatewayProviderPin?, for model: String) {
         guard policy.mode == .allowlist else { return }

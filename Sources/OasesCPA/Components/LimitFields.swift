@@ -30,7 +30,7 @@ struct LimitFields: View {
     }
 
     /// Empty → nil; a whole number > 0 → that number (spaces, "," and "_" are ignored).
-    static func parse(_ text: String) -> Result<Int?, LimitFieldError> {
+    nonisolated static func parse(_ text: String) -> Result<Int?, LimitFieldError> {
         let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: ",", with: "")
             .replacingOccurrences(of: "_", with: "")
@@ -43,7 +43,7 @@ struct LimitFields: View {
     }
 
     /// Empty → nil; a number > 0 (for example a spending limit) → that number.
-    static func parseDecimal(_ text: String) -> Result<Double?, LimitFieldError> {
+    nonisolated static func parseDecimal(_ text: String) -> Result<Double?, LimitFieldError> {
         let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ",", with: "")
         guard !cleaned.isEmpty else { return .success(nil) }
         guard cleaned.allSatisfy(\.isASCII), let value = Double(cleaned), value.isFinite, value > 0 else {

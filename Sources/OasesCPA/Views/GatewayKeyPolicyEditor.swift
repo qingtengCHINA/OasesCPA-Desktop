@@ -83,7 +83,7 @@ struct GatewayKeyPolicyEditor: View {
 
     private var modelsSection: some View {
         Section("模型") {
-            Picker("规则", selection: $draft.policy.mode) {
+            Picker("规则", selection: $draft.policyMode) {
                 Text("只允许选中的模型").tag(GatewayPolicyMode.allowlist)
                 Text("禁止选中的模型").tag(GatewayPolicyMode.denylist)
             }
@@ -92,7 +92,7 @@ struct GatewayKeyPolicyEditor: View {
                 if !draft.allowsAllModels {
                     ModelMultiPicker(
                         groupedModels: store.groupedModels,
-                        selection: $draft.policy.allowedModels,
+                        selection: $draft.scopedAllowedModels,
                         disabledGroups: store.disabledProviders
                     )
                     if draft.policy.allowedModels.isEmpty {
@@ -104,7 +104,7 @@ struct GatewayKeyPolicyEditor: View {
             } else {
                 ModelMultiPicker(
                     groupedModels: store.groupedModels,
-                    selection: $draft.policy.deniedModels,
+                    selection: $draft.scopedDeniedModels,
                     disabledGroups: store.disabledProviders
                 )
                 Text("拒绝列表模式不能指定供应商。")

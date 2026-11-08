@@ -217,11 +217,25 @@ struct DeploymentMaintenanceService {
           "~/"*) ROOT="$HOME/$(printf '%s' "$ROOT" | cut -c 3-)" ;;
         esac
         ROOT="$(printf '%s' "$ROOT" | sed 's#/$##')"
+        \(Self.latestBackupSelection())
+        if [ -n "$BACKUP_ROOT" ] && [ "$BACKUP_INCOMPLETE" -eq 0 ]; then printf 'OASES_CPA_BACKUP=%s\\n' "$BACKUP_ROOT"; fi
+        """
+    }
+
+    /// Sets `BACKUP_ROOT` to the newest `backups/upgrade-*` directory (empty when there is
+    /// none) and `BACKUP_INCOMPLETE` to 1 when this app started that backup (`backup-started`)
+    /// but never finished it (no `backup-complete`, written after the last copy). Backups of
+    /// older builds carry neither marker and stay usable.
+    static func latestBackupSelection() -> String {
+        """
         BACKUP_ROOT=""
+        BACKUP_INCOMPLETE=0
         if [ -d "$ROOT/backups" ]; then
           BACKUP_ROOT="$(find "$ROOT/backups" -mindepth 1 -maxdepth 1 -type d -name 'upgrade-*' -print 2>/dev/null | sort | tail -n 1 || true)"
         fi
-        if [ -n "$BACKUP_ROOT" ]; then printf 'OASES_CPA_BACKUP=%s\\n' "$BACKUP_ROOT"; fi
+        if [ -n "$BACKUP_ROOT" ] && [ -f "$BACKUP_ROOT/backup-started" ] && [ ! -f "$BACKUP_ROOT/backup-complete" ]; then
+          BACKUP_INCOMPLETE=1
+        fi
         """
     }
 
@@ -501,13 +515,29 @@ struct DeploymentMaintenanceService {
         TEMP_ROOT="$ROOT/.oases-cpa-upgrade-$BACKUP_NAME"
         BACKUP_READY=0
 
+        # A backup that did not finish is moved to backups/incomplete-* (never deleted), so a
+        # later rollback cannot take it for the newest backup.
+        oases_set_aside_partial_backup() {
+          local target
+          [ -d "$BACKUP_ROOT" ] || return 0
+          target="$(oases_after_path "$ROOT/backups/incomplete-${BACKUP_NAME#upgrade-}")"
+          if mv "$BACKUP_ROOT" "$target"; then
+            printf '未完成的备份已移到 backups/%s。\\n' "$(basename "$target")" >&2
+          else
+            printf '%s\\n' '未完成的备份未能移走；它缺少完成标记，回滚不会使用它。' >&2
+          fi
+        }
+
         upgrade_exit() {
           local status="$?"
           trap - EXIT
           set +e
-          if [ "$status" -eq 28 ]; then
-            # Nothing was changed or backed up; a process without a pid file still runs, so
-            # nothing is started next to it either.
+          if [ "$status" -eq 28 ] && [ "$BACKUP_READY" -eq 0 ]; then
+            # Refused after the stop (oases_refuse_if_still_running): nothing was changed or
+            # backed up; a process without a pid file still runs, so nothing is started next to
+            # it either. (28 is also curl's timeout code: once the backup is ready it is handled
+            # like every other failure below.)
+            oases_set_aside_partial_backup
             exit "$status"
           fi
           if [ "$status" -ne 0 ]; then
@@ -517,6 +547,7 @@ struct DeploymentMaintenanceService {
               oases_restore_backup "$BACKUP_ROOT" || printf '%s\\n' '自动恢复不完整，请使用回滚并查看 backups 目录。' >&2
             else
               printf '升级在备份完成前失败（退出码 %s），没有做任何改动，正在重新启动服务。\\n' "$status" >&2
+              oases_set_aside_partial_backup
             fi
             oases_start_all >/dev/null 2>&1
           fi
@@ -533,6 +564,7 @@ struct DeploymentMaintenanceService {
         # --- Backup (before anything changes; gateway-data while the gateway is stopped). ---
         mkdir -p "$ROOT/backups"
         mkdir -m 700 "$BACKUP_ROOT"
+        : > "$BACKUP_ROOT/backup-started"
         mkdir -p "$BACKUP_ROOT/cli-proxy-api-runtime" "$BACKUP_ROOT/cpamp-runtime" "$TEMP_ROOT"
         if [ -f "$ROOT/cli-proxy-api/run.sh" ]; then cp -p "$ROOT/cli-proxy-api/run.sh" "$BACKUP_ROOT/cli-proxy-api-run.sh"; fi
         if [ -f "$ROOT/cpamp/run.sh" ]; then cp -p "$ROOT/cpamp/run.sh" "$BACKUP_ROOT/cpamp-run.sh"; fi
@@ -547,6 +579,8 @@ struct DeploymentMaintenanceService {
           cp -Rp "$ROOT/gateway-data" "$BACKUP_ROOT/gateway-data"
           : > "$BACKUP_ROOT/gateway-data.saved"
         fi
+        # Written last: a rollback only uses a backup this app started when this marker exists.
+        : > "$BACKUP_ROOT/backup-complete"
         BACKUP_READY=1
 
         # --- Engine (CLIProxyAPI). ---
@@ -697,8 +731,9 @@ struct DeploymentMaintenanceService {
           # the network otherwise): only a loopback host is migrated.
           ENGINE_HOST="$(sed -n 's/^host:[[:space:]]*//p' "$ENGINE_CONFIG" | head -n 1 | sed -e 's/[[:space:]]*$//' -e 's/^"\\(.*\\)"$/\\1/' -e "s/^'\\(.*\\)'$/\\1/")"
           case "$ENGINE_HOST" in
-            127.0.0.1|localhost|::1) ;;
-            *) printf '%s\\n' '引擎配置的 host 不是本机回环地址（127.0.0.1）；为避免把引擎端口暴露到网络，已停止迁移并恢复原版本。' >&2; exit 27 ;;
+            127.0.0.1|localhost) ;;
+            # ::1 is loopback too, but the gateway and CPA Manager Plus dial 127.0.0.1 only.
+            *) printf '%s\\n' '引擎配置的 host 不是本机回环地址（127.0.0.1，网关只经 IPv4 回环访问引擎）；为避免把引擎端口暴露到网络或迁移后无法连接，已停止迁移并恢复原版本。' >&2; exit 27 ;;
           esac
           sed "s/^port: 8317$/port: $ENGINE_PORT/" "$ENGINE_CONFIG" > "$ENGINE_CONFIG.migrate.$$"
           if cmp -s "$ENGINE_CONFIG" "$ENGINE_CONFIG.migrate.$$"; then
@@ -790,11 +825,9 @@ struct DeploymentMaintenanceService {
         \(rootPrelude(installDirectory: installDirectory))
         \(nativeMaintenanceFunctions(installDirectory: installDirectory, ports: ports, healthAttempts: healthAttempts))
 
-        BACKUP_ROOT=""
-        if [ -d "$ROOT/backups" ]; then
-          BACKUP_ROOT="$(find "$ROOT/backups" -mindepth 1 -maxdepth 1 -type d -name 'upgrade-*' -print 2>/dev/null | sort | tail -n 1 || true)"
-        fi
+        \(Self.latestBackupSelection())
         [ -n "$BACKUP_ROOT" ] || { printf '%s\\n' '目标目录中还没有可回滚的升级备份。' >&2; exit 19; }
+        [ "$BACKUP_INCOMPLETE" -eq 0 ] || { printf '%s\\n' '最新的升级备份不完整（备份过程被中断），已停止回滚，没有改动任何内容；请查看 backups 目录。' >&2; exit 19; }
         [ -f "$BACKUP_ROOT/cli-proxy-api-run.sh" ] || { printf '%s\\n' '升级备份缺少 CLIProxyAPI 启动脚本。' >&2; exit 19; }
         [ -f "$BACKUP_ROOT/cpamp-run.sh" ] || { printf '%s\\n' '升级备份缺少 CPAMP 启动脚本。' >&2; exit 19; }
         ROLLBACK_TOPOLOGY="$(oases_backup_topology "$BACKUP_ROOT")"
@@ -854,9 +887,11 @@ struct DeploymentMaintenanceService {
         if [ -e "$ROOT/backups/$BACKUP_NAME" ]; then BACKUP_NAME="$BACKUP_NAME-$$"; fi
         BACKUP_ROOT="$ROOT/backups/$BACKUP_NAME"
         mkdir -p "$BACKUP_ROOT" "$ROOT/logs"
+        : > "$BACKUP_ROOT/backup-started"
         cp -p "$ROOT/compose.yaml" "$BACKUP_ROOT/compose.yaml"
         [ ! -e "$ROOT/.env" ] || cp -p "$ROOT/.env" "$BACKUP_ROOT/.env"
         if [ -f "$ROOT/.oases-cpa-versions" ]; then cp -p "$ROOT/.oases-cpa-versions" "$BACKUP_ROOT/versions.json"; else : > "$BACKUP_ROOT/versions.absent"; fi
+        : > "$BACKUP_ROOT/backup-complete"
         cd "$ROOT"
         CPAMP_IMAGE="$CPAMP_DOCKER_IMAGE" CPA_IMAGE="$CLI_DOCKER_IMAGE" docker compose pull > "$ROOT/logs/docker-upgrade-pull.log" 2>&1
         CPAMP_IMAGE="$CPAMP_DOCKER_IMAGE" CPA_IMAGE="$CLI_DOCKER_IMAGE" docker compose up -d > "$ROOT/logs/docker-upgrade-up.log" 2>&1
@@ -887,14 +922,25 @@ struct DeploymentMaintenanceService {
         docker compose version >/dev/null 2>&1 || { printf '%s\\n' '目标环境缺少 Docker Compose。' >&2; exit 13; }
         docker info >/dev/null 2>&1 || { printf '%s\\n' 'Docker daemon 不可用，请先启动 Docker。' >&2; exit 13; }
         \(DeploymentPinSet.current.dockerImageEnvironmentScript())
-        BACKUP_ROOT=""
-        if [ -d "$ROOT/backups" ]; then
-          BACKUP_ROOT="$(find "$ROOT/backups" -mindepth 1 -maxdepth 1 -type d -name 'upgrade-*' -print 2>/dev/null | sort | tail -n 1 || true)"
-        fi
+        \(Self.latestBackupSelection())
         [ -n "$BACKUP_ROOT" ] || { printf '%s\\n' '目标目录中还没有可回滚的升级备份。' >&2; exit 19; }
+        [ "$BACKUP_INCOMPLETE" -eq 0 ] || { printf '%s\\n' '最新的升级备份不完整（备份过程被中断），已停止回滚，没有改动任何内容；请查看 backups 目录。' >&2; exit 19; }
         [ -f "$BACKUP_ROOT/compose.yaml" ] || { printf '%s\\n' '升级备份缺少 Compose 文件。' >&2; exit 19; }
+        # The current compose.yaml and .env (edited since the upgrade, perhaps) are moved into
+        # the backup (…after-upgrade) before the backup's copies go back; never overwritten.
+        oases_keep_current() {
+          local saved="$1" current="$2" kept="$3"
+          [ -e "$current" ] || return 0
+          ! cmp -s "$saved" "$current" || return 0
+          if [ -e "$kept" ] || [ -L "$kept" ]; then kept="$kept-$(date -u '+%Y%m%dT%H%M%SZ')-$$"; fi
+          mv "$current" "$kept"
+        }
+        oases_keep_current "$BACKUP_ROOT/compose.yaml" "$ROOT/compose.yaml" "$BACKUP_ROOT/compose.yaml.after-upgrade"
         cp -p "$BACKUP_ROOT/compose.yaml" "$ROOT/compose.yaml"
-        if [ -f "$BACKUP_ROOT/.env" ]; then cp -p "$BACKUP_ROOT/.env" "$ROOT/.env"; fi
+        if [ -f "$BACKUP_ROOT/.env" ]; then
+          oases_keep_current "$BACKUP_ROOT/.env" "$ROOT/.env" "$BACKUP_ROOT/.env.after-upgrade"
+          cp -p "$BACKUP_ROOT/.env" "$ROOT/.env"
+        fi
         if [ -f "$BACKUP_ROOT/versions.json" ]; then
           cp -p "$BACKUP_ROOT/versions.json" "$ROOT/.oases-cpa-versions"
         elif [ -f "$BACKUP_ROOT/versions.absent" ] && [ -f "$ROOT/.oases-cpa-versions" ]; then

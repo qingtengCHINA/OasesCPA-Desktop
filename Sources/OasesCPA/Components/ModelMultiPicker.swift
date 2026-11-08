@@ -11,7 +11,7 @@ struct ModelMultiPicker: View {
     @State private var search = ""
 
     /// Public ids by group, sorted; empty groups dropped.
-    static func options(from groupedModels: [String: [String]]) -> [(group: String, models: [String])] {
+    nonisolated static func options(from groupedModels: [String: [String]]) -> [(group: String, models: [String])] {
         groupedModels
             .map { group, ids in
                 (group, Array(Set(ids.filter { InternalModelID.publicName($0) == $0 && !$0.isEmpty }))

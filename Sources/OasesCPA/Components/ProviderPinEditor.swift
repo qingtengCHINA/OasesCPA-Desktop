@@ -10,7 +10,7 @@ struct ProviderPinEditor: View {
     @Binding var pin: GatewayProviderPin?
 
     /// The provider names a pin may use, in the engine's order.
-    static func options(from providers: [GatewayModelProvider]) -> [String] {
+    nonisolated static func options(from providers: [GatewayModelProvider]) -> [String] {
         var names: [String] = []
         for provider in providers where provider.kind == .compat && !names.contains(provider.name) {
             names.append(provider.name)
