@@ -266,6 +266,42 @@ struct FakeArtifacts {
 
     // MARK: - Helpers
 
+    /// `count` distinct free loopback ports chosen by the kernel, never one of the fixed
+    /// deployment ports (8317, 18316, 18317, 18320). The sockets are closed again: nothing
+    /// listens on them afterwards.
+    static func freeLoopbackPorts(_ count: Int) throws -> [Int] {
+        var ports: [Int] = []
+        var sockets: [Int32] = []
+        defer { sockets.forEach { close($0) } }
+        while ports.count < count {
+            let (fd, port) = try boundLoopbackSocket(port: 0)
+            sockets.append(fd)
+            if !ports.contains(port), ![8317, 18316, 18317, 18320].contains(port) { ports.append(port) }
+        }
+        return ports
+    }
+
+    /// A socket bound to 127.0.0.1:`port` (0 = any free port); with `listen` it accepts
+    /// connections (a "busy" port for the upgrade's port check). The caller closes it.
+    static func boundLoopbackSocket(port: Int, listen shouldListen: Bool = false) throws -> (fd: Int32, port: Int) {
+        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        guard fd >= 0 else { throw NSError(domain: "FakeArtifacts", code: 1) }
+        var address = sockaddr_in()
+        address.sin_family = sa_family_t(AF_INET)
+        address.sin_addr.s_addr = inet_addr("127.0.0.1")
+        address.sin_port = in_port_t(UInt16(port).bigEndian)
+        var length = socklen_t(MemoryLayout<sockaddr_in>.size)
+        let bound = withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.bind(fd, $0, length) }
+        }
+        guard bound == 0 else { close(fd); throw NSError(domain: "FakeArtifacts", code: 2) }
+        if shouldListen, Darwin.listen(fd, 4) != 0 { close(fd); throw NSError(domain: "FakeArtifacts", code: 3) }
+        _ = withUnsafeMutablePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getsockname(fd, $0, &length) }
+        }
+        return (fd, Int(UInt16(bigEndian: address.sin_port)))
+    }
+
     static func sha256(of url: URL) throws -> String {
         sha256(of: try Data(contentsOf: url))
     }

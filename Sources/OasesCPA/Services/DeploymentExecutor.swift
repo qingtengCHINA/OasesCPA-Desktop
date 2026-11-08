@@ -33,6 +33,9 @@ enum DeploymentExecutionError: LocalizedError {
     /// The upgrade found a newer component on the target than this app would install (exit 22
     /// before anything was stopped or changed).
     case downgradeRefused(component: String, installed: String, target: String)
+    /// A native upgrade failed after the guard; the script restored or kept the previous
+    /// version (`UpgradeFailure` says which and whether it runs again).
+    case upgradeFailed(UpgradeFailure)
 
     var errorDescription: String? {
         switch self {
@@ -57,6 +60,8 @@ enum DeploymentExecutionError: LocalizedError {
                 "目标上的 %@ 是 %@，比本应用要安装的 %@ 新；已拒绝降级，没有停止或修改任何内容。请先更新 Oases CPA 应用。",
                 Self.componentName(component), installed, target
             )
+        case .upgradeFailed(let failure):
+            failure.message()
         }
     }
 

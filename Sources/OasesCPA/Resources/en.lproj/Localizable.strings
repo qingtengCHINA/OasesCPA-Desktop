@@ -2551,3 +2551,24 @@
 "网关要求先为相关模型填写输入和输出价格，才能使用花费上限。" = "The gateway needs input and output prices for the models involved before a spending limit can be used.";
 "网关的数据暂时不可用（无法读取或写入），本次操作没有生效；请检查网关数据目录后重试。" = "The gateway's data is unavailable for now (it cannot be read or written), so nothing was changed. Check the gateway data directory and try again.";
 "升级会先备份，可随时回滚；调用 API Key、模型列表、模型包等网关页面在升级后可用。" = "The upgrade backs up first and can be rolled back; the gateway pages (API keys, models, model packs and more) are available afterwards.";
+
+/* Upgrade failure reasons (DeploymentMaintenanceService.UpgradeFailure) */
+"端口 %@ 已被其他程序占用，升级需要这个端口。" = "Port %@ is in use by another program, and the upgrade needs it.";
+"停止后目标目录中仍有 Oases CPA 进程在运行（没有可信的 PID 文件）。" = "An Oases CPA process still runs from the target directory after the stop (without a trusted PID file).";
+"升级前的备份没有完成（磁盘空间或权限不足）。" = "The backup before the upgrade did not finish (not enough disk space or permissions).";
+"下载 %@ 失败（网络不通或发布站点不可用）。" = "Downloading %@ failed (no network, or the release site is unavailable).";
+"%@ 的下载包没有通过固定 SHA-256 校验或包结构检查。" = "The %@ download did not pass the pinned SHA-256 check or the package layout check.";
+"应用内的 Oases 网关包没有通过校验。" = "The Oases gateway package inside the app did not pass its check.";
+"Oases 网关初始化失败（目录权限或密钥文件）。" = "The Oases gateway setup failed (directory permissions or key files).";
+"旧部署的引擎配置无法安全迁移（缺少 config.yaml 或端口行，或 host 不是 127.0.0.1）。" = "The old deployment's engine configuration cannot be migrated safely (config.yaml or its port line is missing, or host is not 127.0.0.1).";
+"新版 CLIProxyAPI 没有在新端口上启动。" = "The new CLIProxyAPI did not start on its new port.";
+"无法把 Oases 网关的内部 Key 加入引擎的 api-keys。" = "The Oases gateway's internal key could not be added to the engine's api-keys.";
+"升级后的服务没有在规定时间内通过健康检查。" = "The upgraded services did not pass their health checks in time.";
+"升级在“%@”阶段失败（退出码 %@）。" = "The upgrade failed in the “%@” phase (exit code %@).";
+"自动恢复不完整；请使用回滚，并查看目标目录中的 backups。" = "The automatic restore is incomplete. Use Roll Back and check backups in the target directory.";
+"没有做任何改动，服务保持停止；请先结束这些进程再重试。" = "Nothing was changed and the services stay stopped. End those processes, then try again.";
+"没有做任何改动，原来的服务已重新启动并通过健康检查。" = "Nothing was changed; the previous services were started again and passed their health checks.";
+"已自动恢复升级前的版本，原来的服务已重新启动并通过健康检查。" = "The previous version was restored automatically; its services were started again and passed their health checks.";
+"没有做任何改动，但原来的服务重新启动后没有通过健康检查；请查看目标日志，或稍后重试。" = "Nothing was changed, but the previous services did not pass their health checks after the restart. Check the target's logs, or try again later.";
+"已恢复升级前的文件，但原来的服务没有通过健康检查；请查看目标日志，或稍后重试。" = "The files from before the upgrade were restored, but the previous services did not pass their health checks. Check the target's logs, or try again later.";
+"升级失败：%@%@" = "Upgrade failed: %@ %@";
