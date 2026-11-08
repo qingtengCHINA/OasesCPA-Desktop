@@ -246,6 +246,15 @@ final class PageSnapshotTests: XCTestCase {
         }
     }
 
+    /// Each Settings pane (the window's toolbar tabs are not part of the capture).
+    func testSettingsPanes() throws {
+        for pane in SettingsPane.allCases {
+            try renderAll("settings-\(pane.rawValue)", size: CGSize(width: SettingsView.paneWidth, height: 440), chrome: true) {
+                SettingsView(initialPane: pane).snapshotEnvironment(SnapshotFixture())
+            }
+        }
+    }
+
     func testKeysPage() throws {
         let fixture = SnapshotFixture(section: .accessKeys)
         try renderAll("keys-loaded", size: CGSize(width: 980, height: 360)) {

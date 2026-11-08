@@ -2650,3 +2650,12 @@
 "模型详情" = "Model Details";
 "提供商详情" = "Provider Details";
 "关闭详情" = "Close Details";
+"通用" = "General";
+"通知" = "Notifications";
+"供应商返回的原始错误信息保留原文。" = "Raw error messages from providers stay in their original language.";
+"启动" = "Startup";
+"登录时打开 Oases CPA" = "Open Oases CPA at Login";
+"关闭窗口后继续在菜单栏运行。" = "Keeps running in the menu bar after you close the window.";
+"目标服务不可用或自动恢复时发送 macOS 通知；首次启用需要在系统设置中允许。" = "Sends a macOS notification when the target service goes down or recovers; allow it in System Settings the first time.";
+"新版本的 DMG 会下载到“下载”文件夹并自动打开。" = "A new version is downloaded as a DMG to the Downloads folder and opened.";
+"Oases CPA 独立开发，不隶属 CLIProxyAPI 或 CPA Manager Plus。" = "Oases CPA is developed independently and is not affiliated with CLIProxyAPI or CPA Manager Plus.";

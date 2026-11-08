@@ -86,12 +86,7 @@ struct OasesCPAApp: App {
                 #endif
                 .environment(\.locale, preferredLocale)
                 .preferredColorScheme(preferredColorScheme)
-                .background(
-                    AdaptiveWindowConfigurator(
-                        minimumContentSize: NSSize(width: 520, height: 520),
-                        title: title("Oases CPA 设置")
-                    )
-                )
+                // SettingsView keeps the window title (the pane's name) and its size itself.
         }
 
         MenuBarExtra {
