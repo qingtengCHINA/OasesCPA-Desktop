@@ -12,7 +12,6 @@ struct OasesCPAApp: App {
     #endif
     @AppStorage(OasesAppearance.defaultsKey) private var appearanceRaw = OasesAppearance.system.rawValue
     @AppStorage(AppLanguage.defaultsKey) private var languageRaw = AppLanguage.system.rawValue
-    @AppStorage(OnboardingState.completionVersionKey) private var completedOnboardingVersion = 0
 
     private var preferredColorScheme: ColorScheme? {
         (OasesAppearance(rawValue: appearanceRaw) ?? .system).colorScheme
@@ -34,16 +33,7 @@ struct OasesCPAApp: App {
 
     var body: some Scene {
         Window("Oases CPA", id: "main") {
-            Group {
-                if completedOnboardingVersion >= OnboardingState.currentVersion {
-                    ContentView()
-                } else {
-                    WelcomeFlowView {
-                        store.selectSection(.dashboard)
-                        completedOnboardingVersion = OnboardingState.currentVersion
-                    }
-                }
-            }
+            MainWindowRootView()
                 .environmentObject(store)
                 .environmentObject(deploymentStore)
                 .environmentObject(runtimeDataStore)
@@ -68,8 +58,7 @@ struct OasesCPAApp: App {
             OasesCommands(
                 store: store,
                 deploymentStore: deploymentStore,
-                runtimeDataStore: runtimeDataStore,
-                completedOnboardingVersion: $completedOnboardingVersion
+                runtimeDataStore: runtimeDataStore
             )
             #if !APP_STORE
             AppUpdateCommands(appUpdateService: appUpdateService)
@@ -164,7 +153,6 @@ struct OasesCommands: Commands {
     @ObservedObject var store: AppStore
     @ObservedObject var deploymentStore: DeploymentStore
     @ObservedObject var runtimeDataStore: RuntimeDataStore
-    @Binding var completedOnboardingVersion: Int
     @Environment(\.openWindow) private var openWindow
     /// Menu titles are built from this (literal titles would follow the macOS language).
     @AppStorage(AppLanguage.defaultsKey) private var languageRaw = AppLanguage.system.rawValue
@@ -178,10 +166,12 @@ struct OasesCommands: Commands {
             Button(title("开源许可与致谢…")) {
                 openWindow(id: OpenSourceNoticesWindow.id)
             }
+        }
 
-            Button(title("重新查看欢迎引导…")) {
-                store.selectSection(.dashboard)
-                completedOnboardingVersion = 0
+        // Help → 欢迎指南: the welcome gate again (its step follows the deployment state).
+        CommandGroup(after: .help) {
+            Button(title("欢迎指南")) {
+                store.isWelcomeReopened = true
                 openWindow(id: "main")
                 NSApp.activate(ignoringOtherApps: true)
             }

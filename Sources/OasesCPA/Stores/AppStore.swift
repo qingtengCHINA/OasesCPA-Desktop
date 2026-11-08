@@ -13,6 +13,8 @@ final class AppStore: ObservableObject {
     @Published var lastRefreshed = Date()
     @Published private(set) var refreshCount = 0
     @Published var providerEditorRoute: ProviderEditorRoute?
+    /// Help → 欢迎指南 asked for the welcome gate again (it keeps the onboarding completed).
+    @Published var isWelcomeReopened = false
 
     /// DEBUG QA: `-OasesQASection monitoring` opens a section directly (screenshots, review).
     private static var initialSection: AppSection {

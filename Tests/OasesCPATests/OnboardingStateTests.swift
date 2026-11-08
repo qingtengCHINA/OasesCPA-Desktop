@@ -32,6 +32,15 @@ final class OnboardingStateTests: XCTestCase {
         XCTAssertTrue(state.shouldPresentWelcome)
     }
 
+    func testCompletedVersionTwoPassesTheNewGateOnce() {
+        let suiteName = "OnboardingStateTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(2, forKey: OnboardingState.completionVersionKey)
+        XCTAssertTrue(OnboardingState(defaults: defaults).shouldPresentWelcome)
+    }
+
     func testCompletedVersionOneIsShownAgainAfterHeroRefresh() {
         let suiteName = "OnboardingStateTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -42,6 +51,6 @@ final class OnboardingStateTests: XCTestCase {
         let state = OnboardingState(defaults: defaults)
 
         XCTAssertTrue(state.shouldPresentWelcome)
-        XCTAssertEqual(OnboardingState.currentVersion, 2)
+        XCTAssertEqual(OnboardingState.currentVersion, 3)
     }
 }
