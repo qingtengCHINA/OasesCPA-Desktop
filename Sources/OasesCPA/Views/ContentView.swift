@@ -188,6 +188,8 @@ struct DetailWorkspaceView: View {
             ModelsView(deploymentStore: deploymentStore)
         case .modelPacks:
             ModelPacksView(deploymentStore: deploymentStore)
+        case .webSearch:
+            SearchProvidersView(deploymentStore: deploymentStore)
         case .aiProviders:
             ProvidersView()
         case .authFiles:

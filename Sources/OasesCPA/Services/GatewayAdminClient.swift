@@ -20,6 +20,9 @@ enum GatewayAdminTimeouts {
     static let modelTest: TimeInterval = 70
     /// `POST /cpa-admin/permissions/api/models/test-all` (returns at once; the run continues).
     static let modelTestAll: TimeInterval = 15
+    /// `POST /cpa-admin/search/providers/test` (the gateway waits up to 15 s per provider call;
+    /// the Monid test makes two calls).
+    static let searchTest: TimeInterval = 45
 }
 
 /// Client of the gateway admin API on the admin listener (`http://127.0.0.1:18320`).

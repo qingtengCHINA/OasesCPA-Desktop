@@ -41,7 +41,7 @@ final class AppExperienceTests: XCTestCase {
     }
 
     func testModelsPageIsInTheGatewayGroupWithEnglishTexts() {
-        XCTAssertEqual(SectionGroup.gateway.sections, [.accessKeys, .models, .modelPacks, .aiProviders])
+        XCTAssertEqual(SectionGroup.gateway.sections, [.accessKeys, .models, .modelPacks, .webSearch, .aiProviders])
         XCTAssertEqual(AppSection.models.group, .gateway)
         let expected = [
             "模型列表": "Models",
@@ -78,6 +78,24 @@ final class AppExperienceTests: XCTestCase {
             XCTAssertEqual(OasesLocalization.localized(source, language: .english), translation, source)
         }
         XCTAssertEqual(OasesLocalization.localizedFormat("已创建 %lld 把 Key", language: .english, 3), "3 Keys Created")
+    }
+
+    func testWebSearchPageIsInTheGatewayGroupWithEnglishTexts() {
+        XCTAssertEqual(AppSection.webSearch.group, .gateway)
+        XCTAssertEqual(AppSection.webSearch.systemImage, "magnifyingglass")
+        XCTAssertEqual(AppSection.webSearch.title, OasesLocalization.localized("网络搜索"))
+        let expected = [
+            "网络搜索": "Web Search",
+            "搜索服务商、用量与调用记录": "Search providers, usage and call log",
+            "调用记录": "Call Log",
+            "新的 API Key": "New API key",
+            "删除 Key": "Delete Key",
+            "测试新 Key": "Test New Key"
+        ]
+        for (source, translation) in expected {
+            XCTAssertEqual(OasesLocalization.localized(source, language: .english), translation, source)
+        }
+        XCTAssertEqual(OasesLocalization.localizedFormat("近 %lld 天共 %lld 次请求", language: .english, 14, 30), "30 requests in the last 14 days")
     }
 
     func testKeysPageHasEnglishTexts() {
