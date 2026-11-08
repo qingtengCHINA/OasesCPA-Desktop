@@ -153,6 +153,15 @@ xcodegen generate
 open "OasesCPA.xcodeproj"
 ```
 
+### 测试
+
+许多测试通过“跟随系统”断言中文文案（开发语言是中文）。在英文系统的 Mac 上先把系统语言偏好设为中文再运行，CI 也是这样做的：
+
+```bash
+defaults write -g AppleLanguages -array zh-Hans   # 之后可用 defaults delete -g AppleLanguages 还原
+swift test
+```
+
 `OasesCPA.xcodeproj` 由 `project.yml` 生成，包含 Debug、Release 与 AppStore 配置。不要把 Team ID、证书或 App Store Connect 凭据提交到仓库。
 
 构建身份在构建时配置：`Config/Base.xcconfig` 给出中性的默认值（不签名团队、`com.example` 包名前缀、不启用自动更新、不显示作者）。把 `Config/Local.xcconfig.example` 复制为 `Config/Local.xcconfig`（已被 git 忽略），填入自己的 `DEVELOPMENT_TEAM`、`OASES_BUNDLE_ID_PREFIX`、`OASES_UPDATE_REPOSITORY`（`owner/name`，留空即关闭自动更新）与作者信息，再运行 `xcodegen generate`。

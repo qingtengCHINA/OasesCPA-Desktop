@@ -64,6 +64,12 @@ jobs:
           bash script/check_xcodeproj_membership_test.sh
           bash script/sync_check_no_private_test.sh
 
+      # Many tests assert the Chinese texts (the development language) through "Follow System", so
+      # the runner needs a Chinese system language like the maintainer's Mac. A contributor on an
+      # English Mac runs the same two commands before `swift test` (README, "测试").
+      - name: Use a Chinese system language for the tests
+        run: defaults write -g AppleLanguages -array zh-Hans
+
       - name: Run Swift package tests
         run: swift test --scratch-path "$RUNNER_TEMP/oases-swift-test"
 
