@@ -233,19 +233,19 @@ struct DeploymentMaintenanceService {
           *) printf '%s\n' '目标系统不是支持的 macOS 或 Linux。' >&2; exit 14 ;;
         esac
         case "$(uname -m)" in
-          arm64|aarch64) CLI_ARCH="aarch64"; CPAMP_ARCH="arm64" ;;
-          x86_64|amd64) CLI_ARCH="amd64"; CPAMP_ARCH="amd64" ;;
+          arm64|aarch64) CLI_ARCH="aarch64"; CPAMP_ARCH="arm64"; ARCH="arm64" ;;
+          x86_64|amd64) CLI_ARCH="amd64"; CPAMP_ARCH="amd64"; ARCH="amd64" ;;
           *) printf '%s\n' '目标架构不在官方原生包支持范围内。' >&2; exit 14 ;;
         esac
 
-        \(DeploymentSupplyChainPins.nativePinSelectionScript())
+        \(DeploymentPinSet.current.nativeSelectionScript())
 
         CLI_VERSION="$(printf '%s' "$CLI_VERSION_TAG" | sed 's/^v//')"
         CLI_PACKAGE="CLIProxyAPI_${CLI_VERSION}_${RELEASE_OS}_${CLI_ARCH}"
         CLI_TEMP_DIR="$TEMP_ROOT/cli-proxy-api/runtime/$CLI_PACKAGE"
         CLI_ARCHIVE="$TEMP_ROOT/cli-proxy-api/$CLI_PACKAGE.tar.gz"
         mkdir -p "$CLI_TEMP_DIR" "$TEMP_ROOT/cli-proxy-api"
-        curl_retry --fail --silent --show-error --location --max-redirs 3 --proto '=https' --proto-redir '=https' --max-filesize \(DeploymentSupplyChainPins.nativeArchiveMaxBytes) "https://github.com/router-for-me/CLIProxyAPI/releases/download/$CLI_VERSION_TAG/$CLI_PACKAGE.tar.gz" -o "$CLI_ARCHIVE"
+        curl_retry --fail --silent --show-error --location --max-redirs 3 --proto '=https' --proto-redir '=https' --max-filesize \(DeploymentPinSet.nativeArchiveMaxBytes) "https://github.com/router-for-me/CLIProxyAPI/releases/download/$CLI_VERSION_TAG/$CLI_PACKAGE.tar.gz" -o "$CLI_ARCHIVE"
         verify_fixed_archive "$CLI_EXPECTED_SHA256" "$CLI_PACKAGE.tar.gz" "$CLI_ARCHIVE"
         tar -xzf "$CLI_ARCHIVE" -C "$CLI_TEMP_DIR"
         [ -f "$CLI_TEMP_DIR/cli-proxy-api" ] || { printf '%s\n' 'CLIProxyAPI 升级包中没有找到 cli-proxy-api。' >&2; exit 15; }
@@ -266,7 +266,7 @@ struct DeploymentMaintenanceService {
         CPAMP_TEMP_DIR="$TEMP_ROOT/cpamp/runtime"
         CPAMP_ARCHIVE="$TEMP_ROOT/cpamp/$CPAMP_PACKAGE.tar.gz"
         mkdir -p "$CPAMP_TEMP_DIR" "$TEMP_ROOT/cpamp"
-        curl_retry --fail --silent --show-error --location --max-redirs 3 --proto '=https' --proto-redir '=https' --max-filesize \(DeploymentSupplyChainPins.nativeArchiveMaxBytes) "https://github.com/seakee/CPA-Manager-Plus/releases/download/$CPAMP_VERSION_TAG/$CPAMP_PACKAGE.tar.gz" -o "$CPAMP_ARCHIVE"
+        curl_retry --fail --silent --show-error --location --max-redirs 3 --proto '=https' --proto-redir '=https' --max-filesize \(DeploymentPinSet.nativeArchiveMaxBytes) "https://github.com/seakee/CPA-Manager-Plus/releases/download/$CPAMP_VERSION_TAG/$CPAMP_PACKAGE.tar.gz" -o "$CPAMP_ARCHIVE"
         verify_fixed_archive "$CPAMP_EXPECTED_SHA256" "$CPAMP_PACKAGE.tar.gz" "$CPAMP_ARCHIVE"
         tar -xzf "$CPAMP_ARCHIVE" -C "$CPAMP_TEMP_DIR"
         [ -f "$CPAMP_TEMP_DIR/$CPAMP_PACKAGE/cpa-manager-plus" ] || { printf '%s\n' 'CPA Manager Plus 升级包中没有找到 cpa-manager-plus。' >&2; exit 16; }
@@ -388,7 +388,7 @@ struct DeploymentMaintenanceService {
         command -v docker >/dev/null 2>&1 || { printf '%s\n' '目标环境缺少 Docker。' >&2; exit 13; }
         docker compose version >/dev/null 2>&1 || { printf '%s\n' '目标环境缺少 Docker Compose。' >&2; exit 13; }
         docker info >/dev/null 2>&1 || { printf '%s\n' 'Docker daemon 不可用，请先启动 Docker。' >&2; exit 13; }
-        \(DeploymentSupplyChainPins.dockerImageEnvironmentScript())
+        \(DeploymentPinSet.current.dockerImageEnvironmentScript())
         BACKUP_NAME="upgrade-$(date -u '+%Y%m%d-%H%M%S')"
         BACKUP_ROOT="$ROOT/backups/$BACKUP_NAME"
         mkdir -p "$BACKUP_ROOT" "$ROOT/logs"
@@ -421,7 +421,7 @@ struct DeploymentMaintenanceService {
         command -v docker >/dev/null 2>&1 || { printf '%s\n' '目标环境缺少 Docker。' >&2; exit 13; }
         docker compose version >/dev/null 2>&1 || { printf '%s\n' '目标环境缺少 Docker Compose。' >&2; exit 13; }
         docker info >/dev/null 2>&1 || { printf '%s\n' 'Docker daemon 不可用，请先启动 Docker。' >&2; exit 13; }
-        \(DeploymentSupplyChainPins.dockerImageEnvironmentScript())
+        \(DeploymentPinSet.current.dockerImageEnvironmentScript())
         BACKUP_ROOT=""
         if [ -d "$ROOT/backups" ]; then
           BACKUP_ROOT="$(find "$ROOT/backups" -mindepth 1 -maxdepth 1 -type d -name 'upgrade-*' -print 2>/dev/null | sort | tail -n 1 || true)"

@@ -15,50 +15,6 @@ struct DeploymentExecutionResult: Sendable {
     let cpampAdminKey: String
 }
 
-enum DeploymentSupplyChainPins {
-    static let cliReleaseTag = "v7.2.141"
-    static let cpampReleaseTag = "v1.11.10"
-    static let cliDockerImage = "eceasy/cli-proxy-api@sha256:7f598ce64478a8a5f90ed76875e0e9b0e7d77b80e17184b13df18c3d5bdb3def"
-    static let cpampDockerImage = "seakee/cpa-manager-plus@sha256:9a9715cc0849ee2feb553983713e70a197a5272a73b7a6f969fcff4dc26ab465"
-    static let nativeArchiveMaxBytes = 536_870_912
-
-    static func nativePinSelectionScript() -> String {
-        """
-        CLI_VERSION_TAG="\(cliReleaseTag)"
-        CPAMP_VERSION_TAG="\(cpampReleaseTag)"
-        case "$RELEASE_OS/$CLI_ARCH" in
-          darwin/aarch64)
-            CLI_EXPECTED_SHA256="728fb56a1a45dc3590ddb94ada247393ee2d464b089170562482cf584fa27bc2"
-            CPAMP_EXPECTED_SHA256="62676783a3d181a406828d3295dffc7e043f96704baaaf5346df8bb43e0081db"
-            ;;
-          darwin/amd64)
-            CLI_EXPECTED_SHA256="fa88dbabf5000e04095ce7b2c1a7babbc579a58755c6ef3b94e6013c1daae50a"
-            CPAMP_EXPECTED_SHA256="b2e8942fb1ea66abe01d5f01141093ee46eb1f8d4aab9a034ee305722e4a64e9"
-            ;;
-          linux/aarch64)
-            CLI_EXPECTED_SHA256="2881c0a6bcbc412c4bbdb2799ffbf1b4bcdd927475e1e42f621b68eae314ef3f"
-            CPAMP_EXPECTED_SHA256="72db0619b1e4fec3d82674b0b80797485eec3c2e5730484a43777b0f953f85f8"
-            ;;
-          linux/amd64)
-            CLI_EXPECTED_SHA256="a70015ee303502e24be64061dd0d5985b2b4600f0605a076b993322d3b7effb"
-            CPAMP_EXPECTED_SHA256="c511e029b34f6f27bec65c2853b47991c1286767371a69d716bea29c8b8cc184"
-            ;;
-          *)
-            printf '%s\\n' '目标平台没有固定的官方发布摘要。' >&2
-            exit 14
-            ;;
-        esac
-        """
-    }
-
-    static func dockerImageEnvironmentScript() -> String {
-        """
-        CLI_DOCKER_IMAGE="\(cliDockerImage)"
-        CPAMP_DOCKER_IMAGE="\(cpampDockerImage)"
-        """
-    }
-}
-
 enum DeploymentExecutionError: LocalizedError {
     case invalidRemotePort
     case invalidRemoteHost
@@ -66,6 +22,10 @@ enum DeploymentExecutionError: LocalizedError {
     case invalidInstallDirectory
     case commandFailed(String)
     case missingResult
+    /// The build carries only the placeholder gateway (`GatewayBundle.placeholderVersion`).
+    case placeholderGateway
+    /// The gateway package is missing from the app or its SHA-256 differs from the pinned one.
+    case gatewayPackageUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -81,6 +41,10 @@ enum DeploymentExecutionError: LocalizedError {
             message
         case .missingResult:
             OasesLocalization.localized("部署已结束，但没有收到管理凭据结果。请检查目标日志。")
+        case .placeholderGateway:
+            OasesLocalization.localized("此构建只含占位网关，不能部署；请先放入正式网关包")
+        case .gatewayPackageUnavailable:
+            OasesLocalization.localized("应用内的网关包缺失或校验失败，已停止部署。请重新安装应用。")
         }
     }
 }
@@ -409,12 +373,12 @@ struct DeploymentExecutor {
         esac
 
         case "$(uname -m)" in
-          arm64|aarch64) CLI_ARCH="aarch64"; CPAMP_ARCH="arm64" ;;
-          x86_64|amd64) CLI_ARCH="amd64"; CPAMP_ARCH="amd64" ;;
+          arm64|aarch64) ARCH="arm64" ;;
+          x86_64|amd64) ARCH="amd64" ;;
           *) printf '%s\n' '目标架构不在官方原生包支持范围内。' >&2; exit 14 ;;
         esac
 
-        \(DeploymentSupplyChainPins.nativePinSelectionScript())
+        \(DeploymentPinSet.current.nativeSelectionScript())
 
         umask 077
         MANAGEMENT_KEY="cpa_$(openssl rand -hex 32)"
@@ -455,8 +419,6 @@ struct DeploymentExecutor {
         }
 
         set_stage "resolve-cli-version"
-        CLI_VERSION="${CLI_VERSION_TAG#v}"
-        CLI_PACKAGE="CLIProxyAPI_${CLI_VERSION}_${RELEASE_OS}_${CLI_ARCH}"
         CLI_DIR="$INSTALL_ROOT/cli-proxy-api"
         CLI_RUNTIME="$CLI_DIR/runtime/$CLI_PACKAGE"
         CLI_ARCHIVE="$CLI_DIR/downloads/$CLI_PACKAGE.tar.gz"
@@ -464,7 +426,7 @@ struct DeploymentExecutor {
         mkdir -p "$CLI_RUNTIME" "$CLI_DIR/downloads" "$CLI_DIR/auths" "$CLI_DIR/logs"
         rm -f "$CLI_ARCHIVE_PART"
         set_stage "download-cli"
-        if ! curl_retry --fail --silent --show-error --location --max-redirs 3 --proto '=https' --proto-redir '=https' --max-filesize \(DeploymentSupplyChainPins.nativeArchiveMaxBytes) "https://github.com/router-for-me/CLIProxyAPI/releases/download/$CLI_VERSION_TAG/$CLI_PACKAGE.tar.gz" -o "$CLI_ARCHIVE_PART"; then
+        if ! curl_retry --fail --silent --show-error --location --max-redirs 3 --proto '=https' --proto-redir '=https' --max-filesize \(DeploymentPinSet.nativeArchiveMaxBytes) "https://github.com/router-for-me/CLIProxyAPI/releases/download/$CLI_VERSION_TAG/$CLI_ASSET" -o "$CLI_ARCHIVE_PART"; then
           rm -f "$CLI_ARCHIVE_PART"
           exit 18
         fi
@@ -512,7 +474,6 @@ struct DeploymentExecutor {
         chmod 755 "$CLI_DIR/run.sh"
 
         set_stage "resolve-cpamp-version"
-        CPAMP_PACKAGE="cpa-manager-plus_${CPAMP_VERSION_TAG}_${RELEASE_OS}_${CPAMP_ARCH}"
         CPAMP_DIR="$INSTALL_ROOT/cpamp"
         CPAMP_RUNTIME="$CPAMP_DIR/runtime"
         CPAMP_BINARY_DIR="$CPAMP_RUNTIME/$CPAMP_PACKAGE"
@@ -521,7 +482,7 @@ struct DeploymentExecutor {
         mkdir -p "$CPAMP_RUNTIME" "$CPAMP_DIR/downloads" "$CPAMP_DIR/data"
         rm -f "$CPAMP_ARCHIVE_PART"
         set_stage "download-cpamp"
-        if ! curl_retry --fail --silent --show-error --location --max-redirs 3 --proto '=https' --proto-redir '=https' --max-filesize \(DeploymentSupplyChainPins.nativeArchiveMaxBytes) "https://github.com/seakee/CPA-Manager-Plus/releases/download/$CPAMP_VERSION_TAG/$CPAMP_PACKAGE.tar.gz" -o "$CPAMP_ARCHIVE_PART"; then
+        if ! curl_retry --fail --silent --show-error --location --max-redirs 3 --proto '=https' --proto-redir '=https' --max-filesize \(DeploymentPinSet.nativeArchiveMaxBytes) "https://github.com/seakee/CPA-Manager-Plus/releases/download/$CPAMP_VERSION_TAG/$CPAMP_ASSET" -o "$CPAMP_ARCHIVE_PART"; then
           rm -f "$CPAMP_ARCHIVE_PART"
           exit 18
         fi
@@ -724,7 +685,7 @@ struct DeploymentExecutor {
         CPAMP_INSTALLER_URL=\(shellQuote(installerURL))
         INSTALLER_EXPECTED_SHA256=\(shellQuote(installerSHA256))
         INSTALLER_MAX_BYTES=\(installerMaxBytes)
-        \(DeploymentSupplyChainPins.dockerImageEnvironmentScript())
+        \(DeploymentPinSet.current.dockerImageEnvironmentScript())
         cleanup_installer() {
           if [ -n "${INSTALLER:-}" ]; then
             rm -f "$INSTALLER" || true

@@ -92,3 +92,6 @@ jobs:
 
       - name: Validate release policy contract
         run: bash script/package_release_contract_test.sh
+
+      - name: Gateway vendoring contract
+        run: bash script/vendor_gateway_contract_test.sh

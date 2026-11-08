@@ -190,6 +190,28 @@ else
   fi
 fi
 
+# The gateway package the app ships: GatewayBundle.bundled in GatewayBundle.swift names its
+# version, file and SHA-256. Every release (local ones included) refuses a "-dev" gateway (the
+# placeholder 0.0.0-dev and packages built by vendor_gateway.sh --server), a missing package and
+# a package whose SHA-256 differs from the pinned one.
+GATEWAY_SWIFT="$ROOT_DIR/Sources/OasesCPA/Services/GatewayBundle.swift"
+[[ -f "$GATEWAY_SWIFT" ]] || die "Missing Sources/OasesCPA/Services/GatewayBundle.swift."
+gateway_field() {
+  /usr/bin/sed -nE "/static let bundled = GatewayBundle\(/,/\)/s/^[[:space:]]*$1: \"([^\"]*)\",?\$/\\1/p" "$GATEWAY_SWIFT" | /usr/bin/head -n 1
+}
+GATEWAY_VERSION="$(gateway_field version)"
+GATEWAY_FILE="$(gateway_field fileName)"
+GATEWAY_SHA256="$(gateway_field sha256)"
+[[ -n "$GATEWAY_VERSION" && -n "$GATEWAY_FILE" && "$GATEWAY_SHA256" =~ ^[0-9a-f]{64}$ ]] || die "Cannot read GatewayBundle.bundled (version, fileName, sha256)."
+if [[ "$GATEWAY_VERSION" == *-dev* ]]; then
+  die "Refusing to package a -dev gateway ($GATEWAY_VERSION); vendor a released package with script/vendor_gateway.sh --tarball."
+fi
+[[ "$GATEWAY_FILE" == "oases-gateway_$GATEWAY_VERSION.tar.gz" ]] || die "GatewayBundle.bundled.fileName does not match its version."
+GATEWAY_PACKAGE="$ROOT_DIR/Sources/OasesCPA/Resources/Gateway/$GATEWAY_FILE"
+[[ -f "$GATEWAY_PACKAGE" ]] || die "The bundled gateway package is missing: Sources/OasesCPA/Resources/Gateway/$GATEWAY_FILE"
+GATEWAY_ACTUAL="$(/usr/bin/shasum -a 256 "$GATEWAY_PACKAGE" | /usr/bin/awk '{print $1}')"
+[[ "$GATEWAY_ACTUAL" == "$GATEWAY_SHA256" ]] || die "The bundled gateway package does not match the pinned SHA-256."
+
 announce_release_mode() {
   if [[ "$RELEASE_MODE" == "local" ]]; then
     echo "!!! LOCAL UNTRUSTED RELEASE ONLY: this artifact is not publishable. !!!" >&2
@@ -197,6 +219,7 @@ announce_release_mode() {
     echo "OFFICIAL RELEASE POLICY: Developer ID Application signing and notarization are required." >&2
   fi
   echo "Bundle identifier: $BUNDLE_ID" >&2
+  echo "Bundled gateway: $GATEWAY_VERSION" >&2
   if [[ -n "$UPDATE_REPOSITORY" ]]; then
     echo "Updater: enabled, reads the releases of $UPDATE_REPOSITORY" >&2
   else

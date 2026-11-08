@@ -672,10 +672,10 @@ final class RuntimeDecodingTests: XCTestCase {
         )
 
         XCTAssertTrue(upgrade.contains("upgrade-$(date -u"))
-        XCTAssertTrue(upgrade.contains("CLI_VERSION_TAG=\"v7.2.141\""))
-        XCTAssertTrue(upgrade.contains("CPAMP_VERSION_TAG=\"v1.11.10\""))
-        XCTAssertTrue(upgrade.contains("CLI_EXPECTED_SHA256=\"a70015ee303502e24be64061dd0d5985b2b4600f0605a076b993322d3b7effb\""))
-        XCTAssertTrue(upgrade.contains("CPAMP_EXPECTED_SHA256=\"c511e029b34f6f27bec65c2853b47991c1286767371a69d716bea29c8b8cc184\""))
+        XCTAssertTrue(upgrade.contains("CLI_VERSION_TAG=\"v8.0.51\""))
+        XCTAssertTrue(upgrade.contains("CPAMP_VERSION_TAG=\"v1.14.10\""))
+        XCTAssertTrue(upgrade.contains("CLI_EXPECTED_SHA256=\"15de160e1fd97a0f9f7e0577582c765b14e040ab6a8314f514af9fae8a2c4700\""))
+        XCTAssertTrue(upgrade.contains("CPAMP_EXPECTED_SHA256=\"113a651af78f4dd8c5279e03348729411d964043d74bbd338147dafa2bcb8d86\""))
         XCTAssertFalse(upgrade.contains("/releases/latest"))
         XCTAssertFalse(upgrade.contains("checksums.txt"))
         XCTAssertTrue(upgrade.contains("--location"))
@@ -696,8 +696,8 @@ final class RuntimeDecodingTests: XCTestCase {
             installDirectory: "~/.oases-cpa"
         )
 
-        XCTAssertTrue(script.contains("CPAMP_PACKAGE=\"cpa-manager-plus_${CPAMP_VERSION_TAG}_${RELEASE_OS}_${CPAMP_ARCH}\""))
-        XCTAssertTrue(script.contains("CPAMP_VERSION_TAG=\"v1.11.10\""))
+        XCTAssertTrue(script.contains("CPAMP_PACKAGE=\"${CPAMP_ASSET%.tar.gz}\""))
+        XCTAssertTrue(script.contains("CPAMP_VERSION_TAG=\"v1.14.10\""))
         XCTAssertTrue(script.contains("CPAMP_EXPECTED_SHA256="))
         XCTAssertTrue(script.contains("verify_fixed_archive \"$CPAMP_EXPECTED_SHA256\" \"$CPAMP_PACKAGE.tar.gz\" \"$CPAMP_ARCHIVE_PART\""))
         XCTAssertTrue(script.contains("\"adminKeyFile\": \"../../../secrets/cpamp-admin-key\""))

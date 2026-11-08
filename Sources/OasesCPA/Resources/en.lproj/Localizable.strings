@@ -2174,3 +2174,5 @@
 "网关访问引擎的管理接口超时，本次操作没有生效；请稍后重试。" = "The gateway timed out reaching the engine's management API, so nothing was changed; try again later.";
 "网关的 Key 策略文件暂时不可用，本次修改没有保存；请检查网关数据目录后重试。" = "The gateway's key policy store is unavailable, so the change was not saved; check the gateway data directory, then try again.";
 "网关缺少内部引擎 Key，无法测试模型；请检查部署是否完整。" = "The gateway has no internal engine key, so models cannot be tested; check that the deployment is complete.";
+"此构建只含占位网关，不能部署；请先放入正式网关包" = "This build only carries the placeholder gateway and cannot deploy; add a released gateway package first";
+"应用内的网关包缺失或校验失败，已停止部署。请重新安装应用。" = "The gateway package inside the app is missing or failed its check, so the deployment stopped. Reinstall the app.";

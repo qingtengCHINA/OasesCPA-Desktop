@@ -152,6 +152,13 @@ FALLBACK_ROOT="$(mktemp -d "$FALLBACK_SCRATCH/release-fallback.XXXXXX")"
 mkdir -p "$FALLBACK_ROOT/script" "$FALLBACK_ROOT/Config"
 cp "$SCRIPT" "$FALLBACK_ROOT/script/package_release.sh"
 cp "$SCRIPT_DIR/../project.yml" "$FALLBACK_ROOT/project.yml"
+# copy_gateway_bundle <tree>: the bundled gateway definition and its package, as in the repo.
+copy_gateway_bundle() {
+  mkdir -p "$1/Sources/OasesCPA/Services" "$1/Sources/OasesCPA/Resources/Gateway"
+  cp "$SCRIPT_DIR/../Sources/OasesCPA/Services/GatewayBundle.swift" "$1/Sources/OasesCPA/Services/GatewayBundle.swift"
+  cp "$SCRIPT_DIR/../Sources/OasesCPA/Resources/Gateway/"oases-gateway_*.tar.gz "$1/Sources/OasesCPA/Resources/Gateway/"
+}
+copy_gateway_bundle "$FALLBACK_ROOT"
 printf 'OASES_UPDATE_REPOSITORY = BaseOwner/BaseRepo // the committed default\n' > "$FALLBACK_ROOT/Config/Base.xcconfig"
 official_without OASES_UPDATE_REPOSITORY
 output="$(env -u OASES_UPDATE_REPOSITORY "${WITHOUT[@]}" bash "$FALLBACK_ROOT/script/package_release.sh" --validate-policy 2>&1)"
@@ -172,6 +179,34 @@ output="$(env "${WITHOUT[@]}" OASES_UPDATE_REPOSITORY=EnvOwner/EnvRepo bash "$FA
 }
 printf 'OASES_UPDATE_REPOSITORY =\n' > "$FALLBACK_ROOT/Config/Local.xcconfig"
 run_expect_refusal "no OASES_UPDATE_REPOSITORY" env -u OASES_UPDATE_REPOSITORY "${WITHOUT[@]}" bash "$FALLBACK_ROOT/script/package_release.sh" --validate-policy
+
+# The bundled gateway: a release refuses a "-dev" gateway (the placeholder included), a
+# definition without its package and a package whose SHA-256 differs from the pinned one.
+GATEWAY_ROOT="$(mktemp -d "$FALLBACK_SCRATCH/release-gateway.XXXXXX")"
+mkdir -p "$GATEWAY_ROOT/script"
+cp "$SCRIPT" "$GATEWAY_ROOT/script/package_release.sh"
+cp "$SCRIPT_DIR/../project.yml" "$GATEWAY_ROOT/project.yml"
+copy_gateway_bundle "$GATEWAY_ROOT"
+LOCAL_POLICY=(ALLOW_UNTRUSTED_LOCAL_RELEASE=1 CODESIGN_IDENTITY= NOTARIZE=0)
+run_expect_success env "${LOCAL_POLICY[@]}" bash "$GATEWAY_ROOT/script/package_release.sh" --validate-policy
+output="$(env "${LOCAL_POLICY[@]}" bash "$GATEWAY_ROOT/script/package_release.sh" --validate-policy 2>&1)"
+[[ "$output" == *"Bundled gateway: "* ]] || { echo "the policy must name the bundled gateway" >&2; exit 1; }
+GATEWAY_SWIFT="$GATEWAY_ROOT/Sources/OasesCPA/Services/GatewayBundle.swift"
+REAL_VERSION="$(/usr/bin/sed -nE '/static let bundled = GatewayBundle\(/,/\)/s/^[[:space:]]*version: "([^"]*)",?$/\1/p' "$GATEWAY_SWIFT")"
+[[ -n "$REAL_VERSION" ]] || { echo "cannot read the bundled gateway version" >&2; exit 1; }
+cp "$GATEWAY_SWIFT" "$GATEWAY_ROOT/GatewayBundle.swift.orig"
+for dev_version in "0.0.0-dev" "$REAL_VERSION-dev"; do
+  /usr/bin/sed -E "/static let bundled = GatewayBundle\(/,/\)/s/version: \"[^\"]*\"/version: \"$dev_version\"/" "$GATEWAY_ROOT/GatewayBundle.swift.orig" > "$GATEWAY_SWIFT"
+  /usr/bin/grep -qF "version: \"$dev_version\"" "$GATEWAY_SWIFT" || { echo "the test could not plant $dev_version" >&2; exit 1; }
+  run_expect_refusal "-dev gateway" env "${LOCAL_POLICY[@]}" bash "$GATEWAY_ROOT/script/package_release.sh" --validate-policy
+  run_expect_refusal "-dev gateway" env "${OFFICIAL[@]}" bash "$GATEWAY_ROOT/script/package_release.sh" --validate-policy
+done
+/usr/bin/sed -E "/static let bundled = GatewayBundle\(/,/\)/s/sha256: \"[0-9a-f]{64}\"/sha256: \"$(printf '0%.0s' $(seq 1 64))\"/" "$GATEWAY_ROOT/GatewayBundle.swift.orig" > "$GATEWAY_SWIFT"
+run_expect_refusal "does not match the pinned SHA-256" env "${LOCAL_POLICY[@]}" bash "$GATEWAY_ROOT/script/package_release.sh" --validate-policy
+cp "$GATEWAY_ROOT/GatewayBundle.swift.orig" "$GATEWAY_SWIFT"
+mkdir -p "$GATEWAY_ROOT/moved-away"
+mv "$GATEWAY_ROOT/Sources/OasesCPA/Resources/Gateway/"oases-gateway_*.tar.gz "$GATEWAY_ROOT/moved-away/"
+run_expect_refusal "missing" env "${LOCAL_POLICY[@]}" bash "$GATEWAY_ROOT/script/package_release.sh" --validate-policy
 
 run_expect_failure env \
   ALLOW_UNTRUSTED_LOCAL_RELEASE=1 \
