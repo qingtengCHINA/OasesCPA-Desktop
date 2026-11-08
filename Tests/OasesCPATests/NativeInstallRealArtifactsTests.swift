@@ -144,6 +144,179 @@ final class NativeInstallRealArtifactsTests: XCTestCase {
         XCTAssertTrue(processList.contains("\(rootPath)/cpamp/runtime/"))
     }
 
+    /// The same real packages: install, then the app's real upgrade (same pins, so the guard
+    /// lets it through) and rollback, plus the migration's inline api-keys script against the
+    /// real engine and the real Node 24 (`fetch`, GET/PUT/GET of `/v0/management/api-keys`).
+    func testRealUpgradeRollbackAndApiKeysScript() async throws {
+        guard let artifacts = ProcessInfo.processInfo.environment["OASES_E2E_REAL_ARTIFACTS"], !artifacts.isEmpty else {
+            throw XCTSkip("set OASES_E2E_REAL_ARTIFACTS to a directory with the pinned packages")
+        }
+        let drill = try RealDrill(artifacts: artifacts)
+        let ports = try freePorts(4)
+        let scriptPorts = DeploymentScriptPorts(gatewayAPI: ports[0], gatewayAdmin: ports[1], engine: ports[2], cpamp: ports[3])
+        let pins = try DeploymentPinSet.current.deployable()
+        defer { stopAll(under: drill.root) }
+
+        let install = try drill.run(DeploymentExecutor().scriptForVerification(
+            method: .native, installDirectory: drill.root.path, pins: pins, ports: scriptPorts
+        ), name: "install")
+        XCTAssertEqual(install.status, 0, install.stderr)
+        guard install.status == 0 else { return }
+        let managementKey = try DeploymentExecutor().parseResult(install.stdout).cpaManagementKey
+        let permissionsBefore = try Data(contentsOf: drill.root.appendingPathComponent("gateway-data/permissions.json"))
+
+        // Upgrade with the same pins: stop, back up (gateway-data included), reinstall, restart.
+        let maintenance = DeploymentMaintenanceService()
+        let upgrade = try drill.run(maintenance.upgradeScriptForVerification(
+            method: .native, installDirectory: drill.root.path, pins: pins, ports: scriptPorts
+        ), name: "upgrade")
+        XCTAssertEqual(upgrade.status, 0, upgrade.stderr)
+        XCTAssertTrue(upgrade.stdout.contains("OASES_CPA_TOPOLOGY=gateway"), upgrade.stdout)
+        let backup = maintenance.parseResultForVerification(upgrade.stdout).backupName
+        XCTAssertTrue(backup.hasPrefix("upgrade-"))
+        XCTAssertEqual(try Data(contentsOf: drill.root.appendingPathComponent("backups/\(backup)/gateway-data/permissions.json")), permissionsBefore)
+        let health = try await get("http://127.0.0.1:\(ports[1])/healthz")
+        XCTAssertEqual(health.status, 200)
+        XCTAssertTrue(String(decoding: health.body, as: UTF8.self).contains("\"version\":\"\(GatewayBundle.bundled.version)\""))
+
+        // The migration's api-keys script with a synthetic extra key, against the real engine.
+        let drillKey = "oases-int-drill-\(UUID().uuidString.lowercased().replacingOccurrences(of: "-", with: ""))"
+        let node = Process()
+        node.executableURL = drill.root.appendingPathComponent("node/current/bin/node")
+        node.arguments = ["-e", DeploymentMaintenanceService.apiKeysMigrationScript]
+        node.environment = drill.environment.merging([
+            "OASES_ENGINE_URL": "http://127.0.0.1:\(ports[2])",
+            "OASES_MANAGEMENT_KEY": managementKey,
+            "PACK_ENGINE_KEY": drillKey,
+        ]) { $1 }
+        let nodeOutput = Pipe()
+        node.standardOutput = nodeOutput
+        node.standardError = nodeOutput
+        try node.run()
+        let nodeText = String(decoding: nodeOutput.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        node.waitUntilExit()
+        XCTAssertEqual(node.terminationStatus, 0, nodeText)
+        XCTAssertFalse(nodeText.contains(managementKey))
+        XCTAssertFalse(nodeText.contains(drillKey))
+        let keys = try await get("http://127.0.0.1:\(ports[2])/v0/management/api-keys", bearer: managementKey)
+        XCTAssertEqual(keys.status, 200)
+        let list = try XCTUnwrap((JSONSerialization.jsonObject(with: keys.body) as? [String: Any])?["api-keys"] as? [String])
+        let packKey = try String(contentsOf: drill.root.appendingPathComponent("secrets/pack-engine-key"), encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertTrue(list.contains(drillKey))
+        XCTAssertTrue(list.contains(packKey), "the existing key was kept")
+        let config = try String(contentsOf: drill.root.appendingPathComponent("cli-proxy-api/config.yaml"), encoding: .utf8)
+        XCTAssertTrue(config.contains("\napi-keys:\n"), "the engine kept the top-level api-keys layout (R14)")
+        XCTAssertTrue(config.contains(drillKey), "the engine persisted the PUT")
+
+        // Rollback: config.yaml (without the drill key) and gateway-data come back from the backup.
+        let rollback = try drill.run(maintenance.rollbackScriptForVerification(
+            method: .native, installDirectory: drill.root.path, ports: scriptPorts
+        ), name: "rollback")
+        XCTAssertEqual(rollback.status, 0, rollback.stderr)
+        XCTAssertTrue(rollback.stdout.contains("OASES_CPA_TOPOLOGY=gateway"))
+        XCTAssertEqual(try Data(contentsOf: drill.root.appendingPathComponent("gateway-data/permissions.json")), permissionsBefore)
+        let restoredConfig = try Data(contentsOf: drill.root.appendingPathComponent("cli-proxy-api/config.yaml"))
+        XCTAssertFalse(String(decoding: restoredConfig, as: UTF8.self).contains(drillKey))
+        let healthAfter = try await get("http://127.0.0.1:\(ports[1])/healthz")
+        XCTAssertEqual(healthAfter.status, 200)
+        let engine = try await get("http://127.0.0.1:\(ports[2])/v0/management/config", bearer: managementKey)
+        XCTAssertEqual(engine.status, 200)
+
+        let processList = try run("/bin/ps", ["-axww", "-o", "command="])
+        for name in ["cpa-management-key", "cpamp-admin-key", "pack-engine-key", "pack-store-key"] {
+            let key = try String(contentsOf: drill.root.appendingPathComponent("secrets/\(name)"), encoding: .utf8)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            XCTAssertFalse(processList.contains(key), "ps shows \(name)")
+            XCTAssertFalse(drill.argv().contains(key), "curl argv holds \(name)")
+        }
+    }
+
+    /// A scratch case for the real drills: install root, HOME, the curl shim, no egress.
+    private struct RealDrill {
+        let caseDirectory: URL
+        let root: URL
+        let argvLog: URL
+        let environment: [String: String]
+
+        init(artifacts: String) throws {
+            let fileManager = FileManager.default
+            caseDirectory = FakeArtifacts.scratchRoot.appendingPathComponent("real-upgrade-\(UUID().uuidString.prefix(8))", isDirectory: true)
+            try fileManager.createDirectory(at: caseDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            let bin = caseDirectory.appendingPathComponent("bin")
+            let home = caseDirectory.appendingPathComponent("home")
+            for directory in [bin, home] {
+                try fileManager.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            }
+            root = caseDirectory.appendingPathComponent("root")
+            argvLog = caseDirectory.appendingPathComponent("curl-argv.log")
+            fileManager.createFile(atPath: argvLog.path, contents: Data())
+            try Data(#"""
+            #!/bin/bash
+            line='curl'; for arg in "$@"; do line="$line $arg"; done
+            printf '%s\n' "$line" >> "$E2E_ARGV_LOG"
+            url=""; out=""; prev=""
+            for arg in "$@"; do
+              if [ "$prev" = "-o" ]; then out="$arg"; fi
+              case "$arg" in https://*) url="$arg" ;; esac
+              prev="$arg"
+            done
+            case "$url" in
+              https://github.com/*/releases/download/*|https://nodejs.org/dist/*)
+                exec cp "$E2E_ARTIFACTS/$(basename "$url")" "$out" ;;
+              https://*) echo "e2e: refused $url" >&2; exit 7 ;;
+            esac
+            exec /usr/bin/curl "$@"
+            """#.utf8).write(to: bin.appendingPathComponent("curl"))
+            try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bin.appendingPathComponent("curl").path)
+            environment = [
+                "PATH": "\(bin.path):/usr/bin:/bin:/usr/sbin:/sbin",
+                "HOME": home.path,
+                "TMPDIR": caseDirectory.path,
+                "LC_ALL": "C",
+                "E2E_ARGV_LOG": argvLog.path,
+                "E2E_ARTIFACTS": artifacts,
+                "HTTPS_PROXY": "http://127.0.0.1:9",
+                "HTTP_PROXY": "http://127.0.0.1:9",
+                "https_proxy": "http://127.0.0.1:9",
+                "http_proxy": "http://127.0.0.1:9",
+                "NO_PROXY": "127.0.0.1,localhost",
+                "no_proxy": "127.0.0.1,localhost",
+                "MODEL_CATALOG_URL": "off",
+            ]
+        }
+
+        func run(_ script: String, name: String) throws -> (status: Int32, stdout: String, stderr: String) {
+            let scriptURL = caseDirectory.appendingPathComponent("\(name).sh")
+            let stdoutURL = caseDirectory.appendingPathComponent("\(name).stdout")
+            let stderrURL = caseDirectory.appendingPathComponent("\(name).stderr")
+            try Data(script.utf8).write(to: scriptURL)
+            FileManager.default.createFile(atPath: stdoutURL.path, contents: Data())
+            FileManager.default.createFile(atPath: stderrURL.path, contents: Data())
+            let stdoutHandle = try FileHandle(forWritingTo: stdoutURL)
+            let stderrHandle = try FileHandle(forWritingTo: stderrURL)
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/bash")
+            process.arguments = [scriptURL.path]
+            process.environment = environment
+            process.currentDirectoryURL = caseDirectory
+            process.standardInput = FileHandle.nullDevice
+            process.standardOutput = stdoutHandle
+            process.standardError = stderrHandle
+            try process.run()
+            process.waitUntilExit()
+            try stdoutHandle.close()
+            try stderrHandle.close()
+            return (process.terminationStatus,
+                    (try? String(contentsOf: stdoutURL, encoding: .utf8)) ?? "",
+                    (try? String(contentsOf: stderrURL, encoding: .utf8)) ?? "")
+        }
+
+        func argv() -> String {
+            (try? String(contentsOf: argvLog, encoding: .utf8)) ?? ""
+        }
+    }
+
     // MARK: - Helpers
 
     private func stopAll(under root: URL) {
