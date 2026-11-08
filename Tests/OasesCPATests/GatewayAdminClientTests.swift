@@ -222,6 +222,77 @@ final class GatewayAdminClientTests: XCTestCase {
         XCTAssertNotNil(GatewayAdminError.unauthorized.errorDescription)
     }
 
+    /// One gateway code with the body shape the gateway sends for it (`message` is put into the
+    /// gateway's text, here with a management key and a client key in it): the error reads as
+    /// its own localized text, which exists in both languages, and carries neither key.
+    private func assertCodeReads(
+        _ key: String, status: Int, code: String, body: (String) -> String,
+        file: StaticString = #filePath, line: UInt = #line
+    ) async throws {
+        let managementKey = "test-key-987654"
+        let clientKey = "sk-" + String(repeating: "q", count: 24)
+        let client = makeClient(key: managementKey)
+        stub(status, body("echo " + managementKey + " " + clientKey))
+        let error = await thrownError { try await client.get("/cpa-admin/packs/data", as: RuntimeJSONValue.self) }
+        guard case .server(status, code, _)? = error else {
+            return XCTFail("\(code): \(String(describing: error))", file: file, line: line)
+        }
+        let description = try XCTUnwrap(error?.errorDescription, file: file, line: line)
+        XCTAssertEqual(description, OasesLocalization.localized(key), file: file, line: line)
+        XCTAssertEqual(OasesLocalization.localized(key, language: .simplifiedChinese), key, file: file, line: line)
+        let english = OasesLocalization.localized(key, language: .english)
+        XCTAssertNotEqual(english, key, "\(code) has an English text", file: file, line: line)
+        XCTAssertNil(english.range(of: #"\p{Han}"#, options: .regularExpression), english, file: file, line: line)
+        for text in [description, english, OasesLocalization.localized(key, language: .simplifiedChinese)] {
+            XCTAssertFalse(text.contains("HTTP"), text, file: file, line: line)
+            XCTAssertFalse(text.contains(managementKey), text, file: file, line: line)
+            XCTAssertFalse(text.contains(clientKey), text, file: file, line: line)
+            XCTAssertFalse(text.contains("echo"), "the gateway's own text is not shown: \(text)", file: file, line: line)
+        }
+    }
+
+    // packs.mjs HTTP_STATUS / server.mjs PACK_ERROR_STATUS list rate_limited (429) and conflict
+    // (409) without a throw site today: their messages here are synthetic.
+    func testRateLimitedCodeReadsAsItsOwnMessage() async throws {
+        try await assertCodeReads("网关暂时限制了操作频率，本次操作没有生效；请稍后再试。", status: 429, code: "rate_limited") {
+            #"{"error":"Too many changes: "# + $0 + #"","code":"rate_limited"}"#
+        }
+    }
+
+    func testTestThrottledCodeReadsAsItsOwnMessage() async throws {
+        // search.mjs: SearchError('test_throttled', …, { status: 429 }) through searchErrorBody.
+        try await assertCodeReads("测试过于频繁，网关暂时拒绝了这次测试；请稍后再试。", status: 429, code: "test_throttled") {
+            #"{"error":{"message":"请 30 秒后再测试（服务商限制测试频率）。"# + $0 + #"","type":"rate_limit_error","code":"test_throttled"}}"#
+        }
+    }
+
+    func testNotFoundCodeReadsAsItsOwnMessage() async throws {
+        // packs.mjs PackError('not_found', 'Pack not found.'), sent by handlePackAdmin as 404.
+        try await assertCodeReads("网关上找不到这次操作的对象（可能已被删除）；请刷新后再试。", status: 404, code: "not_found") {
+            #"{"error":"Pack not found. "# + $0 + #"","code":"not_found"}"#
+        }
+    }
+
+    func testConflictCodeReadsAsItsOwnMessage() async throws {
+        try await assertCodeReads("这次操作与网关当前的数据冲突，没有生效；请刷新后再试。", status: 409, code: "conflict") {
+            #"{"error":"Conflict: "# + $0 + #"","code":"conflict"}"#
+        }
+    }
+
+    func testPricingRequiredCodeReadsAsItsOwnMessage() async throws {
+        // packs.mjs PackError('pricing_required', …), 400.
+        try await assertCodeReads("网关要求先为相关模型填写输入和输出价格，才能使用花费上限。", status: 400, code: "pricing_required") {
+            #"{"error":"Every member needs input and output prices before a cost limit can be used. "# + $0 + #"","code":"pricing_required"}"#
+        }
+    }
+
+    func testUnavailableCodeReadsAsItsOwnMessage() async throws {
+        // packs.mjs PackError('unavailable', 'The model pack store is unavailable.'), 503.
+        try await assertCodeReads("网关的数据暂时不可用（无法读取或写入），本次操作没有生效；请检查网关数据目录后重试。", status: 503, code: "unavailable") {
+            #"{"error":"The model pack store is unavailable. "# + $0 + #"","code":"unavailable"}"#
+        }
+    }
+
     func testErrorDescriptionNeverContainsManagementKey() async throws {
         let managementKey = "test-key-123456"
         let clientKey = "sk-" + String(repeating: "x", count: 24)

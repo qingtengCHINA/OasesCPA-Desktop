@@ -48,6 +48,20 @@ enum GatewayAdminError: LocalizedError, Equatable, Sendable {
             return OasesLocalization.localized("网关的 Key 策略文件暂时不可用，本次修改没有保存；请检查网关数据目录后重试。")
         case "engine_key_missing":
             return OasesLocalization.localized("网关缺少内部引擎 Key，无法测试模型；请检查部署是否完整。")
+        // The pack service's codes (packs.mjs HTTP_STATUS) and the search test throttle
+        // (search.mjs). The packs and web search pages map them to their own texts first.
+        case "rate_limited":
+            return OasesLocalization.localized("网关暂时限制了操作频率，本次操作没有生效；请稍后再试。")
+        case "test_throttled":
+            return OasesLocalization.localized("测试过于频繁，网关暂时拒绝了这次测试；请稍后再试。")
+        case "not_found":
+            return OasesLocalization.localized("网关上找不到这次操作的对象（可能已被删除）；请刷新后再试。")
+        case "conflict":
+            return OasesLocalization.localized("这次操作与网关当前的数据冲突，没有生效；请刷新后再试。")
+        case "pricing_required":
+            return OasesLocalization.localized("网关要求先为相关模型填写输入和输出价格，才能使用花费上限。")
+        case "unavailable":
+            return OasesLocalization.localized("网关的数据暂时不可用（无法读取或写入），本次操作没有生效；请检查网关数据目录后重试。")
         default:
             return nil
         }

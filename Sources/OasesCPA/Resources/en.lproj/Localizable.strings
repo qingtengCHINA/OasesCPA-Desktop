@@ -2544,3 +2544,9 @@
 "关闭窗口会丢失尚未保存的服务地址、密钥、模型和路由设置。" = "Closing the window loses the unsaved service address, keys, models and routing settings.";
 "舍弃未保存的 YAML 修改？" = "Discard unsaved YAML changes?";
 "关闭编辑器会丢失尚未保存到当前 CLIProxyAPI 目标的配置。" = "Closing the editor loses the configuration not yet saved to the current CLIProxyAPI target.";
+"网关暂时限制了操作频率，本次操作没有生效；请稍后再试。" = "The gateway is limiting how often this can be done, so nothing was changed. Try again shortly.";
+"测试过于频繁，网关暂时拒绝了这次测试；请稍后再试。" = "Tests are too frequent, so the gateway turned this test down for now. Try again shortly.";
+"网关上找不到这次操作的对象（可能已被删除）；请刷新后再试。" = "The gateway could not find what this request refers to (it may have been deleted). Refresh and try again.";
+"这次操作与网关当前的数据冲突，没有生效；请刷新后再试。" = "This request conflicts with the gateway's current data and had no effect. Refresh and try again.";
+"网关要求先为相关模型填写输入和输出价格，才能使用花费上限。" = "The gateway needs input and output prices for the models involved before a spending limit can be used.";
+"网关的数据暂时不可用（无法读取或写入），本次操作没有生效；请检查网关数据目录后重试。" = "The gateway's data is unavailable for now (it cannot be read or written), so nothing was changed. Check the gateway data directory and try again.";
