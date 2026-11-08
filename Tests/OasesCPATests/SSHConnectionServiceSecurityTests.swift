@@ -649,7 +649,9 @@ final class SSHConnectionServiceSecurityTests: XCTestCase {
             if child.isRunning { child.terminate() }
         }
 
-        let deadline = Date().addingTimeInterval(2)
+        // The loop ends as soon as the marker exists; the long limit only covers a cold, slow runner
+        // where the first start of /usr/bin/python3 (a developer-tools shim) takes several seconds.
+        let deadline = Date().addingTimeInterval(30)
         while !FileManager.default.fileExists(atPath: markerURL.path), Date() < deadline {
             usleep(10_000)
         }
