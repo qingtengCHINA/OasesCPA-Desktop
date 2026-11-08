@@ -767,4 +767,55 @@ final class UpgradeScriptTests: XCTestCase {
         XCTAssertTrue(text(root, "backups/\(backup)/versions.json").contains("v8.0.0"))
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("gateway").path), "no gateway for Docker")
     }
+
+    // MARK: - Batch-6 review follow-ups (batch 7a, step 0)
+
+    /// A Docker backup that fails half way is moved to backups/incomplete-* (never deleted) like
+    /// the native one, so the rollback still uses the older COMPLETE backup instead of exiting 19.
+    func testFailedDockerBackupIsSetAsideAndRollbackUsesTheOlderCompleteBackup() throws {
+        let fake = try FakeArtifacts.make(caseName: "docker-partial-backup")
+        let root = fake.caseDirectory.appendingPathComponent("root", isDirectory: true)
+        try write("", root, ".oases-cpa-installed")
+        try write("services:\n  cpa:\n    image: before\n", root, "compose.yaml")
+        try write("CPA_PORT=8317\n", root, ".env")
+        let bin = fake.caseDirectory.appendingPathComponent("docker-partial-bin", isDirectory: true)
+        let failFlag = fake.caseDirectory.appendingPathComponent("fail-env-copy")
+        try write("#!/bin/bash\nexit 0\n", bin, "docker")
+        try write("""
+        #!/bin/bash
+        if [ -f '\(failFlag.path)' ]; then
+          for arg in "$@"; do case "$arg" in */backups/upgrade-*/.env) exit 1 ;; esac; done
+        fi
+        exec /bin/cp "$@"
+
+        """, bin, "cp")
+        for tool in ["docker", "cp"] {
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bin.appendingPathComponent(tool).path)
+        }
+        let environment = ["PATH": "\(bin.path):\(fake.binDirectory.path):/usr/bin:/bin:/usr/sbin:/sbin"]
+        let script = maintenance.upgradeScriptForVerification(method: .docker, installDirectory: root.path, pins: fake.pins)
+        let first = try fake.run(script, extraEnvironment: environment)
+        XCTAssertEqual(first.status, 0, first.stderr)
+        let complete = try XCTUnwrap(upgradeBackups(root).last)
+        try write("services:\n  cpa:\n    image: after-first-upgrade\n", root, "compose.yaml")
+
+        try write("", fake.caseDirectory, "fail-env-copy")
+        let failed = try fake.run(script, extraEnvironment: environment)
+        XCTAssertNotEqual(failed.status, 0)
+        XCTAssertTrue(failed.stderr.contains("升级在备份完成前失败"), failed.stderr)
+        XCTAssertEqual(upgradeBackups(root), [complete], "only the complete backup is left as upgrade-*")
+        let incomplete = ((try? FileManager.default.contentsOfDirectory(atPath: root.appendingPathComponent("backups").path)) ?? [])
+            .filter { $0.hasPrefix("incomplete-") }
+        XCTAssertEqual(incomplete.count, 1, "the partial backup is kept: \(incomplete)")
+        let kept = try XCTUnwrap(incomplete.first)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("backups/\(kept)/backup-started").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("backups/\(kept)/backup-complete").path))
+        XCTAssertEqual(text(root, "compose.yaml"), "services:\n  cpa:\n    image: after-first-upgrade\n", "nothing else changed")
+
+        try FileManager.default.removeItem(at: failFlag) // the test's own scratch file: copies work again
+        let rolledBack = try fake.run(maintenance.rollbackScriptForVerification(method: .docker, installDirectory: root.path), extraEnvironment: environment)
+        XCTAssertEqual(rolledBack.status, 0, rolledBack.stderr)
+        XCTAssertEqual(text(root, "compose.yaml"), "services:\n  cpa:\n    image: before\n", "the older complete backup was used")
+        XCTAssertTrue(rolledBack.stdout.contains("OASES_CPA_BACKUP=\(root.appendingPathComponent("backups/\(complete)").path)"), rolledBack.stdout)
+    }
 }

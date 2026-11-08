@@ -404,7 +404,8 @@ enum RuntimeOpenAICompatibilityListMutation {
         var provider = provider
         if let otherPrefixes {
             let listPrefixes = entries.compactMap { ($0 as? [String: Any])?["prefix"] as? String }
-            if let allocated = ProviderPrefixAllocator.resolve(prefix: nil, name: providerName, taken: listPrefixes + otherPrefixes) {
+            let configPrefixes = Self.directProviderPrefixes(in: responseData)
+            if let allocated = ProviderPrefixAllocator.resolve(prefix: nil, name: providerName, taken: listPrefixes + configPrefixes + otherPrefixes) {
                 provider = provider.withPrefix(allocated)
             }
         }
@@ -432,6 +433,17 @@ enum RuntimeOpenAICompatibilityListMutation {
             outcome: .appended,
             requestBody: try JSONSerialization.data(withJSONObject: entries)
         )
+    }
+
+    /// The `prefix` of every direct provider credential in a whole-config response
+    /// (`GET /v0/management/config`: `gemini-api-key`, `codex-api-key`, …); empty for a response
+    /// that carries only the openai-compatibility list. The gateway judges a prefix's uniqueness
+    /// by every `prefix:` line of the engine config, so these count as taken too.
+    static func directProviderPrefixes(in responseData: Data) -> [String] {
+        guard let envelope = (try? JSONSerialization.jsonObject(with: responseData)) as? [String: Any] else { return [] }
+        return RuntimeDirectProviderKind.allCases.flatMap { kind -> [String] in
+            ((envelope[kind.managementSection] as? [Any]) ?? []).compactMap { ($0 as? [String: Any])?["prefix"] as? String }
+        }
     }
 
     /// The PUT body that gives the entry `priority`: the entry at `index` when its name is

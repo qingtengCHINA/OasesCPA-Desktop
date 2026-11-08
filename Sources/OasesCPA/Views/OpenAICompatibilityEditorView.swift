@@ -299,6 +299,12 @@ struct OpenAICompatibilityEditorView: View {
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
             }
+            if canUseAutomaticPrefix {
+                Button("使用自动前缀", systemImage: "wand.and.stars") { useAutomaticPrefix() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("为这项服务分配一个只属于它的前缀，供按 Key 指定供应商使用；保存后才生效")
+            }
             if let prefixWarning {
                 Text(prefixWarning)
                     .font(.caption)
@@ -730,6 +736,28 @@ struct OpenAICompatibilityEditorView: View {
         return text.isEmpty ? 0 : Int(text)
     }
 
+    /// An existing provider without a prefix (and an empty field): the user may ask for the
+    /// allocated one. Nothing is filled in without that click.
+    private var canUseAutomaticPrefix: Bool {
+        index != nil
+            && ProviderPrefixAllocator.comparable(provider.prefix).isEmpty
+            && ProviderPrefixAllocator.comparable(prefix).isEmpty
+    }
+
+    private func useAutomaticPrefix() {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch ProviderPrefixAllocator.automaticPrefixForExistingProvider(currentPrefix: prefix, name: trimmedName, taken: takenPrefixes) {
+        case .success(let allocated):
+            guard let allocated else { return }
+            prefix = allocated
+            prefixIsAutomatic = false
+            saveError = nil
+        case .failure(let error):
+            saveError = error.localizedDescription
+            loadPrefixInventory()
+        }
+    }
+
     /// When an existing prefix is changed, ask first (pins through it may stop working).
     private func requestSave() {
         guard isValid else { return }
@@ -744,7 +772,12 @@ struct OpenAICompatibilityEditorView: View {
 
     /// A new provider needs the prefixes in use; read the lists once if they are not known.
     private func loadPrefixInventoryIfNeeded() {
-        guard index == nil, deploymentStore.stage == .attached else { return }
+        guard index == nil else { return }
+        loadPrefixInventory()
+    }
+
+    private func loadPrefixInventory() {
+        guard deploymentStore.stage == .attached else { return }
         if !runtimeDataStore.hasLoadedOpenAICompatibility && !runtimeDataStore.isLoadingProviders {
             runtimeDataStore.refreshProviders(using: deploymentStore)
         }

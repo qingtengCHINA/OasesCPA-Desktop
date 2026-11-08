@@ -205,7 +205,9 @@ final class RuntimeDataStore: ObservableObject {
     private static let automaticPriceSyncInterval: TimeInterval = 24 * 60 * 60
     private static let automaticPriceRetryInterval: TimeInterval = 60
 
-    func refresh(using deploymentStore: DeploymentStore) {
+    /// `includingGatewayModels` false: the model directory is left as it is (the shown gateway
+    /// page reads the gateway itself; see `WorkspaceRefresh.refreshesGatewayDirectory`).
+    func refresh(using deploymentStore: DeploymentStore, includingGatewayModels: Bool = true) {
         refreshTask?.cancel()
         dashboardRefreshTask?.cancel()
         dashboardRefreshTask = nil
@@ -333,7 +335,9 @@ final class RuntimeDataStore: ObservableObject {
         isLoading = true
         errorMessage = nil
         refreshAuthFiles(using: deploymentStore)
-        refreshGatewayModels(using: deploymentStore)
+        if includingGatewayModels {
+            refreshGatewayModels(using: deploymentStore)
+        }
 
         refreshTask = Task { [weak self] in
             do {
@@ -2692,19 +2696,15 @@ final class RuntimeDataStore: ObservableObject {
                     preservedExistingModels: !shouldReplaceModels
                 )
             } else {
-                let newProvider = RuntimeOpenAICompatibilityWrite(
-                    name: RuntimeOpenRouterOAuth.providerName,
-                    priority: 0,
-                    disabled: false,
-                    prefix: "",
-                    baseURL: RuntimeOpenRouterOAuth.apiBaseURL.absoluteString,
-                    apiKeyEntries: [RuntimeProviderAPIKey(apiKey: apiKey)],
+                // A new provider gets an internal routing prefix like every other new one.
+                let directPrefixes = hasLoadedDirectProviderCredentials
+                    ? RuntimeDirectProviderKind.allCases.flatMap { (directProviderCredentials[$0] ?? []).map(\.prefix) }
+                    : []
+                let appendOutcome = try await RuntimeOpenRouterOAuth.appendNewProvider(
+                    apiKey: apiKey,
                     models: models,
-                    headers: [:],
-                    disableCooling: false
-                )
-                let appendOutcome = try await client.appendOpenAICompatibility(
-                    newProvider,
+                    directPrefixes: directPrefixes,
+                    client: client,
                     baseURL: baseURL,
                     managementKey: managementKey
                 )

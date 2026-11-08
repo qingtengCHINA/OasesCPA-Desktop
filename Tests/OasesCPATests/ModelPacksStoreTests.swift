@@ -140,4 +140,36 @@ final class ModelPacksStoreTests: XCTestCase {
         XCTAssertEqual(URLProtocolStub.recordedRequests.filter { $0.0.httpMethod == "POST" }.count, 1, "no retry")
         store.deactivate()
     }
+
+    /// The pack service's 429 `rate_limited` (`packs.mjs` `HTTP_STATUS`) is shown as text, and an
+    /// update is checked by `GatewayPackValidation.errors(patch:pack:now:)` before it is sent.
+    func testRateLimitedAndPatchValidationAreReadable() async throws {
+        let store = try await loadedStore()
+        install(save: { _ in (429, #"{"error":"raw server text","code":"rate_limited"}"#) })
+        let succeeded = await store.resetUsage(keyID: "pkk_0123456789abcdef")
+        XCTAssertFalse(succeeded)
+        XCTAssertEqual(store.actionError, OasesLocalization.localized("操作过于频繁，网关暂时拒绝了这次修改；请稍后再试。"))
+        XCTAssertNotEqual(OasesLocalization.localized("操作过于频繁，网关暂时拒绝了这次修改；请稍后再试。", language: .english),
+                          "操作过于频繁，网关暂时拒绝了这次修改；请稍后再试。")
+
+        install()
+        var patch = GatewayPackKeyPatch(keyID: "pkk_0123456789abcdef")
+        patch.totalCostUSD = .set(5)
+        let refused = await store.updateKey(patch)
+        XCTAssertFalse(refused, "the key's pack has an unpriced member")
+        XCTAssertEqual(store.actionError, GatewayPackValidation.pricingRequiredMessage)
+        XCTAssertFalse(URLProtocolStub.recordedRequests.contains { $0.0.httpMethod == "POST" }, "nothing was sent")
+        store.deactivate()
+    }
+
+    /// After a 401 the editor still has something to show (the latch leaves `actionError` empty).
+    func testFailedMutationAlwaysHasAMessage() async throws {
+        let store = try await loadedStore()
+        install(save: { _ in (401, #"{"error":"Unauthorized management key"}"#) })
+        let succeeded = await store.deleteKey(keyID: "pkk_0123456789abcdef")
+        XCTAssertFalse(succeeded)
+        XCTAssertNil(store.actionError)
+        XCTAssertEqual(store.mutationFailureMessage, GatewayAdminError.unauthorized.errorDescription)
+        store.deactivate()
+    }
 }

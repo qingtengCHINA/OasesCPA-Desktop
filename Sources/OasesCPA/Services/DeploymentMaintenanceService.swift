@@ -886,12 +886,31 @@ struct DeploymentMaintenanceService {
         BACKUP_NAME="upgrade-$(date -u '+%Y%m%d-%H%M%S')"
         if [ -e "$ROOT/backups/$BACKUP_NAME" ]; then BACKUP_NAME="$BACKUP_NAME-$$"; fi
         BACKUP_ROOT="$ROOT/backups/$BACKUP_NAME"
+        BACKUP_READY=0
+        # Like the native upgrade: a backup that did not finish is moved to backups/incomplete-*
+        # (never deleted), so a rollback still finds the newest COMPLETE backup.
+        oases_docker_backup_exit() {
+          local status="$?" target
+          trap - EXIT
+          if [ "$status" -ne 0 ] && [ "$BACKUP_READY" -eq 0 ] && [ -d "$BACKUP_ROOT" ]; then
+            target="$ROOT/backups/incomplete-${BACKUP_NAME#upgrade-}"
+            if [ -e "$target" ] || [ -L "$target" ]; then target="$target-$(date -u '+%Y%m%dT%H%M%SZ')-$$"; fi
+            if mv "$BACKUP_ROOT" "$target"; then
+              printf '升级在备份完成前失败；未完成的备份已移到 backups/%s，服务没有改动。\n' "$(basename "$target")" >&2
+            else
+              printf '%s\n' '升级在备份完成前失败；未完成的备份未能移走，它缺少完成标记，回滚不会使用它。' >&2
+            fi
+          fi
+          exit "$status"
+        }
+        trap oases_docker_backup_exit EXIT
         mkdir -p "$BACKUP_ROOT" "$ROOT/logs"
         : > "$BACKUP_ROOT/backup-started"
         cp -p "$ROOT/compose.yaml" "$BACKUP_ROOT/compose.yaml"
         [ ! -e "$ROOT/.env" ] || cp -p "$ROOT/.env" "$BACKUP_ROOT/.env"
         if [ -f "$ROOT/.oases-cpa-versions" ]; then cp -p "$ROOT/.oases-cpa-versions" "$BACKUP_ROOT/versions.json"; else : > "$BACKUP_ROOT/versions.absent"; fi
         : > "$BACKUP_ROOT/backup-complete"
+        BACKUP_READY=1
         cd "$ROOT"
         CPAMP_IMAGE="$CPAMP_DOCKER_IMAGE" CPA_IMAGE="$CLI_DOCKER_IMAGE" docker compose pull > "$ROOT/logs/docker-upgrade-pull.log" 2>&1
         CPAMP_IMAGE="$CPAMP_DOCKER_IMAGE" CPA_IMAGE="$CLI_DOCKER_IMAGE" docker compose up -d > "$ROOT/logs/docker-upgrade-up.log" 2>&1

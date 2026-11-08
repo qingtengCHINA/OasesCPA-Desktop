@@ -72,8 +72,12 @@ struct GatewayKeyPolicyEditor: View {
         Section {
             TextField("名称", text: $draft.policy.label, prompt: Text("例如：笔记本、CI"))
             Toggle("启用", isOn: $draft.policy.enabled)
-            TextField("备注", text: $draft.policy.notes, axis: .vertical)
-                .lineLimit(2...4)
+            // One line: the gateway removes newlines and other control characters from notes,
+            // so they are removed here too (what is shown is what is stored).
+            TextField("备注", text: Binding(
+                get: { draft.policy.notes },
+                set: { draft.policy.notes = GatewayKeyPolicy.normalizedNotes($0) }
+            ))
         } footer: {
             if mode == .create {
                 Text("Key 由 App 随机生成，创建后只显示一次，请立即复制保存。")
@@ -222,7 +226,9 @@ struct GatewayKeyPolicyEditor: View {
         let errors = draft.validationErrors()
         // A denylist with pins becomes savable once the user confirms dropping them.
         let onlyPinError = draft.policy.mode == .denylist && errors.count == 1 && !draft.policy.modelProviderPins.isEmpty
-        return errors.isEmpty || onlyPinError
+        // Editing: nothing to save until a known field differs from the opened policy.
+        let hasSomethingToSave = mode == .create || draft.hasChanges
+        return hasSomethingToSave && (errors.isEmpty || onlyPinError)
     }
 
     // MARK: - Actions
@@ -247,13 +253,13 @@ struct GatewayKeyPolicyEditor: View {
                     onCreated(key)
                     dismiss()
                 } else {
-                    saveError = store.actionError
+                    saveError = store.mutationFailureMessage
                 }
             case .edit(let key):
                 if await store.savePolicy(key: key, draft: draft) {
                     dismiss()
                 } else {
-                    saveError = store.actionError
+                    saveError = store.mutationFailureMessage
                 }
             }
         }

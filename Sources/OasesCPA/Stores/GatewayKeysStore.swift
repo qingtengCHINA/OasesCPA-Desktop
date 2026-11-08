@@ -27,7 +27,6 @@ enum GatewayKeysStoreError: LocalizedError, Equatable {
     /// The server's policy changed after the editor was opened.
     case changedElsewhere
     case keyNotFound
-    case internalKey
     case invalid([String])
     /// Provider pins would be dropped and the user has not confirmed it.
     case pinsNotConfirmed([String])
@@ -38,8 +37,6 @@ enum GatewayKeysStoreError: LocalizedError, Equatable {
             OasesLocalization.localized("这把 Key 的策略已被其他客户端修改，本次修改没有保存。请关闭编辑器、刷新后重新编辑。")
         case .keyNotFound:
             OasesLocalization.localized("网关上已没有这把 Key，本次修改没有保存；请刷新列表。")
-        case .internalKey:
-            OasesLocalization.localized("这把 Key 是网关内部使用的引擎 Key，由网关自己管理，不能修改或删除。")
         case .invalid(let errors):
             errors.joined(separator: "\n")
         case .pinsNotConfirmed(let models):
@@ -98,12 +95,31 @@ final class GatewayKeysStore: GatewayWorkbenchStore {
 
     /// Creates a key (the gateway's format, from `RuntimeAPIKeyGenerator`) with `policy`. Returns
     /// it for the one-time display, or nil when the gateway refused.
+    ///
+    /// The gateway's add path (engine write, then policy write) can outlast the request timeout
+    /// and still succeed. After a transport error or a 5xx the key list is read once more: when
+    /// the generated key is listed, it was added and is returned (otherwise the app would forget
+    /// the only copy of a live key).
     func addKey(policy: GatewayKeyPolicy) async -> String? {
         let key = RuntimeAPIKeyGenerator.generate()
         let saved = await mutate { client in
-            _ = try await client.save(.addKey(key: key, policy: policy))
+            do {
+                _ = try await client.save(.addKey(key: key, policy: policy))
+            } catch let error as GatewayAdminError where Self.mayHaveBeenApplied(error) {
+                guard let data = try? await client.permissionsData(), data.keys.contains(key) else { throw error }
+            }
         }
         return saved ? key : nil
+    }
+
+    /// An answer that does not prove the change was refused: the request timed out or the
+    /// connection broke, or the gateway failed after it may have written.
+    nonisolated static func mayHaveBeenApplied(_ error: GatewayAdminError) -> Bool {
+        switch error {
+        case .transport: true
+        case .server(let status, _, _): status >= 500
+        default: false
+        }
     }
 
     /// Saves `draft` after reading the key's current policy again: when the server's policy is no
@@ -111,6 +127,9 @@ final class GatewayKeysStore: GatewayWorkbenchStore {
     /// the server's latest object, so fields this app does not know are kept.
     func savePolicy(key: String, draft: GatewayKeyPolicyDraft) async -> Bool {
         guard !isInternal(key) else { return false }
+        // Read-then-POST is inherently racy: the gateway has no compare-and-set, so a change
+        // another client makes between this read and the POST is overwritten. The re-read keeps
+        // that window as short as possible and refuses when the policy already differs.
         return await mutate(
             rereading: { client in try await client.permissionsData() },
             then: { client, data in
@@ -131,7 +150,7 @@ final class GatewayKeysStore: GatewayWorkbenchStore {
     /// Renames a key without touching any other policy field (`set_label`).
     func setLabel(key: String, label: String) async -> Bool {
         guard !isInternal(key) else { return false }
-        let trimmed = String(label.trimmingCharacters(in: .whitespacesAndNewlines).prefix(GatewayKeyPolicy.maximumLabelLength))
+        let trimmed = GatewayKeyPolicy.normalizedLabel(label)
         return await mutate { client in
             _ = try await client.save(.setLabel(key: key, label: trimmed))
         }

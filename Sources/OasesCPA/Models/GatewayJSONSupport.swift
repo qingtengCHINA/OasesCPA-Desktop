@@ -20,6 +20,31 @@ struct AnyCodingKey: CodingKey, Hashable, Sendable {
     }
 }
 
+extension AnyCodingKey {
+    /// `snake_case` as `JSONDecoder.KeyDecodingStrategy.convertFromSnakeCase` spells it
+    /// (`display_name` → `displayName`).
+    static func camelCase(_ snake: String) -> String {
+        let parts = snake.split(separator: "_", omittingEmptySubsequences: true)
+        guard let first = parts.first else { return snake }
+        return String(first) + parts.dropFirst().map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined()
+    }
+}
+
+extension KeyedDecodingContainer where Key == AnyCodingKey {
+    /// The value of the snake_case field `snake`, also when the decoder converted it to camelCase
+    /// (`.convertFromSnakeCase`): a model with snake_case keys then decodes the same with either
+    /// decoder. A JSON null is nil.
+    func decodeIfPresent<T: Decodable>(_ type: T.Type, snakeOrCamel snake: String) throws -> T? {
+        for name in [snake, AnyCodingKey.camelCase(snake)] {
+            let key = AnyCodingKey(name)
+            guard contains(key) else { continue }
+            if try decodeNil(forKey: key) { return nil }
+            return try decode(T.self, forKey: key)
+        }
+        return nil
+    }
+}
+
 /// Keeps the fields of a gateway object that a model does not know, so that a write-back
 /// (read, edit, save) never drops what a newer gateway added.
 enum UnknownFields {

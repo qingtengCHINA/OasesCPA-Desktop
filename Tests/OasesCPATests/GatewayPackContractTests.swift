@@ -163,4 +163,76 @@ final class GatewayPackContractTests: XCTestCase {
         XCTAssertTrue(member["output_usd_per_1m"] is NSNull)
         XCTAssertEqual(pack["failover"] as? [String: Int], ["first_byte_timeout_ms": 30_000, "max_attempts": 1])
     }
+
+    // MARK: - Batch-6 review follow-ups (batch 7a, step 0)
+
+    /// A new pack starts with the gateway's default attempts for its members (min(3, members)),
+    /// not a fixed 1 that would turn failover off; once the user sets the stepper the value is
+    /// theirs and is only lowered when members are removed.
+    func testNewDraftAttemptsFollowTheMemberCountUntilTheUserSetsThem() throws {
+        let three = ["glm-5", "deepseek-chat", "qwen-max"].map { GatewayPackMember(model: $0) }
+        var draft = GatewayPackDraft(name: "Team", modelID: "team-chat")
+        draft.setMembers(three)
+        let failover = try XCTUnwrap(try json(GatewayPacksSaveAction.upsertPack(draft))["pack"] as? [String: Any])["failover"] as? [String: Int]
+        XCTAssertEqual(failover?["max_attempts"], 3, "a 3-member draft encodes max_attempts 3")
+        draft.setMembers(three + [GatewayPackMember(model: "kimi-k2")])
+        XCTAssertEqual(draft.failover.maxAttempts, 3, "the gateway default is capped at 3")
+        draft.setMembers(Array(three.prefix(2)))
+        XCTAssertEqual(draft.failover.maxAttempts, 2)
+
+        draft.setMaxAttempts(1)
+        draft.setMembers(three)
+        XCTAssertEqual(draft.failover.maxAttempts, 1, "the user's choice is kept")
+        XCTAssertTrue(GatewayPackValidation.errors(pack: draft).isEmpty)
+
+        // An existing pack keeps its stored value; removing members lowers it.
+        let pack = GatewayPack(id: "pk_1", name: "Team", modelID: "team-chat", mode: .roundRobin, members: Array(three.prefix(2)),
+                               failover: GatewayPackFailover(firstByteTimeoutMs: 30_000, maxAttempts: 2))
+        var edited = GatewayPackDraft(pack: pack)
+        edited.setMembers(three)
+        XCTAssertEqual(edited.failover.maxAttempts, 2)
+        edited.setMembers([three[0]])
+        XCTAssertEqual(edited.failover.maxAttempts, 1)
+        XCTAssertTrue(GatewayPackValidation.errors(pack: edited).isEmpty)
+    }
+
+    /// The first-byte timeout field accepts whole milliseconds only (no silent fallback).
+    func testTimeoutTextMustBeWholeMilliseconds() {
+        XCTAssertEqual(ModelPackEditor.timeout(from: "30000"), 30_000)
+        XCTAssertEqual(ModelPackEditor.timeout(from: " 1000 "), 1_000)
+        for text in ["", "abc", "1e4", "30 000", "-1000", "30000.5", "３０００"] {
+            XCTAssertNil(ModelPackEditor.timeout(from: text), text)
+        }
+        XCTAssertNotEqual(OasesLocalization.localized("首字节超时必须是整数毫秒（1000–120000）。", language: .english),
+                          "首字节超时必须是整数毫秒（1000–120000）。")
+    }
+
+    /// `update_key` is checked with the same rules as `create_keys` (one implementation).
+    func testPatchValidationUsesTheGatewayRules() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let unpriced = GatewayPack(id: "pk_1", name: "Team", modelID: "team-chat", mode: .roundRobin,
+                                   members: [GatewayPackMember(model: "glm-5")], failover: .defaults(memberCount: 1))
+        var priced = unpriced
+        priced.members = [GatewayPackMember(model: "glm-5", inputUSDPer1M: 0.3, outputUSDPer1M: 1.2)]
+        func errors(_ pack: GatewayPack?, _ change: (inout GatewayPackKeyPatch) -> Void) -> [String] {
+            var patch = GatewayPackKeyPatch(keyID: "pkk_1")
+            change(&patch)
+            return GatewayPackValidation.errors(patch: patch, pack: pack, now: now)
+        }
+        XCTAssertEqual(errors(unpriced) { _ in }, [])
+        XCTAssertEqual(errors(unpriced) { $0.totalCostUSD = .set(5) }, [GatewayPackValidation.pricingRequiredMessage])
+        XCTAssertEqual(errors(priced) { $0.totalCostUSD = .set(5) }, [])
+        XCTAssertEqual(errors(nil) { $0.totalCostUSD = .set(5) }, [], "pricing is left to the gateway when the pack is unknown")
+        XCTAssertEqual(errors(unpriced) { $0.totalCostUSD = .clear }, [], "removing a limit needs no prices")
+        XCTAssertFalse(errors(priced) { $0.totalCostUSD = .set(0) }.isEmpty)
+        XCTAssertFalse(errors(priced) { $0.totalTokens = .set(0) }.isEmpty)
+        XCTAssertEqual(errors(priced) { $0.totalTokens = .set(1) }, [])
+        XCTAssertFalse(errors(priced) { $0.label = .set(String(repeating: "l", count: 101)) }.isEmpty, "label 101")
+        XCTAssertEqual(errors(priced) { $0.label = .set(String(repeating: "l", count: 100)) }, [])
+        XCTAssertFalse(errors(priced) { $0.label = .set(String(repeating: "😀", count: 51)) }.isEmpty, "102 UTF-16 units")
+        XCTAssertFalse(errors(priced) { $0.label = .set("a\u{0007}b") }.isEmpty, "control character")
+        XCTAssertFalse(errors(priced) { $0.reset = .set(GatewayResetSchedule(unit: .week, every: 53)) }.isEmpty)
+        XCTAssertFalse(errors(priced) { $0.reset = .set(GatewayResetSchedule(unit: .day, every: 1, anchorAt: now.addingTimeInterval(86_401))) }.isEmpty)
+        XCTAssertEqual(errors(priced) { $0.reset = .clear }, [])
+    }
 }

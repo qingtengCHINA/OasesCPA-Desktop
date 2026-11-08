@@ -131,6 +131,29 @@ struct GatewayKeyPolicy: Codable, Equatable, Sendable {
     static let maximumLabelLength = 100
     static let maximumNotesLength = 1000
 
+    /// What the gateway stores for notes: control characters (U+0000–U+001F, newlines included)
+    /// removed (`server.mjs`, policy normalization). Lengths are counted in UTF-16 code units.
+    static func normalizedNotes(_ notes: String) -> String {
+        String(String.UnicodeScalarView(notes.unicodeScalars.filter { $0.value > 0x1F }))
+    }
+
+    /// What the gateway stores for a label: `<`, `>` and control characters removed, trimmed,
+    /// at most `maximumLabelLength` UTF-16 code units (cut at a character boundary, where the
+    /// gateway's `slice` could split a surrogate pair).
+    static func normalizedLabel(_ label: String) -> String {
+        let cleaned = String(String.UnicodeScalarView(label.unicodeScalars.filter { $0.value > 0x1F && $0 != "<" && $0 != ">" }))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        var result = ""
+        var units = 0
+        for character in cleaned {
+            let size = String(character).utf16.count
+            guard units + size <= maximumLabelLength else { break }
+            result.append(character)
+            units += size
+        }
+        return result
+    }
+
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case label, enabled, mode
         case allowedModels = "allowed_models"
@@ -400,10 +423,13 @@ struct GatewayKeyPolicyDraft: Equatable, Sendable {
     /// Localized problems that block a save.
     func validationErrors() -> [String] {
         var errors: [String] = []
-        if policy.label.count > GatewayKeyPolicy.maximumLabelLength {
+        // Counted like the gateway (JavaScript `length`: UTF-16 code units), after the characters
+        // it removes.
+        let label = policy.label.unicodeScalars.filter { $0.value > 0x1F && $0 != "<" && $0 != ">" }
+        if String(String.UnicodeScalarView(label)).trimmingCharacters(in: .whitespacesAndNewlines).utf16.count > GatewayKeyPolicy.maximumLabelLength {
             errors.append(OasesLocalization.localizedFormat("名称最多 %lld 个字符。", GatewayKeyPolicy.maximumLabelLength))
         }
-        if policy.notes.count > GatewayKeyPolicy.maximumNotesLength {
+        if GatewayKeyPolicy.normalizedNotes(policy.notes).utf16.count > GatewayKeyPolicy.maximumNotesLength {
             errors.append(OasesLocalization.localizedFormat("备注最多 %lld 个字符。", GatewayKeyPolicy.maximumNotesLength))
         }
         if let value = policy.rateLimit.requestsPerMinute, value <= 0 {

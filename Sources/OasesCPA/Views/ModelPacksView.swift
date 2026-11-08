@@ -10,6 +10,7 @@ struct ModelPacksView: View {
     @State private var packEditor: PackEditorRoute?
     @State private var keyEditor: KeyEditorRoute?
     @State private var confirmation: Confirmation?
+    @State private var showsRevealedKeys = false
 
     private struct PackEditorRoute: Identifiable {
         let id = UUID()
@@ -63,18 +64,31 @@ struct ModelPacksView: View {
         .sheet(item: $packEditor) { route in
             ModelPackEditor(store: store, pack: route.pack)
         }
-        .sheet(item: $keyEditor) { route in
+        // The one-time sheet opens from the editor's onDismiss (after the editor is gone), so it
+        // never competes with the editor sheet; closing it forgets the plaintext.
+        .sheet(item: $keyEditor, onDismiss: presentRevealedKeysIfAny) { route in
             PackKeyEditor(store: store, mode: route.mode)
         }
-        .sheet(isPresented: Binding(get: { !store.revealedKeys.isEmpty && keyEditor == nil }, set: { if !$0 { store.dismissRevealedKeys() } })) {
-            PackKeysRevealSheet(keys: store.revealedKeys) { store.dismissRevealedKeys() }
+        .sheet(isPresented: $showsRevealedKeys, onDismiss: { store.dismissRevealedKeys() }) {
+            PackKeysRevealSheet(keys: store.revealedKeys) { showsRevealedKeys = false }
                 .interactiveDismissDisabled()
+        }
+        .onChange(of: store.revealedKeys) { _, keys in
+            if keys.isEmpty {
+                showsRevealedKeys = false
+            } else if keyEditor == nil {
+                showsRevealedKeys = true
+            }
         }
         .confirmationDialog(confirmationTitle, isPresented: Binding(get: { confirmation != nil }, set: { if !$0 { confirmation = nil } }), titleVisibility: .visible) {
             confirmationButtons
         } message: {
             Text(confirmationMessage)
         }
+    }
+
+    private func presentRevealedKeysIfAny() {
+        if !store.revealedKeys.isEmpty { showsRevealedKeys = true }
     }
 
     private var reloadKey: String {

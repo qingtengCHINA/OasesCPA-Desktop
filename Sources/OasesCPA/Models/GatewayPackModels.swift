@@ -166,22 +166,48 @@ struct GatewayPackDraft: Encodable, Equatable, Sendable {
     var failover: GatewayPackFailover
     var enabled: Bool
     var identity: Bool
+    /// While true (a new pack whose attempts the user has not set), `max_attempts` follows the
+    /// gateway's default for the member count, `min(3, members)`: the draft always sends
+    /// `failover`, so a fixed 1 would silently turn failover off. Not encoded.
+    private(set) var followsDefaultAttempts: Bool
 
+    /// `failover` nil: the gateway's defaults for `members`, and the attempts keep following
+    /// the member count until `setMaxAttempts(_:)`.
     init(id: String? = nil, name: String = "", modelID: String = "", mode: GatewayPackMode = .roundRobin, members: [GatewayPackMember] = [],
-         failover: GatewayPackFailover = .defaults(memberCount: 1), enabled: Bool = true, identity: Bool = true) {
+         failover: GatewayPackFailover? = nil, enabled: Bool = true, identity: Bool = true) {
         self.id = id
         self.name = name
         self.modelID = modelID
         self.mode = mode
         self.members = members
-        self.failover = failover
+        self.failover = failover ?? .defaults(memberCount: members.count)
+        self.followsDefaultAttempts = failover == nil
         self.enabled = enabled
         self.identity = identity
     }
 
+    /// An existing pack keeps its stored attempts (only lowered when members are removed).
     init(pack: GatewayPack) {
         self.init(id: pack.id, name: pack.name, modelID: pack.modelID, mode: pack.mode, members: pack.members,
                   failover: pack.failover, enabled: pack.enabled, identity: pack.identity)
+    }
+
+    /// Replaces the members and keeps `max_attempts` valid: the gateway default while the draft
+    /// follows it, otherwise the user's value lowered to the member count when needed.
+    mutating func setMembers(_ members: [GatewayPackMember]) {
+        self.members = members
+        let count = max(1, members.count)
+        if followsDefaultAttempts {
+            failover.maxAttempts = GatewayPackFailover.defaults(memberCount: members.count).maxAttempts
+        } else {
+            failover.maxAttempts = max(1, min(failover.maxAttempts, count))
+        }
+    }
+
+    /// The user's choice (the stepper): from now on the attempts no longer follow the members.
+    mutating func setMaxAttempts(_ value: Int) {
+        followsDefaultAttempts = false
+        failover.maxAttempts = value
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -581,6 +607,8 @@ enum GatewayPackValidation {
     static let maximumMembers = 8
     static let maximumBatch = 500
     static let maximumLabelPrefixLength = 80
+    /// `update_key`'s label (`text(patch.label, 'label', { max: 100 })`).
+    static let maximumKeyLabelLength = 100
 
     static func errors(pack: GatewayPackDraft, hasCostLimitedKeys: Bool = false) -> [String] {
         var errors: [String] = []
@@ -640,6 +668,33 @@ enum GatewayPackValidation {
             }
         }
         if let reset = batch.reset {
+            errors += Self.errors(reset: reset, now: now)
+        }
+        return errors
+    }
+
+    /// `update_key` (`packs.mjs` `updateKey`): the same limit, label and schedule rules as
+    /// `errors(batch:pack:now:)`, for the fields the patch writes. `pack` is the key's pack (nil
+    /// when it is not known: the pricing rule is then left to the gateway).
+    static func errors(patch: GatewayPackKeyPatch, pack: GatewayPack?, now: Date = Date()) -> [String] {
+        var errors: [String] = []
+        if case .set(let label) = patch.label {
+            let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.utf16.count > maximumKeyLabelLength || containsControl(trimmed) {
+                errors.append(OasesLocalization.localizedFormat("名称最多 %lld 个字符，且不能含控制字符。", maximumKeyLabelLength))
+            }
+        }
+        if case .set(let tokens) = patch.totalTokens, tokens <= 0 {
+            errors.append(OasesLocalization.localized("总 Token 上限必须是正整数，或留空表示不限。"))
+        }
+        if case .set(let cost) = patch.totalCostUSD {
+            if cost <= 0 {
+                errors.append(OasesLocalization.localized("总花费上限必须大于 0，或留空表示不限。"))
+            } else if let pack, !pack.isPriced {
+                errors.append(pricingRequiredMessage)
+            }
+        }
+        if case .set(let reset) = patch.reset {
             errors += Self.errors(reset: reset, now: now)
         }
         return errors

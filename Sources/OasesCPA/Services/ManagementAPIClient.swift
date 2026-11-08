@@ -182,81 +182,6 @@ struct ManagementAPIClient {
         return try await get(url: url, managementKey: managementKey)
     }
 
-    func apiKeys(baseURL: URL, managementKey: String) async throws -> RuntimeAPIKeysResponse {
-        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
-            throw ManagementAPIError.invalidURL
-        }
-        components.path = "/v0/management/api-keys"
-        components.queryItems = nil
-        guard let url = components.url else { throw ManagementAPIError.invalidURL }
-        return try await get(url: url, managementKey: managementKey)
-    }
-
-    func addAPIKey(
-        _ value: String,
-        baseURL: URL,
-        managementKey: String
-    ) async throws {
-        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
-            throw ManagementAPIError.invalidURL
-        }
-        components.path = "/v0/management/api-keys"
-        components.queryItems = nil
-        guard let url = components.url else { throw ManagementAPIError.invalidURL }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "PATCH"
-        request.timeoutInterval = 20
-        request.setValue("Bearer \(managementKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.httpBody = try JSONEncoder().encode(RuntimeAPIKeyAddPatch(value: value))
-        try await performMutation(request)
-    }
-
-    func replaceAPIKey(
-        at index: Int,
-        with value: String,
-        baseURL: URL,
-        managementKey: String
-    ) async throws {
-        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
-            throw ManagementAPIError.invalidURL
-        }
-        components.path = "/v0/management/api-keys"
-        components.queryItems = nil
-        guard let url = components.url else { throw ManagementAPIError.invalidURL }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "PATCH"
-        request.timeoutInterval = 20
-        request.setValue("Bearer \(managementKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.httpBody = try JSONEncoder().encode(RuntimeAPIKeyReplacePatch(index: index, value: value))
-        try await performMutation(request)
-    }
-
-    func deleteAPIKey(
-        at index: Int,
-        baseURL: URL,
-        managementKey: String
-    ) async throws {
-        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
-            throw ManagementAPIError.invalidURL
-        }
-        components.path = "/v0/management/api-keys"
-        components.queryItems = [URLQueryItem(name: "index", value: String(index))]
-        guard let url = components.url else { throw ManagementAPIError.invalidURL }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "DELETE"
-        request.timeoutInterval = 20
-        request.setValue("Bearer \(managementKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        try await performMutation(request)
-    }
-
     func gatewayModels(baseURL: URL, apiKey: String? = nil) async throws -> RuntimeGatewayModelsResponse {
         guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
             throw ManagementAPIError.invalidURL
@@ -275,7 +200,8 @@ struct ManagementAPIClient {
 
         let data = try await performData(request, unauthorizedError: .apiKeyUnauthorized)
         do {
-            return try decoder.decode(RuntimeGatewayModelsResponse.self, from: data)
+            // A plain decoder: the model spells its snake_case keys out (`display_name`).
+            return try JSONDecoder().decode(RuntimeGatewayModelsResponse.self, from: data)
         } catch {
             throw ManagementAPIError.decoding(String(describing: error))
         }

@@ -94,7 +94,10 @@ final class SearchProvidersStore: GatewayWorkbenchStore {
     func test(_ id: String, apiKey: String? = nil) async -> Bool {
         await mutate(reloadAfter: true) { [weak self] client in
             do {
-                let result = try await client.testSearchProvider(id, apiKey: apiKey)
+                var result = try await client.testSearchProvider(id, apiKey: apiKey)
+                // The provider's message may echo the key just typed: it is masked before it is
+                // kept, so no later view of the result can show it.
+                result.message = SearchProvidersError.mask(result.message, typedKey: apiKey)
                 self?.testResults[id] = result
             } catch {
                 throw SearchProvidersError.map(error, typedKey: apiKey)

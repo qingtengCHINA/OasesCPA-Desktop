@@ -50,7 +50,7 @@ struct ContentView: View {
         .background(Oases.Color.background)
         .tint(Oases.Color.accent)
         .task {
-            runtimeDataStore.refresh(using: deploymentStore)
+            runtimeDataStore.refresh(using: deploymentStore, includingGatewayModels: refreshesDirectoryNow)
         }
         .task(id: deploymentStore.stage) {
             guard deploymentStore.stage == .attached else { return }
@@ -60,11 +60,18 @@ struct ContentView: View {
             }
         }
         .onChange(of: deploymentStore.stage) { _, _ in
-            runtimeDataStore.refresh(using: deploymentStore)
+            runtimeDataStore.refresh(using: deploymentStore, includingGatewayModels: refreshesDirectoryNow)
             if deploymentStore.stage == .attached {
                 runtimeDataStore.automaticallySyncModelPricesIfNeeded(using: deploymentStore)
             }
         }
+    }
+}
+
+extension ContentView {
+    /// A gateway page reads the gateway itself: the directory read would be a second request.
+    fileprivate var refreshesDirectoryNow: Bool {
+        WorkspaceRefresh.refreshesGatewayDirectory(section: store.selectedSection, topology: deploymentStore.topology)
     }
 }
 
@@ -79,7 +86,10 @@ enum WorkspaceRefresh {
     ) {
         let section = store.selectedSection
         store.refresh()
-        runtimeDataStore.refresh(using: deploymentStore)
+        runtimeDataStore.refresh(
+            using: deploymentStore,
+            includingGatewayModels: refreshesGatewayDirectory(section: section, topology: deploymentStore.topology)
+        )
         switch section {
         case .aiProviders:
             runtimeDataStore.refreshProviders(using: deploymentStore)
@@ -107,6 +117,17 @@ enum WorkspaceRefresh {
             object: nil,
             userInfo: ["section": section.rawValue]
         )
+    }
+
+    /// The pages whose own store reads the gateway's `permissions/api/data` (or another
+    /// `/cpa-admin` read) on ⌘R.
+    static let gatewayPageSections: Set<AppSection> = [.dashboard, .accessKeys, .models, .modelPacks, .webSearch]
+
+    /// Whether ⌘R also reads the model directory. Not on a gateway page of a gateway deployment:
+    /// that page's store reads the gateway itself, and with a stale key a second `/cpa-admin`
+    /// request in the same wave only lengthens the gateway's global back-off.
+    static func refreshesGatewayDirectory(section: AppSection, topology: DeploymentTopology) -> Bool {
+        topology != .gateway || !gatewayPageSections.contains(section)
     }
 }
 

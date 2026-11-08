@@ -34,9 +34,11 @@ final class ModelsWorkbenchStore: GatewayWorkbenchStore {
     }
 
     override func load(using client: GatewayAdminClient) async throws {
-        async let permissions = client.permissionsData()
-        async let health = client.modelHealth()
-        let (data, results) = try await (permissions, health)
+        // One read after another: with a stale key only one request gets the 401 (every 401
+        // lengthens the gateway's global back-off).
+        let data = try await client.permissionsData()
+        try ensureCurrentLoad()
+        let results = try await client.modelHealth()
         try ensureCurrentLoad()
         rows = GatewayModelRow.rows(groupedModels: data.groupedModels, health: results.models)
         apply(run: results.run)

@@ -10,6 +10,41 @@ enum RuntimeOpenRouterOAuth {
     /// The token exchange returns an API key and the model list sends one: no disk cache.
     static var session: URLSession { SecretBearingURLSession.shared }
 
+    /// The dedicated provider as first written. Its prefix is left empty here because it is
+    /// allocated when the list is written (`appendNewProvider`), like every new provider's.
+    static func newProviderWrite(apiKey: String, models: [RuntimeProviderModel]) -> RuntimeOpenAICompatibilityWrite {
+        RuntimeOpenAICompatibilityWrite(
+            name: providerName,
+            priority: 0,
+            disabled: false,
+            prefix: "",
+            baseURL: apiBaseURL.absoluteString,
+            apiKeyEntries: [RuntimeProviderAPIKey(apiKey: apiKey)],
+            models: models,
+            headers: [:],
+            disableCooling: false
+        )
+    }
+
+    /// Appends the dedicated provider with an internal routing prefix allocated against the list
+    /// just read, the config's direct providers and `directPrefixes` (the ones the app has read;
+    /// empty when they are not loaded: the config read covers them).
+    static func appendNewProvider(
+        apiKey: String,
+        models: [RuntimeProviderModel],
+        directPrefixes: [String],
+        client: ManagementAPIClient,
+        baseURL: URL,
+        managementKey: String
+    ) async throws -> RuntimeOpenAICompatibilityListAppendOutcome {
+        try await client.appendOpenAICompatibility(
+            newProviderWrite(apiKey: apiKey, models: models),
+            allocatePrefixAgainst: directPrefixes,
+            baseURL: baseURL,
+            managementKey: managementKey
+        )
+    }
+
     static func makeSession(callbackURL: URL) throws -> RuntimeOpenRouterOAuthSession {
         let codeVerifier = try secureRandomBase64URL(byteCount: 48)
         let state = try secureRandomBase64URL(byteCount: 32)

@@ -115,4 +115,33 @@ final class GatewaySearchContractTests: XCTestCase {
         XCTAssertNil(unlimited.dailyLimit)
         XCTAssertNil(unlimited.keyHint)
     }
+
+    /// A provider's message that echoes the key just typed is masked before the result is kept,
+    /// so the provider row (which shows the kept result) cannot show it.
+    @MainActor
+    func testTypedKeyIsMaskedInTheKeptTestResult() async throws {
+        defer { URLProtocolStub.reset() }
+        let typed = "tvly-" + String(repeating: "q7", count: 12)
+        URLProtocolStub.install { request, _ in
+            switch request.url?.path {
+            case "/cpa-admin/search/providers": return .json(200, #"{"providers":[\#(braveEntry)]}"#, for: request)
+            case "/cpa-admin/search/usage": return .json(200, #"{"days":[]}"#, for: request)
+            case "/cpa-admin/search/logs": return .json(200, #"{"logs":[]}"#, for: request)
+            case "/cpa-admin/search/providers/test":
+                return .json(200, #"{"result":{"ok":false,"status":401,"code":"upstream_auth","message":"invalid key \#(typed)","tested_at":"2026-11-08T00:00:00.000Z","key_hint":"…q7q7"}}"#, for: request)
+            default: return .json(404, #"{"error":"Not found"}"#, for: request)
+            }
+        }
+        let store = SearchProvidersStore(provider: FakeGatewayClientProvider())
+        store.activate()
+        for _ in 0..<300 where store.phase != .loaded { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(store.phase, .loaded)
+        let succeeded = await store.test("brave", apiKey: typed)
+        XCTAssertTrue(succeeded)
+        let kept = try XCTUnwrap(store.result(for: "brave"))
+        XCTAssertFalse(kept.ok)
+        XCTAssertFalse(kept.message.contains(typed), kept.message)
+        XCTAssertTrue(kept.message.hasPrefix("invalid key"), kept.message)
+        store.deactivate()
+    }
 }

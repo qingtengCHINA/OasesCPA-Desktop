@@ -248,4 +248,54 @@ final class ModelDetailStoreTests: XCTestCase {
         XCTAssertEqual(priced.summary?.hasPrice, true)
         priced.deactivate()
     }
+
+    /// The gateway plans the order again when it applies it: an apply answer whose plan differs
+    /// from the confirmed one (here a third model is affected) is surfaced, not accepted silently.
+    func testApplyThatDiffersFromTheConfirmedPlanIsSurfaced() async throws {
+        var stub = Stub()
+        stub.reorder = Answers([
+            (200, #"{"priorities":{"compat-a":10,"compat-b":20},"affected":["other-model"],"ties":[],"rejected":null}"#),
+            (200, #"{"ok":true,"priorities":{"compat-a":10,"compat-b":20},"affected":["other-model","pin-a/third-model"],"ties":[],"rejected":null}"#),
+        ])
+        let store = try await loadedStore(stub)
+        await store.proposeOrder(newOrder)
+        XCTAssertNotNil(store.pendingPlan)
+        await store.confirmPendingPlan()
+        XCTAssertEqual(try reorderBodies().count, 2)
+        let notice = try XCTUnwrap(store.appliedPlanNotice, "a changed plan is surfaced")
+        XCTAssertTrue(notice.contains("third-model"), notice)
+        XCTAssertFalse(notice.contains("pin-a/"), "public names only: \(notice)")
+        store.dismissAppliedPlanNotice()
+        XCTAssertNil(store.appliedPlanNotice)
+        store.deactivate()
+    }
+
+    /// The same plan on apply (or an apply without side effects that stays without them) shows
+    /// nothing; one that suddenly changes other models does.
+    func testApplyMatchingTheDryRunShowsNoNotice() async throws {
+        var stub = Stub()
+        stub.reorder = Answers([
+            (200, #"{"priorities":{"compat-a":10,"compat-b":20},"affected":[],"ties":[],"rejected":null}"#),
+            (200, #"{"ok":true,"priorities":{"compat-a":10,"compat-b":20},"affected":[],"ties":[],"rejected":null}"#),
+        ])
+        let store = try await loadedStore(stub)
+        await store.proposeOrder(newOrder)
+        XCTAssertNil(store.appliedPlanNotice)
+        store.deactivate()
+
+        var changed = Stub()
+        changed.reorder = Answers([
+            (200, #"{"priorities":{"compat-a":10,"compat-b":20},"affected":[],"ties":[],"rejected":null}"#),
+            (200, #"{"ok":true,"priorities":{"compat-a":10,"compat-b":20,"compat-c":5},"affected":["other-model"],"ties":[],"rejected":null}"#),
+        ])
+        let second = try await loadedStore(changed)
+        await second.proposeOrder(newOrder)
+        XCTAssertNotNil(second.appliedPlanNotice, "applied with side effects the dry run did not show")
+        second.deactivate()
+
+        let plan = GatewayReorderPlan(priorities: ["a": 2, "b": 1], affected: ["x"])
+        XCTAssertFalse(ModelDetailStore.appliedPlanDiffers(confirmed: plan, applied: GatewayReorderPlan(priorities: [:], affected: ["x"])),
+                       "an answer without priorities is compared by affected models only")
+        XCTAssertTrue(ModelDetailStore.appliedPlanDiffers(confirmed: plan, applied: GatewayReorderPlan(priorities: ["a": 1, "b": 2], affected: ["x"])))
+    }
 }

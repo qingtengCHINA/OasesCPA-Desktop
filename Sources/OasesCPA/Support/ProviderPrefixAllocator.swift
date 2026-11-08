@@ -101,6 +101,17 @@ enum ProviderPrefixAllocator {
     }
 }
 
+extension ProviderPrefixAllocator {
+    /// The user's "use automatic prefix" for a provider that already exists: the allocated prefix
+    /// when it has none, nil when it has one (an existing prefix is never replaced). Fails when
+    /// the provider lists are not known.
+    static func automaticPrefixForExistingProvider(currentPrefix: String, name: String, taken: [String]?) -> Result<String?, ProviderPrefixError> {
+        guard comparable(currentPrefix).isEmpty else { return .success(nil) }
+        guard let taken else { return .failure(.providerListsNotLoaded) }
+        return .success(resolve(prefix: nil, name: name, taken: taken))
+    }
+}
+
 enum ProviderPrefixError: LocalizedError, Equatable {
     /// The provider lists have not been read (or their last read failed), so a free prefix
     /// cannot be chosen.

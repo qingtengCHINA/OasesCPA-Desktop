@@ -43,6 +43,10 @@ final class ModelDetailStore: GatewayWorkbenchStore {
     @Published private(set) var statisticsError: String?
     /// The latest single-provider test per provider name.
     @Published private(set) var providerTests: [String: GatewayHealthResult] = [:]
+    /// The gateway plans the order again when it applies it (`server.mjs` reorder): when that plan
+    /// differs from the one the user confirmed (or the dry run without side effects), the change
+    /// is already applied and this says so instead of accepting it silently.
+    @Published private(set) var appliedPlanNotice: String?
 
     static let recentCallLimit = 20
 
@@ -51,6 +55,7 @@ final class ModelDetailStore: GatewayWorkbenchStore {
     /// The order the server reported last (restored when a new order is refused or discarded).
     private var serverProviders: [GatewayModelProvider] = []
     private var pendingOrder: [String]?
+    private var pendingDryRun: GatewayReorderPlan?
 
     init(
         modelID: String,
@@ -165,6 +170,7 @@ final class ModelDetailStore: GatewayWorkbenchStore {
         guard ids != providers.map(\.id), Set(ids) == Set(providers.map(\.id)), ids.count == providers.count else { return }
         providers = ids.compactMap { id in providers.first { $0.id == id } }
         isReordering = true
+        appliedPlanNotice = nil
         var committed = false
         let model = modelID
         let succeeded = await mutate(reloadAfter: false) { [weak self] gateway in
@@ -174,10 +180,12 @@ final class ModelDetailStore: GatewayWorkbenchStore {
             }
             if plan.hasSideEffects {
                 self?.pendingOrder = ids
+                self?.pendingDryRun = plan
                 self?.pendingPlan = plan
                 return
             }
-            try await Self.commit(model: model, order: ids, with: gateway)
+            let applied = try await Self.commit(model: model, order: ids, with: gateway)
+            self?.noteAppliedPlan(applied, confirmed: plan)
             committed = true
         }
         isReordering = false
@@ -190,14 +198,17 @@ final class ModelDetailStore: GatewayWorkbenchStore {
 
     /// Applies the pending order (the same order the dry run checked).
     func confirmPendingPlan() async {
-        guard let order = pendingOrder, pendingPlan != nil, !isMutating else { return }
+        guard let order = pendingOrder, let confirmed = pendingDryRun ?? pendingPlan, !isMutating else { return }
         let original = serverProviders
         pendingPlan = nil
         pendingOrder = nil
+        pendingDryRun = nil
         isReordering = true
+        appliedPlanNotice = nil
         let model = modelID
-        let succeeded = await mutate(reloadAfter: false) { gateway in
-            try await Self.commit(model: model, order: order, with: gateway)
+        let succeeded = await mutate(reloadAfter: false) { [weak self] gateway in
+            let applied = try await Self.commit(model: model, order: order, with: gateway)
+            self?.noteAppliedPlan(applied, confirmed: confirmed)
         }
         isReordering = false
         if succeeded {
@@ -211,15 +222,39 @@ final class ModelDetailStore: GatewayWorkbenchStore {
     func discardPendingPlan() {
         pendingPlan = nil
         pendingOrder = nil
+        pendingDryRun = nil
         providers = serverProviders
     }
 
-    private static func commit(model: String, order: [String], with gateway: GatewayAdminClient) async throws {
+    func dismissAppliedPlanNotice() {
+        appliedPlanNotice = nil
+    }
+
+    /// Applies `order` and returns the plan the gateway applied.
+    private static func commit(model: String, order: [String], with gateway: GatewayAdminClient) async throws -> GatewayReorderPlan {
         let (status, plan) = try await gateway.reorder(GatewayReorderRequest(model: model, order: order))
         if status == 409 || plan.rejected != nil || plan.ok == false {
             let reason = plan.rejected ?? OasesLocalization.localized("网关拒绝了这个顺序，请刷新后再试。")
             throw ModelDetailError.orderRejected(serverText(reason, key: gateway.managementKey))
         }
+        return plan
+    }
+
+    /// The applied plan is not the confirmed one: other models (`affected`) or the priorities the
+    /// gateway wrote differ. Priorities are compared only when the answer carries them.
+    static func appliedPlanDiffers(confirmed: GatewayReorderPlan, applied: GatewayReorderPlan) -> Bool {
+        if Set(confirmed.affected) != Set(applied.affected) { return true }
+        return !applied.priorities.isEmpty && applied.priorities != confirmed.priorities
+    }
+
+    private func noteAppliedPlan(_ applied: GatewayReorderPlan, confirmed: GatewayReorderPlan) {
+        guard Self.appliedPlanDiffers(confirmed: confirmed, applied: applied) else { return }
+        let models = Self.displayModels(applied.affected)
+        let list = models.isEmpty ? OasesLocalization.localized("没有其他模型") : models.joined(separator: "、")
+        appliedPlanNotice = OasesLocalization.localizedFormat(
+            "网关应用这个顺序时重新计算了计划，结果与确认时不同（新顺序已生效）。受影响的其他模型：%@。请检查它们的供应商顺序。",
+            list
+        )
     }
 
     /// Server text as shown: internal model ids reduced to public names, secrets and key shapes

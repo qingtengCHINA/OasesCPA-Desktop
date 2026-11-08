@@ -153,6 +153,31 @@ final class ModelsWorkbenchStoreTests: XCTestCase {
         XCTAssertEqual(URLProtocolStub.recordedRequests.count, 1, "a 401 is never retried")
         store.deactivate()
     }
+
+    // MARK: - Batch-5 review follow-ups (batch 7a, step 0)
+
+    /// With a stale key the first wave sends ONE `/cpa-admin` request: the reads run one after
+    /// another (a 401 stops before the health read), and ⌘R on a gateway page does not also read
+    /// the model directory (each 401 lengthens the gateway's global back-off).
+    func testAStaleKeyGetsOneRequestNotOnePerRead() async throws {
+        URLProtocolStub.install { request, _ in .json(401, #"{"error":"Unauthorized management key"}"#, for: request) }
+        let provider = FakeGatewayClientProvider()
+        let store = ModelsWorkbenchStore(provider: provider)
+        store.activate()
+        try await waitUntil { store.phase == .unavailable(.credentialsRejected) }
+        XCTAssertEqual(store.phase, .unavailable(.credentialsRejected))
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(URLProtocolStub.recordedRequests.map { $0.0.url?.path ?? "" }, ["/cpa-admin/permissions/api/data"],
+                       "the health read is not sent after the 401")
+        XCTAssertEqual(provider.rejectedKeys, ["fake-key"])
+        store.deactivate()
+
+        for section in [AppSection.dashboard, .accessKeys, .models, .modelPacks, .webSearch] {
+            XCTAssertFalse(WorkspaceRefresh.refreshesGatewayDirectory(section: section, topology: .gateway), section.rawValue)
+            XCTAssertTrue(WorkspaceRefresh.refreshesGatewayDirectory(section: section, topology: .legacy), section.rawValue)
+        }
+        XCTAssertTrue(WorkspaceRefresh.refreshesGatewayDirectory(section: .system, topology: .gateway), "the system page shows the directory")
+    }
 }
 
 /// A thread-safe counter for the stub handler.

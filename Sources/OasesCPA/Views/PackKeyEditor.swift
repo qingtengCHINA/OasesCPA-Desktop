@@ -183,7 +183,7 @@ struct PackKeyEditor: View {
         if succeeded {
             dismiss()
         } else {
-            errorMessage = store.actionError
+            errorMessage = store.mutationFailureMessage
         }
     }
 }

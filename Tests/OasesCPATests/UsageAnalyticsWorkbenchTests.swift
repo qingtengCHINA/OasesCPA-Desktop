@@ -193,4 +193,46 @@ final class UsageAnalyticsClientDecodingTests: XCTestCase {
         XCTAssertEqual(response.summary?.totalCost, 0.12)
         XCTAssertEqual(response.modelStats.first?.calls, 12)
     }
+
+    /// Siblings of the analytics bug: models with snake_case keys decoded by a
+    /// `.convertFromSnakeCase` decoder never saw those fields. The engine's `/v1/models`
+    /// (`display_name`, `owned_by`), an auth file's models and a cooldown's evidence.
+    func testSnakeCaseFieldsDecodeThroughTheRealClients() async throws {
+        defer { URLProtocolStub.reset() }
+        URLProtocolStub.install { request, _ in
+            switch request.url?.path {
+            case "/v1/models":
+                return .json(200, #"{"object":"list","data":[{"id":"glm-5","object":"model","display_name":"GLM 5","owned_by":"zhipu"},{"id":"pin-a/glm-5","display_name":"x"}]}"#, for: request)
+            case "/usage-service/quota-cooldowns":
+                return .json(200, #"{"items":[{"auth_file_name":"codex.json","auth_index":"3","recover_at_ms":1700000000000,"window_kind":"weekly","evidence":{"provider":"codex","window_kind":"weekly","observed_at_ms":1699999000000,"recover_at_ms":1700000000000,"recover_at_estimated":true}}]}"#, for: request)
+            default:
+                return .json(200, #"{"models":[{"id":"gpt-5.5","display_name":"GPT 5.5","type":"chat","owned_by":"openai"}]}"#, for: request)
+            }
+        }
+        let client = ManagementAPIClient(session: URLProtocolStub.makeSession())
+        let base = try XCTUnwrap(URL(string: "http://127.0.0.1:18316"))
+
+        let catalog = try await client.gatewayModels(baseURL: base, apiKey: nil)
+        XCTAssertEqual(catalog.data.map(\.id), ["glm-5"], "internal ids dropped")
+        XCTAssertEqual(catalog.data.first?.displayName, "GLM 5")
+        XCTAssertEqual(catalog.data.first?.ownedBy, "zhipu")
+
+        let models = try await client.authFileWorkbenchModels(name: "codex.json", baseURL: base, managementKey: "test-management-key")
+        XCTAssertEqual(models.models.first?.displayName, "GPT 5.5")
+        XCTAssertEqual(models.models.first?.ownedBy, "openai")
+        XCTAssertEqual(models.models.first?.type, "chat")
+
+        let cooldowns = try await client.activeQuotaCooldowns(baseURL: base, managementKey: "test-management-key")
+        let evidence = try XCTUnwrap(cooldowns.items.first?.evidence)
+        XCTAssertEqual(cooldowns.items.first?.authFileName, "codex.json")
+        XCTAssertEqual(evidence.windowKind, "weekly")
+        XCTAssertEqual(evidence.observedAtMs, 1_699_999_000_000)
+        XCTAssertEqual(evidence.recoverAtMs, 1_700_000_000_000)
+        XCTAssertEqual(evidence.recoverAtEstimated, true)
+
+        // The same models decode with a plain decoder too.
+        let plain = try JSONDecoder().decode(RuntimeGatewayModel.self, from: Data(#"{"id":"m","display_name":"M","owned_by":"o"}"#.utf8))
+        XCTAssertEqual(plain.displayName, "M")
+        XCTAssertEqual(plain.ownedBy, "o")
+    }
 }

@@ -91,4 +91,18 @@ final class ProviderPrefixAllocatorTests: XCTestCase {
         ))
         XCTAssertEqual(taken, ["pin-deepseek", "team-a"])
     }
+
+    /// "Use automatic prefix" for a provider that exists: fills only an empty prefix, never
+    /// replaces one, and needs the provider lists.
+    func testAutomaticPrefixForAnExistingProviderOnlyFillsAnEmptyOne() {
+        XCTAssertEqual(ProviderPrefixAllocator.automaticPrefixForExistingProvider(currentPrefix: "", name: "Relay", taken: ["pin-relay"]),
+                       .success("pin-relay-2"))
+        XCTAssertEqual(ProviderPrefixAllocator.automaticPrefixForExistingProvider(currentPrefix: " / ", name: "Relay", taken: []),
+                       .success("pin-relay"), "a prefix of only slashes is empty to the engine")
+        XCTAssertEqual(ProviderPrefixAllocator.automaticPrefixForExistingProvider(currentPrefix: "team-a", name: "Relay", taken: []),
+                       .success(nil), "an existing prefix is never replaced")
+        XCTAssertEqual(ProviderPrefixAllocator.automaticPrefixForExistingProvider(currentPrefix: "", name: "Relay", taken: nil),
+                       .failure(.providerListsNotLoaded))
+        XCTAssertNotEqual(OasesLocalization.localized("使用自动前缀", language: .english), "使用自动前缀")
+    }
 }

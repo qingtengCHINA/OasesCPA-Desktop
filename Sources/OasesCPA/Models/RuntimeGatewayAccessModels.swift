@@ -1,29 +1,6 @@
 import Foundation
 import Security
 
-struct RuntimeAPIKeysResponse: Decodable, Sendable {
-    let keys: [String]
-
-    private enum CodingKeys: String, CodingKey {
-        case keys = "api-keys"
-    }
-}
-
-struct RuntimeAPIKey: Identifiable, Hashable, Sendable {
-    let index: Int
-    let value: String
-
-    var id: Int { index }
-
-    var maskedValue: String {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count > 12 else {
-            return trimmed.isEmpty ? OasesLocalization.localized("暂无") : "\(trimmed.prefix(4))••••"
-        }
-        return "\(trimmed.prefix(7))••••\(trimmed.suffix(4))"
-    }
-}
-
 struct RuntimeGatewayModelsResponse: Decodable, Sendable {
     /// The engine's `/v1/models` without internal `pin-x/…` ids (the engine lists one per pinned
     /// provider; they are never shown).
@@ -49,10 +26,19 @@ struct RuntimeGatewayModel: Decodable, Identifiable, Hashable, Sendable {
     let displayName: String?
     let ownedBy: String?
 
-    private enum CodingKeys: String, CodingKey {
-        case id
-        case displayName = "display_name"
-        case ownedBy = "owned_by"
+    init(id: String, displayName: String?, ownedBy: String?) {
+        self.id = id
+        self.displayName = displayName
+        self.ownedBy = ownedBy
+    }
+
+    /// `display_name` / `owned_by` are read with either spelling, so the model decodes the same
+    /// whatever key strategy the decoder uses (a `.convertFromSnakeCase` decoder once dropped them).
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: AnyCodingKey.self)
+        id = try container.decode(String.self, forKey: AnyCodingKey("id"))
+        displayName = try? container.decodeIfPresent(String.self, snakeOrCamel: "display_name")
+        ownedBy = try? container.decodeIfPresent(String.self, snakeOrCamel: "owned_by")
     }
 
     var title: String {
@@ -68,28 +54,6 @@ struct RuntimeGatewayModel: Decodable, Identifiable, Hashable, Sendable {
             RuntimeGatewayModel(id: $0.id, displayName: nil, ownedBy: $0.groups.first)
         }
     }
-}
-
-struct RuntimeAPIKeyAddPatch: Encodable {
-    let value: String
-
-    private enum CodingKeys: String, CodingKey {
-        case old
-        case new
-    }
-
-    func encode(to encoder: Encoder) throws {
-        // CLIProxyAPI appends when `old` is not found. Sending the new value for
-        // both fields makes creation idempotent and avoids a whole-list PUT race.
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(value, forKey: .old)
-        try container.encode(value, forKey: .new)
-    }
-}
-
-struct RuntimeAPIKeyReplacePatch: Encodable {
-    let index: Int
-    let value: String
 }
 
 enum RuntimeAPIKeyGenerator {

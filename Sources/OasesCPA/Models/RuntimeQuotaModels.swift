@@ -105,13 +105,26 @@ struct RuntimeProviderUsageMetadata: Decodable, Sendable {
     let recoverAtEstimated: Bool?
     let source: String?
 
-    private enum CodingKeys: String, CodingKey {
-        case provider, kind, state, code, model, unit, actual, limit, remaining, overage
-        case windowKind = "window_kind"
-        case observedAtMs = "observed_at_ms"
-        case recoverAtMs = "recover_at_ms"
-        case recoverAtEstimated = "recover_at_estimated"
-        case source
+    /// Decoded inside `RuntimeQuotaCooldownsResponse` by the client's `.convertFromSnakeCase`
+    /// decoder: the snake_case fields are read with either spelling (a snake_case `CodingKey`
+    /// alone never matched there).
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: AnyCodingKey.self)
+        provider = try? container.decodeIfPresent(String.self, snakeOrCamel: "provider")
+        kind = try? container.decodeIfPresent(String.self, snakeOrCamel: "kind")
+        state = try? container.decodeIfPresent(String.self, snakeOrCamel: "state")
+        code = try? container.decodeIfPresent(String.self, snakeOrCamel: "code")
+        model = try? container.decodeIfPresent(String.self, snakeOrCamel: "model")
+        unit = try? container.decodeIfPresent(String.self, snakeOrCamel: "unit")
+        actual = try? container.decodeIfPresent(Double.self, snakeOrCamel: "actual")
+        limit = try? container.decodeIfPresent(Double.self, snakeOrCamel: "limit")
+        remaining = try? container.decodeIfPresent(Double.self, snakeOrCamel: "remaining")
+        overage = try? container.decodeIfPresent(Double.self, snakeOrCamel: "overage")
+        windowKind = try? container.decodeIfPresent(String.self, snakeOrCamel: "window_kind")
+        observedAtMs = try? container.decodeIfPresent(Int64.self, snakeOrCamel: "observed_at_ms")
+        recoverAtMs = try? container.decodeIfPresent(Int64.self, snakeOrCamel: "recover_at_ms")
+        recoverAtEstimated = try? container.decodeIfPresent(Bool.self, snakeOrCamel: "recover_at_estimated")
+        source = try? container.decodeIfPresent(String.self, snakeOrCamel: "source")
     }
 }
 

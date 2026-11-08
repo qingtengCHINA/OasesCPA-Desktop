@@ -25,6 +25,8 @@ enum ModelPacksError: LocalizedError, Equatable {
             return ModelPacksError.gateway(OasesLocalization.localized("与网关当前的数据冲突，本次修改没有保存；请刷新后再试。"))
         case "unavailable":
             return ModelPacksError.gateway(OasesLocalization.localized("网关的模型包数据暂时不可用（无法读取或写入），模型包 Key 也已暂停服务；请检查网关数据目录后重试。"))
+        case "rate_limited":
+            return ModelPacksError.gateway(OasesLocalization.localized("操作过于频繁，网关暂时拒绝了这次修改；请稍后再试。"))
         case "invalid":
             return ModelPacksError.gateway(OasesLocalization.localizedFormat("网关拒绝了这次修改：%@", message))
         default:
@@ -119,21 +121,8 @@ final class ModelPacksStore: GatewayWorkbenchStore {
     }
 
     func updateKey(_ patch: GatewayPackKeyPatch) async -> Bool {
-        var problems: [String] = []
-        if case .set(let reset) = patch.reset { problems += GatewayPackValidation.errors(reset: reset, now: clock()) }
-        if case .set(let tokens) = patch.totalTokens, tokens <= 0 {
-            problems.append(OasesLocalization.localized("总 Token 上限必须是正整数，或留空表示不限。"))
-        }
-        if case .set(let cost) = patch.totalCostUSD {
-            if cost <= 0 {
-                problems.append(OasesLocalization.localized("总花费上限必须大于 0，或留空表示不限。"))
-            } else if let pack = packs.first(where: { keysByPack[$0.id]?.contains { $0.id == patch.keyID } == true }), !pack.isPriced {
-                problems.append(GatewayPackValidation.pricingRequiredMessage)
-            }
-        }
-        if case .set(let label) = patch.label, label.trimmingCharacters(in: .whitespacesAndNewlines).utf16.count > GatewayKeyPolicy.maximumLabelLength {
-            problems.append(OasesLocalization.localizedFormat("名称最多 %lld 个字符。", GatewayKeyPolicy.maximumLabelLength))
-        }
+        let pack = packs.first { keysByPack[$0.id]?.contains { $0.id == patch.keyID } == true }
+        let problems = GatewayPackValidation.errors(patch: patch, pack: pack, now: clock())
         guard !patch.isEmpty else { return true }
         return await run { client in
             guard problems.isEmpty else { throw ModelPacksError.invalid(problems) }

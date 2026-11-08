@@ -104,8 +104,11 @@ final class GatewayKeysStoreTests: XCTestCase {
         XCTAssertFalse(saved)
         XCTAssertTrue(posts().isEmpty, "no POST when the server changed")
         XCTAssertEqual(URLProtocolStub.recordedRequests.map { $0.0.httpMethod }, ["GET"], "the save re-read the data first")
-        XCTAssertTrue(OasesLocalization.localized("这把 Key 的策略已被其他客户端修改，本次修改没有保存。请关闭编辑器、刷新后重新编辑。", language: .simplifiedChinese).contains("已被其他客户端修改"))
+        // The user is told what happened, in both languages (the English text is a real translation).
+        let source = "这把 Key 的策略已被其他客户端修改，本次修改没有保存。请关闭编辑器、刷新后重新编辑。"
+        XCTAssertEqual(store.actionError, OasesLocalization.localized(source))
         XCTAssertEqual(store.actionError, GatewayKeysStoreError.changedElsewhere.errorDescription)
+        XCTAssertNotEqual(OasesLocalization.localized(source, language: .english), source)
         store.deactivate()
     }
 
@@ -193,5 +196,72 @@ final class GatewayKeysStoreTests: XCTestCase {
         XCTAssertTrue(saved)
         XCTAssertEqual(posts().first as? [String: String], ["action": "set_label", "key": "sk-cpa-test-key-one", "label": "Laptop"])
         store.deactivate()
+    }
+
+    // MARK: - Batch-5 review follow-ups (batch 7a, step 0)
+
+    /// The add can outlast the request and still succeed: after a timeout the key list is read
+    /// again and, when the generated key is there, it is returned for the one-time display.
+    func testAddKeyTimeoutReturnsTheKeyWhenTheGatewayListsIt() async throws {
+        let store = try await loadedStore()
+        final class Added: @unchecked Sendable {
+            private let lock = NSLock()
+            private var key: String?
+            func set(_ value: String?) { lock.lock(); key = value; lock.unlock() }
+            func get() -> String? { lock.lock(); defer { lock.unlock() }; return key }
+        }
+        let added = Added()
+        URLProtocolStub.install { request, body in
+            switch (request.httpMethod, request.url?.path) {
+            case ("GET", "/cpa-admin/permissions/api/data"):
+                guard let key = added.get() else { return .json(200, gatewayPermissionsFixture, for: request) }
+                return .json(200, gatewayPermissionsFixture.replacingOccurrences(of: #""keys": ["#, with: #""keys": ["\#(key)", "#), for: request)
+            case ("POST", "/cpa-admin/permissions/api/save"):
+                // The gateway adds the key but the answer never arrives in time.
+                let object = (try? JSONSerialization.jsonObject(with: body ?? Data())) as? [String: Any]
+                added.set(object?["key"] as? String)
+                return .failure(.timedOut, for: request)
+            default: return .json(404, #"{"error":"Not found"}"#, for: request)
+            }
+        }
+        let key = await store.addKey(policy: GatewayKeyPolicy(label: "New"))
+        XCTAssertNotNil(key, "the listed key is returned")
+        // Compared without printing either value (test output never shows key material).
+        XCTAssertTrue(key == added.get(), "it is the generated key")
+        XCTAssertNil(store.actionError)
+
+        // A timeout after which the key is NOT listed stays a failure.
+        added.set(nil)
+        URLProtocolStub.install { request, _ in
+            switch (request.httpMethod, request.url?.path) {
+            case ("GET", "/cpa-admin/permissions/api/data"): return .json(200, gatewayPermissionsFixture, for: request)
+            default: return .failure(.timedOut, for: request)
+            }
+        }
+        let missing = await store.addKey(policy: GatewayKeyPolicy(label: "New"))
+        XCTAssertNil(missing)
+        XCTAssertNotNil(store.actionError)
+        // A refusal (4xx) is never re-read.
+        installGateway(save: { (400, #"{"error":"bad"}"#) })
+        let refused = await store.addKey(policy: GatewayKeyPolicy(label: "New"))
+        XCTAssertNil(refused)
+        XCTAssertEqual(URLProtocolStub.recordedRequests.filter { $0.0.httpMethod == "GET" }.count, 0, "no re-read after a 4xx")
+        store.deactivate()
+    }
+
+    /// Labels and notes are counted and cleaned like the gateway does (UTF-16 units, control
+    /// characters removed; `<`/`>` removed from labels).
+    func testLabelsAndNotesFollowTheGatewaysNormalization() {
+        XCTAssertEqual(GatewayKeyPolicy.normalizedNotes("line one\nline two\t\u{0007}!"), "line oneline two!")
+        XCTAssertEqual(GatewayKeyPolicy.normalizedLabel("  <Team> A\n "), "Team A")
+        let emoji = String(repeating: "😀", count: 60)
+        XCTAssertEqual(GatewayKeyPolicy.normalizedLabel(emoji).utf16.count, 100, "cut at 100 UTF-16 units")
+        XCTAssertEqual(GatewayKeyPolicy.normalizedLabel(emoji), String(repeating: "😀", count: 50), "never half a character")
+        var draft = GatewayKeyPolicyDraft(baseline: .projectedDefault)
+        draft.policy.label = String(repeating: "😀", count: 51)
+        XCTAssertEqual(draft.validationErrors().count, 1, "51 emoji are 102 UTF-16 units")
+        draft.policy.label = String(repeating: "😀", count: 50)
+        draft.policy.notes = String(repeating: "\n", count: 2_000) + "ok"
+        XCTAssertEqual(draft.validationErrors(), [], "removed characters do not count")
     }
 }

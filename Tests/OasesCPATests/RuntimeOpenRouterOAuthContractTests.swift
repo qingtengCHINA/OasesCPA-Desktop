@@ -219,4 +219,31 @@ final class RuntimeOpenRouterOAuthContractTests: XCTestCase {
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "=", with: "")
     }
+
+    /// The OpenRouter OAuth provider is created with an internal routing prefix allocated like
+    /// every new provider's (against the list, the config's direct providers and the app's
+    /// direct-provider lists), not with an empty one.
+    func testNewOpenRouterProviderGetsAnAllocatedPrefix() async throws {
+        defer { URLProtocolStub.reset() }
+        // `GET /v0/management/config` (`c.JSON(200, cfg)`): a direct provider already uses the name's prefix.
+        let config = #"{"gemini-api-key":[{"api-key":"g","prefix":"pin-openrouter-oauth"}],"openai-compatibility":[{"name":"Other","base-url":"https://o.example.test/v1","prefix":"pin-openrouter-oauth-2"}]}"#
+        URLProtocolStub.install { request, _ in
+            request.httpMethod == "GET" ? .json(200, config, for: request) : .json(200, #"{"status":"ok"}"#, for: request)
+        }
+        let outcome = try await RuntimeOpenRouterOAuth.appendNewProvider(
+            apiKey: "transient-key",
+            models: [],
+            directPrefixes: ["pin-openrouter-oauth-3"],
+            client: ManagementAPIClient(session: URLProtocolStub.makeSession()),
+            baseURL: try XCTUnwrap(URL(string: "http://127.0.0.1:18316")),
+            managementKey: "test-management-key"
+        )
+        XCTAssertEqual(outcome, .appended)
+        let put = try XCTUnwrap(URLProtocolStub.recordedRequests.first { $0.0.httpMethod == "PUT" })
+        let entries = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(put.1)) as? [[String: Any]])
+        let appended = try XCTUnwrap(entries.last)
+        XCTAssertEqual(appended["name"] as? String, RuntimeOpenRouterOAuth.providerName)
+        XCTAssertEqual(appended["prefix"] as? String, "pin-openrouter-oauth-4")
+        XCTAssertEqual(RuntimeOpenAICompatibilityListMutation.directProviderPrefixes(in: Data(config.utf8)), ["pin-openrouter-oauth"])
+    }
 }

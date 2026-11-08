@@ -352,7 +352,7 @@ private struct SearchProviderEditor: View {
         if succeeded {
             dismiss()
         } else {
-            errorMessage = store.actionError
+            errorMessage = store.mutationFailureMessage
         }
     }
 
@@ -365,7 +365,7 @@ private struct SearchProviderEditor: View {
                 errorMessage = result.ok ? nil : SearchProvidersError.mask(result.message, typedKey: key)
             }
         } else {
-            errorMessage = store.actionError
+            errorMessage = store.mutationFailureMessage
         }
     }
 }

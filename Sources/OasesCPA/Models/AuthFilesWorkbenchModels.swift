@@ -216,11 +216,14 @@ struct AuthFilesWorkbenchModel: Decodable, Identifiable, Hashable, Sendable {
     let type: String?
     let ownedBy: String?
 
-    private enum CodingKeys: String, CodingKey {
-        case id
-        case displayName = "display_name"
-        case type
-        case ownedBy = "owned_by"
+    /// `display_name` / `owned_by` are read with either spelling: the workbench decoder converts
+    /// snake_case keys, which a snake_case `CodingKey` would never match.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: AnyCodingKey.self)
+        id = try container.decode(String.self, forKey: AnyCodingKey("id"))
+        displayName = try? container.decodeIfPresent(String.self, snakeOrCamel: "display_name")
+        type = try? container.decodeIfPresent(String.self, snakeOrCamel: "type")
+        ownedBy = try? container.decodeIfPresent(String.self, snakeOrCamel: "owned_by")
     }
 }
 

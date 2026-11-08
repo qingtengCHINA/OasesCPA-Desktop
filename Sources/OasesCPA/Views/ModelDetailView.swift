@@ -109,6 +109,14 @@ struct ModelDetailView: View {
         if let error = store.actionError {
             InfoBanner(title: "操作没有完成", message: error, systemImage: "exclamationmark.triangle", tint: Oases.Color.danger)
         }
+        if let notice = store.appliedPlanNotice {
+            VStack(alignment: .trailing, spacing: Oases.Space.xs) {
+                InfoBanner(title: "应用的顺序与确认时不同", message: notice, systemImage: "exclamationmark.arrow.triangle.2.circlepath", tint: Oases.Color.warning)
+                Button("知道了") { store.dismissAppliedPlanNotice() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
+        }
         statistics
         providersSection
         recentCallsSection

@@ -2501,3 +2501,17 @@
 "测试新 Key" = "Test New Key";
 "网络搜索" = "Web Search";
 "搜索服务商、用量与调用记录" = "Search providers, usage and call log";
+"首字节超时必须是整数毫秒（1000–120000）。" = "The first-byte timeout must be a whole number of milliseconds (1000–120000).";
+"网关管理接口当前不可用，本次修改没有发送。" = "The gateway's admin API is not available right now; this change was not sent.";
+"另一项修改还在进行，请等它完成后再试。" = "Another change is still running; try again when it has finished.";
+"本次修改没有完成，请刷新后再试。" = "This change did not complete; refresh and try again.";
+"操作过于频繁，网关暂时拒绝了这次修改；请稍后再试。" = "Too many requests: the gateway refused this change for now; try again shortly.";
+"使用自动前缀" = "Use Automatic Prefix";
+"为这项服务分配一个只属于它的前缀，供按 Key 指定供应商使用；保存后才生效" = "Gives this service a prefix of its own, used to pin keys to this provider; takes effect when you save";
+"没有其他模型" = "no other models";
+"网关应用这个顺序时重新计算了计划，结果与确认时不同（新顺序已生效）。受影响的其他模型：%@。请检查它们的供应商顺序。" = "The gateway planned the order again when it applied it, and the result differs from what you confirmed (the new order is in effect). Other models affected: %@. Check their provider order.";
+"应用的顺序与确认时不同" = "The applied order differs from the confirmed one";
+"知道了" = "OK";
+"%@ 的供应商" = "Provider for %@";
+"%@ 的指定方式" = "Pin mode for %@";
+"%@ 的更多操作" = "More actions for %@";

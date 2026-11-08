@@ -228,6 +228,7 @@ struct GatewayKeysView: View {
             .frame(width: 28)
             .disabled(store.isMutating)
             .help(OasesLocalization.localized("更多操作"))
+            .accessibilityLabel(OasesLocalization.localizedFormat("%@ 的更多操作", row.label.isEmpty ? row.maskedKey : row.label))
         }
         .padding(.vertical, Oases.Space.m)
     }

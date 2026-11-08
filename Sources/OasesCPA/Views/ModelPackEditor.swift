@@ -67,10 +67,12 @@ struct ModelPackEditor: View {
 
                 Section("失败切换") {
                     TextField("首字节超时（毫秒）", text: $timeoutText, prompt: Text("1000–120000"))
-                        .onChange(of: timeoutText) { _, value in
-                            if let number = Int(value.trimmingCharacters(in: .whitespaces)) { draft.failover.firstByteTimeoutMs = number }
-                        }
-                    Stepper(value: $draft.failover.maxAttempts, in: 1...max(1, draft.members.count)) {
+                    if Self.timeout(from: timeoutText) == nil {
+                        Text("首字节超时必须是整数毫秒（1000–120000）。")
+                            .font(.caption)
+                            .foregroundStyle(Oases.Color.dangerText)
+                    }
+                    Stepper(value: attemptsBinding, in: 1...max(1, draft.members.count)) {
                         Text(OasesLocalization.localizedFormat("最多尝试 %lld 个成员", draft.failover.maxAttempts))
                     }
                 }
@@ -95,7 +97,7 @@ struct ModelPackEditor: View {
                 Button(isNew ? "创建" : "保存") { Task { await save() } }
                     .buttonStyle(.oasesPrimary)
                     .keyboardShortcut(.defaultAction)
-                    .disabled(isSaving || !problems.isEmpty || !pricesAreValid)
+                    .disabled(isSaving || !problems.isEmpty || !pricesAreValid || Self.timeout(from: timeoutText) == nil)
             }
             .padding(Oases.Space.md)
         }
@@ -118,9 +120,11 @@ struct ModelPackEditor: View {
         priceTexts.values.allSatisfy { Self.price($0.input) != nil && Self.price($0.output) != nil }
     }
 
-    /// The draft with the typed prices.
+    /// The draft with the typed prices and timeout (an invalid timeout keeps the last valid one;
+    /// saving is disabled meanwhile).
     private var currentDraft: GatewayPackDraft {
         var value = draft
+        if let timeout = Self.timeout(from: timeoutText) { value.failover.firstByteTimeoutMs = timeout }
         value.members = draft.members.map { member in
             let texts = priceTexts[member.model] ?? ("", "")
             return GatewayPackMember(model: member.model, inputUSDPer1M: Self.price(texts.input) ?? nil, outputUSDPer1M: Self.price(texts.output) ?? nil)
@@ -133,10 +137,14 @@ struct ModelPackEditor: View {
             get: { draft.members.map(\.model) },
             set: { models in
                 let existing = Dictionary(draft.members.map { ($0.model, $0) }, uniquingKeysWith: { first, _ in first })
-                draft.members = models.map { existing[$0] ?? GatewayPackMember(model: $0) }
-                clampAttempts()
+                draft.setMembers(models.map { existing[$0] ?? GatewayPackMember(model: $0) })
             }
         )
+    }
+
+    /// The stepper is the user's own choice: the attempts stop following the member count.
+    private var attemptsBinding: Binding<Int> {
+        Binding(get: { draft.failover.maxAttempts }, set: { draft.setMaxAttempts($0) })
     }
 
     @ViewBuilder
@@ -187,24 +195,16 @@ struct ModelPackEditor: View {
     }
 
     private func remove(_ model: String) {
-        draft.members.removeAll { $0.model == model }
+        draft.setMembers(draft.members.filter { $0.model != model })
         priceTexts[model] = nil
-        clampAttempts()
     }
 
     private func addCustomModel() {
         let model = customModel.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !model.isEmpty, !InternalModelID.isInternal(model),
               !draft.members.contains(where: { $0.model.lowercased() == model.lowercased() }) else { return }
-        draft.members.append(GatewayPackMember(model: model))
+        draft.setMembers(draft.members + [GatewayPackMember(model: model)])
         customModel = ""
-        clampAttempts()
-    }
-
-    private func clampAttempts() {
-        if draft.members.count == 1 || draft.failover.maxAttempts > draft.members.count {
-            draft.failover.maxAttempts = max(1, min(draft.failover.maxAttempts, draft.members.count))
-        }
     }
 
     private func save() async {
@@ -214,8 +214,16 @@ struct ModelPackEditor: View {
         if await store.savePack(currentDraft) {
             dismiss()
         } else {
-            errorMessage = store.actionError
+            errorMessage = store.mutationFailureMessage
         }
+    }
+
+    /// The first-byte timeout typed: a whole number of milliseconds (ASCII digits only), else nil.
+    /// The range is checked by `GatewayPackValidation`.
+    nonisolated static func timeout(from text: String) -> Int? {
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty, cleaned.utf8.allSatisfy({ (0x30...0x39).contains($0) }) else { return nil }
+        return Int(cleaned)
     }
 
     /// Empty → no price (`.some(nil)`); a number ≥ 0 → that price; anything else → nil (invalid).

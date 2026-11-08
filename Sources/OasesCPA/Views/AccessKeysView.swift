@@ -99,7 +99,7 @@ struct GatewayAccessSummaryCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 15) {
+        VStack(alignment: .leading, spacing: Oases.Space.md) {
             HStack {
                 CardTitle(
                     title: "调用接入",
@@ -123,11 +123,11 @@ struct GatewayAccessSummaryCard: View {
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 118, alignment: .center)
             } else {
-                VStack(alignment: .leading, spacing: 7) {
+                VStack(alignment: .leading, spacing: Oases.Space.s) {
                     Text("Base URL")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    HStack(spacing: 8) {
+                    HStack(spacing: Oases.Space.sm) {
                         Text(deploymentStore.endpoints.clientAPIBaseURL.absoluteString)
                             .font(.system(.caption, design: .monospaced).weight(.medium))
                             .lineLimit(1)
@@ -146,7 +146,7 @@ struct GatewayAccessSummaryCard: View {
                 summary
             }
         }
-        .padding(20)
+        .padding(Oases.Space.l)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .oasesCard()
         .task(id: "\(deploymentStore.stage.rawValue)|\(deploymentStore.gatewayAvailability)") {
@@ -173,7 +173,7 @@ struct GatewayAccessSummaryCard: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         case .loaded:
-            HStack(spacing: 10) {
+            HStack(spacing: Oases.Space.m) {
                 StatusPill(
                     title: OasesLocalization.localizedFormat("%lld 个调用 Key", keys.rows.count),
                     tint: keys.rows.isEmpty ? Oases.Color.neutral : Oases.Color.success,
@@ -209,13 +209,13 @@ struct GatewayAccessSummaryCard: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                FlowLayout(spacing: 6) {
+                FlowLayout(spacing: Oases.Space.s) {
                     ForEach(Array(models.prefix(8)), id: \.self) { model in
                         Text(model)
                             .font(.system(.caption2, design: .monospaced))
                             .lineLimit(1)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 5)
+                            .padding(.horizontal, Oases.Space.sm)
+                            .padding(.vertical, Oases.Space.xs)
                             .background(Oases.Color.wash, in: Capsule())
                     }
                 }

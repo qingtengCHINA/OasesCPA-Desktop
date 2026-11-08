@@ -11,11 +11,21 @@ final class URLProtocolStub: URLProtocol {
         let data: Data
         /// When set, the request is redirected here instead of answered (the updater tests use it).
         let redirectURL: URL?
+        /// When set, the load fails with this error instead (a timeout, a dropped connection).
+        let error: URLError?
 
-        init(response: HTTPURLResponse, data: Data, redirectURL: URL? = nil) {
+        init(response: HTTPURLResponse, data: Data, redirectURL: URL? = nil, error: URLError? = nil) {
             self.response = response
             self.data = data
             self.redirectURL = redirectURL
+            self.error = error
+        }
+
+        /// The request fails at the transport (`URLError(code)`), with no HTTP answer.
+        static func failure(_ code: URLError.Code, for request: URLRequest) -> Result {
+            var result = json(599, "", for: request)
+            result = Result(response: result.response, data: Data(), error: URLError(code))
+            return result
         }
 
         /// A JSON answer for `request` with the given status.
@@ -98,6 +108,10 @@ final class URLProtocolStub: URLProtocol {
     override func startLoading() {
         guard let result = Self.answer(for: request, body: Self.body(of: request)) else {
             client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+        if let error = result.error {
+            client?.urlProtocol(self, didFailWithError: error)
             return
         }
         if let redirectURL = result.redirectURL {

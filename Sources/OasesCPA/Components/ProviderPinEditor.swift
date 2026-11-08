@@ -25,6 +25,7 @@ struct ProviderPinEditor: View {
                     .font(.system(.callout, design: .monospaced))
                     .lineLimit(1)
                     .frame(minWidth: 140, alignment: .leading)
+                    .accessibilityLabel(accessibilityText)
                 Picker("供应商", selection: providerBinding) {
                     Text("自动").tag(String?.none)
                     ForEach(choices, id: \.self) { name in
@@ -33,6 +34,7 @@ struct ProviderPinEditor: View {
                 }
                 .labelsHidden()
                 .frame(maxWidth: 200)
+                .accessibilityLabel(OasesLocalization.localizedFormat("%@ 的供应商", model))
                 if pin != nil {
                     Picker("方式", selection: modeBinding) {
                         Text("只走这一家").tag(GatewayPinMode.only)
@@ -41,6 +43,7 @@ struct ProviderPinEditor: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
                     .frame(maxWidth: 220)
+                    .accessibilityLabel(OasesLocalization.localizedFormat("%@ 的指定方式", model))
                 }
             }
             if isUnavailable {
@@ -49,8 +52,8 @@ struct ProviderPinEditor: View {
                     .foregroundStyle(Oases.Color.dangerText)
             }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityText)
+        // Each picker stays its own operable element (a combined element could not be operated).
+        .accessibilityElement(children: .contain)
     }
 
     private var options: [String] { providers.map(Self.options(from:)) ?? [] }

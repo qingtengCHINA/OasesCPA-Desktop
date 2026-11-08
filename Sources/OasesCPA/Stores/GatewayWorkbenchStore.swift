@@ -168,6 +168,25 @@ class GatewayWorkbenchStore: ObservableObject {
         return true
     }
 
+    /// What an editor shows after `mutate` returned false: the error banner, else why nothing was
+    /// sent (a 401 latched the key and `actionError` stays empty; another change was still
+    /// running; the gateway is not available). Never empty.
+    var mutationFailureMessage: String {
+        if let actionError, !actionError.isEmpty { return actionError }
+        switch phase {
+        case .unavailable(.credentialsRejected):
+            return GatewayAdminError.unauthorized.errorDescription ?? ""
+        case .unavailable:
+            return OasesLocalization.localized("网关管理接口当前不可用，本次修改没有发送。")
+        default:
+            break
+        }
+        if isMutating {
+            return OasesLocalization.localized("另一项修改还在进行，请等它完成后再试。")
+        }
+        return OasesLocalization.localized("本次修改没有完成，请刷新后再试。")
+    }
+
     /// Reads the page again and waits for that read.
     func reload() async {
         refreshNow()

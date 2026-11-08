@@ -123,42 +123,6 @@ final class RuntimeDecodingTests: XCTestCase {
         XCTAssertNil(object["authIndex"])
     }
 
-    func testGatewayAPIKeysDecodeAndMaskWithoutExposingTheSecret() throws {
-        let response = try JSONDecoder().decode(
-            RuntimeAPIKeysResponse.self,
-            from: Data(#"{"api-keys":["short-key","sk-cpa-12345678901234567890"]}"#.utf8)
-        )
-        XCTAssertEqual(response.keys, ["short-key", "sk-cpa-12345678901234567890"])
-
-        let short = RuntimeAPIKey(index: 0, value: response.keys[0])
-        let long = RuntimeAPIKey(index: 1, value: response.keys[1])
-        XCTAssertEqual(short.maskedValue, "shor••••")
-        XCTAssertEqual(long.maskedValue, "sk-cpa-••••7890")
-        XCTAssertFalse(short.maskedValue.contains(short.value))
-        XCTAssertFalse(long.maskedValue.contains(long.value))
-    }
-
-    func testGatewayAPIKeyMutationPayloadsUseDistinctCLIProxyAPIContracts() throws {
-        let create = try JSONEncoder().encode(RuntimeAPIKeyAddPatch(value: "sk-cpa-created-value"))
-        let createObject = try XCTUnwrap(
-            try JSONSerialization.jsonObject(with: create) as? [String: Any]
-        )
-        XCTAssertEqual(Set(createObject.keys), ["old", "new"])
-        XCTAssertEqual(createObject["old"] as? String, createObject["new"] as? String)
-
-        let replace = try JSONEncoder().encode(
-            RuntimeAPIKeyReplacePatch(index: 7, value: "sk-cpa-replacement-value")
-        )
-        let replaceObject = try XCTUnwrap(
-            try JSONSerialization.jsonObject(with: replace) as? [String: Any]
-        )
-        XCTAssertEqual(Set(replaceObject.keys), ["index", "value"])
-        XCTAssertEqual(replaceObject["index"] as? Int, 7)
-        XCTAssertEqual(replaceObject["value"] as? String, "sk-cpa-replacement-value")
-        XCTAssertNil(replaceObject["old"])
-        XCTAssertNil(replaceObject["new"])
-    }
-
     func testGatewayModelsDecodeDataDirectory() throws {
         let response = try JSONDecoder().decode(
             RuntimeGatewayModelsResponse.self,
@@ -1128,10 +1092,6 @@ final class RuntimeDecodingTests: XCTestCase {
             baseURL: URL(string: "http://127.0.0.1:8317")!,
             managementKey: cpaKey
         )
-        try await assertGatewayAPIKeyCRUD(
-            baseURL: URL(string: "http://127.0.0.1:8317")!,
-            managementKey: cpaKey
-        )
         try await assertHTTPStatus(
             URL(string: "http://127.0.0.1:18317/management.html")!,
             expected: 200
@@ -1269,10 +1229,6 @@ final class RuntimeDecodingTests: XCTestCase {
             cpampAdminKey: cpampKey
         )
         try await assertAuthFileCRUD(
-            baseURL: URL(string: "http://127.0.0.1:8317")!,
-            managementKey: cpaKey
-        )
-        try await assertGatewayAPIKeyCRUD(
             baseURL: URL(string: "http://127.0.0.1:8317")!,
             managementKey: cpaKey
         )
@@ -1495,10 +1451,6 @@ final class RuntimeDecodingTests: XCTestCase {
                 cpampAdminKey: execution.cpampAdminKey
             )
             try await assertAuthFileCRUD(
-                baseURL: URL(string: "http://127.0.0.1:8317")!,
-                managementKey: execution.cpaManagementKey
-            )
-            try await assertGatewayAPIKeyCRUD(
                 baseURL: URL(string: "http://127.0.0.1:8317")!,
                 managementKey: execution.cpaManagementKey
             )
@@ -2379,80 +2331,6 @@ final class RuntimeDecodingTests: XCTestCase {
                 baseURL: baseURL,
                 managementKey: managementKey
             )
-            throw error
-        }
-    }
-
-    private func assertGatewayAPIKeyCRUD(
-        baseURL: URL,
-        managementKey: String
-    ) async throws {
-        let client = ManagementAPIClient()
-        let createdValue = "sk-cpa-oases-e2e-\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
-        let rotatedValue = "sk-cpa-oases-e2e-rotated-\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
-
-        func cleanup() async {
-            guard let current = try? await client.apiKeys(
-                baseURL: baseURL,
-                managementKey: managementKey
-            ) else { return }
-            for index in current.keys.enumerated()
-                .filter({ $0.element == createdValue || $0.element == rotatedValue })
-                .map(\.offset)
-                .sorted(by: >) {
-                try? await client.deleteAPIKey(
-                    at: index,
-                    baseURL: baseURL,
-                    managementKey: managementKey
-                )
-            }
-        }
-
-        do {
-            try await client.addAPIKey(
-                createdValue,
-                baseURL: baseURL,
-                managementKey: managementKey
-            )
-            let afterCreate = try await client.apiKeys(
-                baseURL: baseURL,
-                managementKey: managementKey
-            )
-            let createdIndex = try XCTUnwrap(afterCreate.keys.firstIndex(of: createdValue))
-
-            // The native App uses the resulting user API key against the public
-            // model endpoint, rather than incorrectly sending the management key.
-            let catalog = try await client.gatewayModels(
-                baseURL: baseURL,
-                apiKey: createdValue
-            )
-            XCTAssertGreaterThanOrEqual(catalog.data.count, 0)
-
-            try await client.replaceAPIKey(
-                at: createdIndex,
-                with: rotatedValue,
-                baseURL: baseURL,
-                managementKey: managementKey
-            )
-            let afterReplace = try await client.apiKeys(
-                baseURL: baseURL,
-                managementKey: managementKey
-            )
-            XCTAssertFalse(afterReplace.keys.contains(createdValue))
-            let rotatedIndex = try XCTUnwrap(afterReplace.keys.firstIndex(of: rotatedValue))
-
-            try await client.deleteAPIKey(
-                at: rotatedIndex,
-                baseURL: baseURL,
-                managementKey: managementKey
-            )
-            let afterDelete = try await client.apiKeys(
-                baseURL: baseURL,
-                managementKey: managementKey
-            )
-            XCTAssertFalse(afterDelete.keys.contains(rotatedValue))
-        } catch {
-            await cleanup()
             throw error
         }
     }
