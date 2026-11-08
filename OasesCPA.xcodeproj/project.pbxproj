@@ -118,6 +118,7 @@
 		AE92D506AAF6CC5B9E38CBC3 /* SystemModelDirectoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 096C174C9ABE8222B66C798C /* SystemModelDirectoryTests.swift */; };
 		AEF1069B920171EFBA8A00C9 /* RuntimeAccountActionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EE173ADB3D34159BD7BD61C /* RuntimeAccountActionModels.swift */; };
 		AF2ECA4AA2FC899619C2BC91 /* RuntimeAccountActionContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8AE364A2E03BBDAE59507A6 /* RuntimeAccountActionContractTests.swift */; };
+		AF797935C83406BFC22FE4BA /* NativeInstallRealArtifactsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01E200745C551457F19929F8 /* NativeInstallRealArtifactsTests.swift */; };
 		B1188B0C679960F680809A47 /* DeploymentRemovalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58BC4208AFF1F9E87C498150 /* DeploymentRemovalService.swift */; };
 		B14A10D2E60482DCF76E8E4F /* SecretBearingURLSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30A082173D7E9E88DF92376 /* SecretBearingURLSession.swift */; };
 		B6C1357D3897211FE5D83AD6 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F87D4FC3968ACD620E72376 /* DesignTokens.swift */; };
@@ -157,6 +158,7 @@
 		E30EE7C26455DE2C91B301C5 /* UsageAnalyticsWorkbenchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FBED939F0F165B4465F5BBC /* UsageAnalyticsWorkbenchView.swift */; };
 		E31A0ABF1AC4EC60B3B0A5FD /* RuntimeProviderConnectivityContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82FB39834AAFC71C09B23AE1 /* RuntimeProviderConnectivityContractTests.swift */; };
 		E44F9E238E9F7AF2B2AA05AB /* PluginsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CFA6EDC2F75C3EA74A91181 /* PluginsView.swift */; };
+		E86CCBCACB0B764A00907316 /* NativeInstallScriptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 236F9AB8418AAF7929F17AE2 /* NativeInstallScriptTests.swift */; };
 		E87ED5845EA6E6593F6671E4 /* RuntimeMonitoringAccountHistoryContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFEFB4462B7CCE56B39AAD65 /* RuntimeMonitoringAccountHistoryContractTests.swift */; };
 		E8ABA8E8C2A6204E645B7524 /* ExistingDeploymentAdoptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 365B0A6530F2F9C83786595D /* ExistingDeploymentAdoptionService.swift */; };
 		EA36856F6B0F5D835132D12F /* RuntimeCodexInspectionContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E4DB17E2E9370B2FA386010 /* RuntimeCodexInspectionContractTests.swift */; };
@@ -186,6 +188,7 @@
 
 /* Begin PBXFileReference section */
 		00D7CF43176922D4849BF5B4 /* OasesMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OasesMark.swift; sourceTree = "<group>"; };
+		01E200745C551457F19929F8 /* NativeInstallRealArtifactsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeInstallRealArtifactsTests.swift; sourceTree = "<group>"; };
 		0202FAB8A2C3CC5B8BB95113 /* OAuthModelPoliciesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthModelPoliciesView.swift; sourceTree = "<group>"; };
 		02B865320B5E56CDCE39BE56 /* RuntimeModelPriceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeModelPriceModels.swift; sourceTree = "<group>"; };
 		02D65ED9C9C1755A99EFCD65 /* CPAQuickConfigStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPAQuickConfigStore.swift; sourceTree = "<group>"; };
@@ -210,6 +213,7 @@
 		1B6C1D4B3823F0C9ECE7E066 /* ManagementAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagementAPIClient.swift; sourceTree = "<group>"; };
 		1DC413FDBB1A1D8F6D0372F0 /* OasesCPATests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OasesCPATests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1DF64ED65361A7023E6A5BA1 /* OpenAICompatibilityEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAICompatibilityEditorView.swift; sourceTree = "<group>"; };
+		236F9AB8418AAF7929F17AE2 /* NativeInstallScriptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeInstallScriptTests.swift; sourceTree = "<group>"; };
 		23E00106516EC51FE20816DC /* RuntimeDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeDecodingTests.swift; sourceTree = "<group>"; };
 		2895163A583DA362E7B3E86A /* LogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogsView.swift; sourceTree = "<group>"; };
 		2A08962309C315022E2D5588 /* AppExperienceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppExperienceTests.swift; sourceTree = "<group>"; };
@@ -442,6 +446,8 @@
 				2D50A08C076B510C4F3471CC /* GatewayAdminClientTests.swift */,
 				4E25C2AB687CC05FA456EF37 /* GatewayBundleTests.swift */,
 				814C8F47BC57549132577247 /* GatewayWorkbenchStoreTests.swift */,
+				01E200745C551457F19929F8 /* NativeInstallRealArtifactsTests.swift */,
+				236F9AB8418AAF7929F17AE2 /* NativeInstallScriptTests.swift */,
 				79E24EBF7DA4561E3B9E169C /* OasesAppearanceTests.swift */,
 				D71CF28144C36877997E7F4F /* OnboardingStateTests.swift */,
 				574ADEA79E28A10743D248C4 /* PanelAndQuotaStateTests.swift */,
@@ -896,6 +902,8 @@
 				47566F5699A475CD66C6385E /* GatewayAdminClientTests.swift in Sources */,
 				CB66E0E50FE4BEA30EE3999E /* GatewayBundleTests.swift in Sources */,
 				DA377A6D57FD2F7B19AFB086 /* GatewayWorkbenchStoreTests.swift in Sources */,
+				AF797935C83406BFC22FE4BA /* NativeInstallRealArtifactsTests.swift in Sources */,
+				E86CCBCACB0B764A00907316 /* NativeInstallScriptTests.swift in Sources */,
 				4A3F22BF404E9F4607F7CF59 /* OasesAppearanceTests.swift in Sources */,
 				6B285E4C7F4BCDF44028ADFA /* OnboardingStateTests.swift in Sources */,
 				DDD536C9E4B5175CA4AEE697 /* PanelAndQuotaStateTests.swift in Sources */,

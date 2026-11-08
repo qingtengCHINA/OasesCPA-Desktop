@@ -83,6 +83,8 @@ final class DeploymentStore: ObservableObject {
     /// The layout of the current target. Comes from the saved profile when a target is
     /// selected or attached; new targets start as `legacy` until a probe says otherwise.
     @Published private(set) var topology: DeploymentTopology = .legacy
+    /// SHA-256 of the gateway's internal engine key of the active profile (never the key).
+    private(set) var packEngineKeyFingerprint: String?
     @Published private(set) var hasLoadedSavedCredentials = false
     @Published private(set) var deploymentError: String?
     @Published private(set) var deploymentLog = ""
@@ -209,6 +211,7 @@ final class DeploymentStore: ObservableObject {
             privateKeyPath = profile.privateKeyPath
             installDirectory = profile.installDirectory
             topology = profile.topology
+            packEngineKeyFingerprint = profile.packEngineKeyFingerprint
             profileIsInstalled = profile.isInstalled
             wantsRunning = loadWantsRunningPreference()
             stage = .idle
@@ -362,6 +365,7 @@ final class DeploymentStore: ObservableObject {
         privateKeyPath = ""
         installDirectory = "~/.oases-cpa"
         topology = .legacy
+        packEngineKeyFingerprint = nil
         profileIsInstalled = false
         wantsRunning = true
         setWantsRunningPreference(true)
@@ -404,6 +408,7 @@ final class DeploymentStore: ObservableObject {
         privateKeyPath = profile.privateKeyPath
         installDirectory = profile.installDirectory
         topology = profile.topology
+        packEngineKeyFingerprint = profile.packEngineKeyFingerprint
         profileIsInstalled = profile.isInstalled
         wantsRunning = loadWantsRunningPreference()
         clearLoadedCredentials()
@@ -692,6 +697,10 @@ final class DeploymentStore: ObservableObject {
                     managementKey: result.cpaManagementKey,
                     adminKey: result.cpampAdminKey
                 )
+                // A native install lays out the gateway topology (engine on 18316, gateway on
+                // 8317/18320): the tunnel and the health checks below must use it.
+                self.topology = request.method == .native ? .gateway : .legacy
+                self.packEngineKeyFingerprint = result.packEngineKeyFingerprint
                 self.profileIsInstalled = true
                 self.wantsRunning = true
                 self.setWantsRunningPreference(true)
@@ -1602,12 +1611,14 @@ final class DeploymentStore: ObservableObject {
             installDirectory: installDirectory,
             isInstalled: profileIsInstalled,
             lastAttachedAt: profileIsInstalled ? Date() : nil,
-            topology: topology
+            topology: topology,
+            packEngineKeyFingerprint: packEngineKeyFingerprint
         )
         let canonical = DeploymentProfileStore.save(profile)
         if canonical.id != profile.id {
             activeProfileID = canonical.id
             topology = canonical.topology
+            packEngineKeyFingerprint = canonical.packEngineKeyFingerprint
             profileIsInstalled = canonical.isInstalled
             wantsRunning = loadWantsRunningPreference()
         }

@@ -117,6 +117,29 @@ final class BoundedProcessRunnerTests: XCTestCase {
         XCTAssertTrue(result.standardError.isEmpty)
     }
 
+    func testScriptThatExitsBeforeReadingAllInputDoesNotKillTheApp() async throws {
+        // A native install script carries the gateway package (about 160 KB) and exits early on
+        // its guards (lock, existing install). The unread rest of stdin must not raise SIGPIPE in
+        // this process; the script's own exit status is the answer.
+        let input = "exit 12\n" + String(repeating: "# padding line for the unread rest of the script\n", count: 80_000)
+        for _ in 0..<5 {
+            do {
+                _ = try await BoundedProcessRunner.run(
+                    executable: "/bin/bash",
+                    arguments: ["-s"],
+                    standardInput: input,
+                    timeout: 10
+                )
+                XCTFail("expected non-zero status")
+            } catch let error as BoundedProcessError {
+                guard case .nonZero(let status, _, _) = error else {
+                    return XCTFail("unexpected error: \(error)")
+                }
+                XCTAssertEqual(status, 12)
+            }
+        }
+    }
+
     func testNonZeroStatusPreservesBoundedOutputForMapping() async throws {
         do {
             _ = try await BoundedProcessRunner.run(

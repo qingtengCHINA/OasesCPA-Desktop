@@ -13,6 +13,10 @@ struct DeploymentExecutionRequest: Sendable {
 struct DeploymentExecutionResult: Sendable {
     let cpaManagementKey: String
     let cpampAdminKey: String
+    /// SHA-256 of the gateway's internal engine key (fd 3 line
+    /// `OASES_PACK_ENGINE_KEY_SHA256=<64 hex>`); nil for Docker and for scripts that print none.
+    /// The key itself never leaves the target.
+    var packEngineKeyFingerprint: String? = nil
 }
 
 enum DeploymentExecutionError: LocalizedError {
@@ -61,9 +65,24 @@ struct DeploymentExecutor {
         try validate(request)
         try validateControlToken(controlToken)
 
-        let script = request.method == .docker
-            ? dockerScript(installDirectory: request.installDirectory, controlToken: controlToken)
-            : nativeScript(installDirectory: request.installDirectory, controlToken: controlToken)
+        // A build that only carries the placeholder gateway refuses before any script exists.
+        let pins = try DeploymentPinSet.current
+            .with(gateway: GatewayBundle.resolve(environment: ProcessInfo.processInfo.environment))
+            .deployable()
+        let script: String
+        switch request.method {
+        case .docker:
+            script = dockerScript(installDirectory: request.installDirectory, controlToken: controlToken, pins: pins)
+        case .native:
+            let payload = try pins.gateway.verifiedPayload(in: GatewayBundle.resourceBundle)
+            script = nativeScript(
+                installDirectory: request.installDirectory,
+                controlToken: controlToken,
+                pins: pins,
+                gatewayPayloadBase64: payload.base64EncodedString(),
+                ports: .standard
+            )
+        }
 
         let output: String
         do {
@@ -102,23 +121,42 @@ struct DeploymentExecutor {
         return try parseResult(output)
     }
 
+    /// The script `execute` would run, for tests and scratch drills. `gatewayPayloadBase64`
+    /// defaults to the verified package of `pins.gateway` (empty when it is unavailable, so the
+    /// script would stop with exit 24); `ports` other than `.standard` are for scratch runs only.
     func scriptForVerification(
         method: DeploymentMethod,
         installDirectory: String,
         controlToken: String = "verification-token",
+        pins: DeploymentPinSet = .current,
+        gatewayPayloadBase64: String? = nil,
+        ports: DeploymentScriptPorts = .standard,
         dockerInstallerURL: String? = nil,
         dockerInstallerSHA256: String? = nil,
         dockerInstallerMaxBytes: Int? = nil
     ) -> String {
-        method == .docker
-            ? dockerScript(
+        switch method {
+        case .docker:
+            return dockerScript(
                 installDirectory: installDirectory,
                 controlToken: controlToken,
+                pins: pins,
                 installerURL: dockerInstallerURL ?? Self.cpampInstallerURL,
                 installerSHA256: dockerInstallerSHA256 ?? Self.cpampInstallerSHA256,
                 installerMaxBytes: dockerInstallerMaxBytes ?? Self.cpampInstallerMaxBytes
             )
-            : nativeScript(installDirectory: installDirectory, controlToken: controlToken)
+        case .native:
+            let payload = gatewayPayloadBase64
+                ?? (try? pins.gateway.verifiedPayload(in: GatewayBundle.resourceBundle))?.base64EncodedString()
+                ?? ""
+            return nativeScript(
+                installDirectory: installDirectory,
+                controlToken: controlToken,
+                pins: pins,
+                gatewayPayloadBase64: payload,
+                ports: ports
+            )
+        }
     }
 
     private func validateControlToken(_ token: String) throws {
@@ -164,7 +202,7 @@ struct DeploymentExecutor {
         }
     }
 
-    private func parseResult(_ output: String) throws -> DeploymentExecutionResult {
+    func parseResult(_ output: String) throws -> DeploymentExecutionResult {
         var values: [String: String] = [:]
         for line in output.split(separator: "\n", omittingEmptySubsequences: false) {
             let parts = line.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
@@ -181,13 +219,23 @@ struct DeploymentExecutor {
             throw DeploymentExecutionError.missingResult
         }
 
+        let fingerprint = values["OASES_PACK_ENGINE_KEY_SHA256"].flatMap { value in
+            value.range(of: "^[0-9a-f]{64}$", options: .regularExpression) == nil ? nil : value
+        }
         return DeploymentExecutionResult(
             cpaManagementKey: cpaManagementKey,
-            cpampAdminKey: cpampAdminKey
+            cpampAdminKey: cpampAdminKey,
+            packEngineKeyFingerprint: fingerprint
         )
     }
 
-    private func nativeScript(installDirectory: String, controlToken: String) -> String {
+    private func nativeScript(
+        installDirectory: String,
+        controlToken: String,
+        pins: DeploymentPinSet,
+        gatewayPayloadBase64: String,
+        ports: DeploymentScriptPorts
+    ) -> String {
         let root = shellQuote(installDirectory)
         let token = shellQuote(controlToken)
 
@@ -203,6 +251,10 @@ struct DeploymentExecutor {
         if [ "$INSTALL_ROOT" != "/" ]; then
           INSTALL_ROOT="${INSTALL_ROOT%/}"
         fi
+        if [ -L "$INSTALL_ROOT" ]; then
+          printf '%s\\n' '安装目录是符号链接，网关初始化拒绝使用；请选择真实目录。' >&2
+          exit 25
+        fi
 
         mkdir -p "$INSTALL_ROOT"
         LOCK_DIR="$INSTALL_ROOT/.oases-cpa-deployment-lock"
@@ -213,32 +265,34 @@ struct DeploymentExecutor {
         if [ -d "$LOCK_DIR" ]; then
           LOCK_PID="$(cat "$LOCK_DIR/pid" 2>/dev/null || true)"
           if [ -n "$LOCK_PID" ] && kill -0 "$LOCK_PID" >/dev/null 2>&1; then
-            printf '%s\n' '另一个 Oases CPA 部署正在进行，请等待完成后再试。' >&2
+            printf '%s\\n' '另一个 Oases CPA 部署正在进行，请等待完成后再试。' >&2
             exit 11
           fi
           release_deployment_lock
         fi
         mkdir "$LOCK_DIR" 2>/dev/null || {
-          printf '%s\n' '无法获取目标目录的部署锁，请稍后重试。' >&2
+          printf '%s\\n' '无法获取目标目录的部署锁，请稍后重试。' >&2
           exit 11
         }
-        printf '%s\n' "$$" > "$LOCK_DIR/pid"
+        printf '%s\\n' "$$" > "$LOCK_DIR/pid"
 
         MANAGED_ROOT_MARKER="$INSTALL_ROOT/.oases-cpa-managed"
 
         if [ -e "$INSTALL_ROOT/.oases-cpa-installed" ]; then
           release_deployment_lock
-          printf '%s\n' '检测到目标目录中已有成功部署，已阻止重复安装。请连接对应的已保存目标；如需新建，请选择空目录。' >&2
+          printf '%s\\n' '检测到目标目录中已有成功部署，已阻止重复安装。请连接对应的已保存目标；如需新建，请选择空目录。' >&2
           exit 12
         fi
+
+        \(DeploymentScriptFragments.managedProcessList(topology: .gateway))
 
         RECOVERY_NOTE=""
         LEGACY_OWNERSHIP_MARKER_PRESENT=0
         if [ -e "$INSTALL_ROOT/.oases-cpa-installing" ] || [ -e "$INSTALL_ROOT/.oases-cpa-failed" ]; then
           LEGACY_OWNERSHIP_MARKER_PRESENT=1
         fi
-        if [ -e "$INSTALL_ROOT/.oases-cpa-installing" ] || \
-           [ -e "$INSTALL_ROOT/.oases-cpa-failed" ] || \
+        if [ -e "$INSTALL_ROOT/.oases-cpa-installing" ] || \\
+           [ -e "$INSTALL_ROOT/.oases-cpa-failed" ] || \\
            { [ -e "$MANAGED_ROOT_MARKER" ] && [ ! -e "$INSTALL_ROOT/.oases-cpa-installed" ]; }; then
           AUTO_BACKUP_NAME="auto-recovery-$(date -u '+%Y%m%dT%H%M%SZ')-$$"
           AUTO_BACKUP_ROOT="$INSTALL_ROOT/backups/$AUTO_BACKUP_NAME"
@@ -254,13 +308,11 @@ struct DeploymentExecutor {
                 *) return 1 ;;
               esac
             }
-            for pid_file in "$INSTALL_ROOT/cli-proxy-api.pid" "$INSTALL_ROOT/cpa-manager-plus.pid"; do
+            for pid_name in $OASES_MANAGED_STOP_ORDER; do
+              pid_file="$INSTALL_ROOT/$pid_name"
               if [ -f "$pid_file" ]; then
                 pid="$(cat "$pid_file" 2>/dev/null || true)"
-                case "$pid_file" in
-                  *"/cli-proxy-api.pid") expected_root="$INSTALL_ROOT/cli-proxy-api" ;;
-                  *) expected_root="$INSTALL_ROOT/cpamp" ;;
-                esac
+                expected_root="$INSTALL_ROOT/$(oases_managed_owned_path "$pid_name")"
                 if [ -n "$pid" ] && managed_process "$pid" "$expected_root"; then
                   kill "$pid" >/dev/null 2>&1 || true
                 fi
@@ -270,43 +322,47 @@ struct DeploymentExecutor {
             mkdir -p "$AUTO_BACKUP_ROOT" || return 1
             move_recovery_item() {
               local item="$1"
-              if [ -e "$INSTALL_ROOT/$item" ]; then
+              if [ -e "$INSTALL_ROOT/$item" ] || [ -L "$INSTALL_ROOT/$item" ]; then
                 mv "$INSTALL_ROOT/$item" "$AUTO_BACKUP_ROOT/$item" || return 1
               fi
               return 0
             }
             move_recovery_item "cli-proxy-api" || return 1
             move_recovery_item "cpamp" || return 1
+            move_recovery_item "node" || return 1
+            move_recovery_item "gateway" || return 1
+            move_recovery_item "gateway-data" || return 1
             move_recovery_item "logs" || return 1
             move_recovery_item "secrets" || return 1
-            move_recovery_item "cli-proxy-api.pid" || return 1
-            move_recovery_item "cpa-manager-plus.pid" || return 1
+            for pid_name in $OASES_MANAGED_PID_FILES; do
+              move_recovery_item "$pid_name" || return 1
+            done
             move_recovery_item ".oases-cpa-installing" || return 1
             move_recovery_item ".oases-cpa-failed" || return 1
             return 0
           }
           if ! recover_stale_attempt; then
             release_deployment_lock
-            printf '%s\n' '上次失败部署无法安全备份，本次重试已停止，原文件保持不变。' >&2
+            printf '%s\\n' '上次失败部署无法安全备份，本次重试已停止，原文件保持不变。' >&2
             exit 19
           fi
           RECOVERY_NOTE="已自动备份上次未完成部署到 backups/${AUTO_BACKUP_NAME}，现在重新开始。"
         fi
 
         if [ ! -e "$MANAGED_ROOT_MARKER" ] && [ "$LEGACY_OWNERSHIP_MARKER_PRESENT" -ne 1 ]; then
-          FIRST_UNMANAGED_ENTRY="$(find "$INSTALL_ROOT" -mindepth 1 -maxdepth 1 \
-            ! -name '.oases-cpa-deployment-lock' \
-            ! -name 'backups' \
-            ! -name '.DS_Store' \
+          FIRST_UNMANAGED_ENTRY="$(find "$INSTALL_ROOT" -mindepth 1 -maxdepth 1 \\
+            ! -name '.oases-cpa-deployment-lock' \\
+            ! -name 'backups' \\
+            ! -name '.DS_Store' \\
             -print -quit)"
           if [ -n "$FIRST_UNMANAGED_ENTRY" ]; then
             release_deployment_lock
-            printf '%s\n' '目标目录并非空目录，且没有 Oases CPA 受管标记。为保护已有数据，请换用空目录。' >&2
+            printf '%s\\n' '目标目录并非空目录，且没有 Oases CPA 受管标记。为保护已有数据，请换用空目录。' >&2
             exit 12
           fi
         fi
         if [ ! -e "$MANAGED_ROOT_MARKER" ]; then
-          printf 'owned-by=oases-cpa\n' > "$MANAGED_ROOT_MARKER"
+          printf 'owned-by=oases-cpa\\n' > "$MANAGED_ROOT_MARKER"
           chmod 600 "$MANAGED_ROOT_MARKER"
         fi
 
@@ -321,10 +377,10 @@ struct DeploymentExecutor {
         set_stage() {
           CURRENT_STAGE="$1"
           local marker_part="${ATTEMPT_MARKER}.part.$$"
-          printf 'timestamp=%s\nmethod=native\nstage=%s\npid=%s\ncontrol_token=%s\n' \
+          printf 'timestamp=%s\\nmethod=native\\nstage=%s\\npid=%s\\ncontrol_token=%s\\n' \\
             "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$CURRENT_STAGE" "$$" "$CONTROL_TOKEN" > "$marker_part"
           mv "$marker_part" "$ATTEMPT_MARKER"
-          printf '[%s] 部署阶段：%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$CURRENT_STAGE"
+          printf '[%s] 部署阶段：%s\\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$CURRENT_STAGE"
         }
         deployment_exit_status() {
           local status="$?"
@@ -332,9 +388,9 @@ struct DeploymentExecutor {
           if [ "$status" -eq 0 ]; then
             rm -f "$ATTEMPT_MARKER" "$FAILURE_MARKER" "$PAUSE_MARKER"
           else
-            printf 'timestamp=%s\nmethod=native\nstage=%s\nexit_status=%s\n' \
+            printf 'timestamp=%s\\nmethod=native\\nstage=%s\\nexit_status=%s\\n' \\
               "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$CURRENT_STAGE" "$status" > "$FAILURE_MARKER"
-            printf '[%s] 部署在阶段 %s 失败（退出码 %s）。\n' \
+            printf '[%s] 部署在阶段 %s 失败（退出码 %s）。\\n' \\
               "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$CURRENT_STAGE" "$status"
             tail -n 120 "$DEPLOYMENT_LOG" >&4 2>/dev/null || true
           fi
@@ -349,42 +405,59 @@ struct DeploymentExecutor {
         trap deployment_exit_status EXIT
         trap deployment_cancelled TERM INT
         set_stage "prepare"
-        printf '\n[%s] Oases CPA 原生部署开始。\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+        printf '\\n[%s] Oases CPA 原生部署开始。\\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
         if [ -n "$RECOVERY_NOTE" ]; then
-          printf '%s\n' "$RECOVERY_NOTE"
+          printf '%s\\n' "$RECOVERY_NOTE"
         fi
 
-        command -v curl >/dev/null 2>&1 || { printf '%s\n' '目标环境缺少 curl。' >&2; exit 13; }
-        command -v tar >/dev/null 2>&1 || { printf '%s\n' '目标环境缺少 tar。' >&2; exit 13; }
-        command -v openssl >/dev/null 2>&1 || { printf '%s\n' '目标环境缺少 openssl。' >&2; exit 13; }
+        command -v curl >/dev/null 2>&1 || { printf '%s\\n' '目标环境缺少 curl。' >&2; exit 13; }
+        command -v tar >/dev/null 2>&1 || { printf '%s\\n' '目标环境缺少 tar。' >&2; exit 13; }
+        command -v openssl >/dev/null 2>&1 || { printf '%s\\n' '目标环境缺少 openssl。' >&2; exit 13; }
         if command -v shasum >/dev/null 2>&1; then
           SHA256_COMMAND="shasum"
         elif command -v sha256sum >/dev/null 2>&1; then
           SHA256_COMMAND="sha256sum"
         else
-          printf '%s\n' '目标环境缺少 shasum 或 sha256sum。' >&2
+          printf '%s\\n' '目标环境缺少 shasum 或 sha256sum。' >&2
           exit 13
         fi
 
         case "$(uname -s)" in
           Darwin) RELEASE_OS="darwin" ;;
           Linux) RELEASE_OS="linux" ;;
-          *) printf '%s\n' '原生部署目前支持 macOS 和 Linux。' >&2; exit 14 ;;
+          *) printf '%s\\n' '原生部署目前支持 macOS 和 Linux。' >&2; exit 14 ;;
         esac
 
         case "$(uname -m)" in
           arm64|aarch64) ARCH="arm64" ;;
           x86_64|amd64) ARCH="amd64" ;;
-          *) printf '%s\n' '目标架构不在官方原生包支持范围内。' >&2; exit 14 ;;
+          *) printf '%s\\n' '目标架构不在官方原生包支持范围内。' >&2; exit 14 ;;
         esac
 
-        \(DeploymentPinSet.current.nativeSelectionScript())
+        \(pins.nativeSelectionScript())
+        GATEWAY_PAYLOAD_BASE64='\(gatewayPayloadBase64)'
+        ENGINE_PORT=\(ports.engine)
+        CPAMP_PORT=\(ports.cpamp)
+        GATEWAY_API_PORT=\(ports.gatewayAPI)
+        GATEWAY_ADMIN_PORT=\(ports.gatewayAdmin)
+
+        \(DeploymentScriptFragments.managementCurl())
+        \(DeploymentScriptFragments.writeVersionsFile())
+        \(DeploymentScriptFragments.engineRunScript())
+        \(DeploymentScriptFragments.cpampRunScript())
+        \(DeploymentScriptFragments.gatewayRunScript())
+        \(DeploymentScriptFragments.installNode())
+        \(DeploymentScriptFragments.installGateway())
+        \(DeploymentScriptFragments.securePrivateDirectories())
+        \(DeploymentScriptFragments.runBootstrap())
 
         umask 077
+        set_stage "secure-directories"
+        oases_secure_private_directories "$INSTALL_ROOT"
         MANAGEMENT_KEY="cpa_$(openssl rand -hex 32)"
         ADMIN_KEY="cpamp_$(openssl rand -hex 32)"
-        printf '%s\n' "$MANAGEMENT_KEY" > "$INSTALL_ROOT/secrets/cpa-management-key"
-        printf '%s\n' "$ADMIN_KEY" > "$INSTALL_ROOT/secrets/cpamp-admin-key"
+        printf '%s\\n' "$MANAGEMENT_KEY" > "$INSTALL_ROOT/secrets/cpa-management-key"
+        printf '%s\\n' "$ADMIN_KEY" > "$INSTALL_ROOT/secrets/cpamp-admin-key"
 
         curl_retry() {
           local attempt
@@ -403,15 +476,15 @@ struct DeploymentExecutor {
           local archive_path="$3"
           local actual
           case "$expected" in
-            ''|*[!0-9a-fA-F]*) printf '%s\n' '固定发布摘要格式无效。' >&2; return 17 ;;
+            ''|*[!0-9a-fA-F]*) printf '%s\\n' '固定发布摘要格式无效。' >&2; return 17 ;;
           esac
-          [ "${#expected}" -eq 64 ] || { printf '%s\n' '固定发布摘要长度无效。' >&2; return 17; }
+          [ "${#expected}" -eq 64 ] || { printf '%s\\n' '固定发布摘要长度无效。' >&2; return 17; }
           if [ "$SHA256_COMMAND" = "shasum" ]; then
             actual="$(shasum -a 256 "$archive_path" | awk '{print $1}')"
           else
             actual="$(sha256sum "$archive_path" | awk '{print $1}')"
           fi
-          [ "$actual" = "$expected" ] || { printf '固定 SHA-256 校验失败：%s。\n' "$archive_name" >&2; return 17; }
+          [ "$actual" = "$expected" ] || { printf '固定 SHA-256 校验失败：%s。\\n' "$archive_name" >&2; return 17; }
         }
 
         yaml_escape() {
@@ -436,7 +509,7 @@ struct DeploymentExecutor {
           exit 17
         fi
         if ! tar -tzf "$CLI_ARCHIVE_PART" >/dev/null; then
-          printf '%s\n' 'CLIProxyAPI 下载包不完整或不是有效的 tar.gz。' >&2
+          printf '%s\\n' 'CLIProxyAPI 下载包不完整或不是有效的 tar.gz。' >&2
           rm -f "$CLI_ARCHIVE_PART"
           exit 17
         fi
@@ -444,34 +517,9 @@ struct DeploymentExecutor {
         set_stage "install-cli"
         tar -xzf "$CLI_ARCHIVE" -C "$CLI_RUNTIME"
         CLI_BINARY="$CLI_RUNTIME/cli-proxy-api"
-        [ -f "$CLI_BINARY" ] || { printf '%s\n' 'CLIProxyAPI 原生包中没有找到 cli-proxy-api。' >&2; exit 15; }
+        [ -f "$CLI_BINARY" ] || { printf '%s\\n' 'CLIProxyAPI 原生包中没有找到 cli-proxy-api。' >&2; exit 15; }
         chmod 755 "$CLI_BINARY"
-
-        AUTH_DIR_YAML="$(yaml_escape "$CLI_DIR/auths")"
-        cat > "$CLI_DIR/config.yaml" <<EOF
-        host: "127.0.0.1"
-        port: 8317
-
-        remote-management:
-          allow-remote: false
-          secret-key: "$MANAGEMENT_KEY"
-          disable-control-panel: false
-          disable-auto-update-panel: true
-          panel-github-repository: "https://github.com/seakee/CPA-Manager-Plus"
-
-        auth-dir: "$AUTH_DIR_YAML"
-        api-keys: []
-        usage-statistics-enabled: true
-        EOF
-
-        cat > "$CLI_DIR/run.sh" <<EOF
-        #!/bin/bash
-        set -euo pipefail
-        exec 3>&- 4>&-
-        cd "$CLI_DIR"
-        exec "$CLI_BINARY" -config "$CLI_DIR/config.yaml"
-        EOF
-        chmod 755 "$CLI_DIR/run.sh"
+        oases_write_engine_run "$CLI_DIR" "$CLI_BINARY"
 
         set_stage "resolve-cpamp-version"
         CPAMP_DIR="$INSTALL_ROOT/cpamp"
@@ -492,7 +540,7 @@ struct DeploymentExecutor {
           exit 17
         fi
         if ! tar -tzf "$CPAMP_ARCHIVE_PART" >/dev/null; then
-          printf '%s\n' 'CPA Manager Plus 下载包不完整或不是有效的 tar.gz。' >&2
+          printf '%s\\n' 'CPA Manager Plus 下载包不完整或不是有效的 tar.gz。' >&2
           rm -f "$CPAMP_ARCHIVE_PART"
           exit 17
         fi
@@ -500,17 +548,21 @@ struct DeploymentExecutor {
         set_stage "install-cpamp"
         tar -xzf "$CPAMP_ARCHIVE" -C "$CPAMP_RUNTIME"
         CPAMP_BINARY="$CPAMP_BINARY_DIR/cpa-manager-plus"
-        [ -f "$CPAMP_BINARY" ] || { printf '%s\n' 'CPA Manager Plus 原生包中没有找到 cpa-manager-plus。' >&2; exit 16; }
+        [ -f "$CPAMP_BINARY" ] || { printf '%s\\n' 'CPA Manager Plus 原生包中没有找到 cpa-manager-plus。' >&2; exit 16; }
         chmod 755 "$CPAMP_BINARY"
 
-        cat > "$CPAMP_BINARY_DIR/config.json" <<EOF
+        CPAMP_DATA_JSON="$(yaml_escape "$CPAMP_DIR/data")"
+        CPAMP_ADMIN_KEY_JSON="$(yaml_escape "$INSTALL_ROOT/secrets/cpamp-admin-key")"
+        CPAMP_DATA_KEY_JSON="$(yaml_escape "$CPAMP_DIR/data/data.key")"
+        CPAMP_MANAGEMENT_KEY_JSON="$(yaml_escape "$INSTALL_ROOT/secrets/cpa-management-key")"
+        cat > "$CPAMP_DIR/config.json" <<EOF
         {
-          "httpAddr": "127.0.0.1:18317",
-          "dataDir": "../../data",
-          "adminKeyFile": "../../../secrets/cpamp-admin-key",
-          "dataKeyPath": "../../data/data.key",
-          "cpaUpstreamUrl": "http://127.0.0.1:8317",
-          "managementKeyFile": "../../../secrets/cpa-management-key",
+          "httpAddr": "127.0.0.1:$CPAMP_PORT",
+          "dataDir": "$CPAMP_DATA_JSON",
+          "adminKeyFile": "$CPAMP_ADMIN_KEY_JSON",
+          "dataKeyPath": "$CPAMP_DATA_KEY_JSON",
+          "cpaUpstreamUrl": "http://127.0.0.1:$ENGINE_PORT",
+          "managementKeyFile": "$CPAMP_MANAGEMENT_KEY_JSON",
           "collectorMode": "auto",
           "queue": "usage",
           "popSide": "right",
@@ -519,53 +571,124 @@ struct DeploymentExecutor {
           "queryLimit": 50000
         }
         EOF
+        oases_write_cpamp_run "$CPAMP_DIR" "$CPAMP_BINARY"
 
-        cat > "$CPAMP_DIR/run.sh" <<EOF
-        #!/bin/bash
-        set -euo pipefail
-        exec 3>&- 4>&-
-        cd "$CPAMP_BINARY_DIR"
-        exec "$CPAMP_BINARY"
+        set_stage "install-node"
+        oases_install_node "$INSTALL_ROOT"
+
+        set_stage "install-gateway"
+        oases_install_gateway "$INSTALL_ROOT"
+        GATEWAY_DIR="$INSTALL_ROOT/gateway"
+        oases_write_gateway_run "$INSTALL_ROOT" "$CLI_VERSION_TAG" "$CPAMP_VERSION_TAG" "$GATEWAY_API_PORT" "$GATEWAY_ADMIN_PORT" "$ENGINE_PORT"
+
+        set_stage "bootstrap-gateway"
+        oases_secure_private_directories "$INSTALL_ROOT"
+        oases_run_bootstrap "$INSTALL_ROOT"
+
+        # The engine configuration keeps the layout the gateway reads: top-level api-keys (only
+        # the gateway's internal key) and, later, top-level openai-compatibility. Never the
+        # nested layout of the engine's v8 example config (every /v1 request would answer 401).
+        set_stage "configure-cli"
+        PACK_ENGINE_KEY=""
+        IFS= read -r PACK_ENGINE_KEY < "$INSTALL_ROOT/secrets/pack-engine-key" || true
+        [ -n "$PACK_ENGINE_KEY" ] || { printf '%s\\n' '内部引擎 Key 为空。' >&2; exit 25; }
+        AUTH_DIR_YAML="$(yaml_escape "$CLI_DIR/auths")"
+        PACK_ENGINE_KEY_YAML="$(yaml_escape "$PACK_ENGINE_KEY")"
+        cat > "$CLI_DIR/config.yaml" <<EOF
+        host: "127.0.0.1"
+        port: $ENGINE_PORT
+
+        remote-management:
+          allow-remote: false
+          secret-key: "$MANAGEMENT_KEY"
+          disable-control-panel: false
+          disable-auto-update-panel: true
+          panel-github-repository: "https://github.com/seakee/CPA-Manager-Plus"
+
+        auth-dir: "$AUTH_DIR_YAML"
+        api-keys:
+          - "$PACK_ENGINE_KEY_YAML"
+        usage-statistics-enabled: true
+
+        response-compression:
+          enabled: false
         EOF
-        chmod 755 "$CPAMP_DIR/run.sh"
+        PACK_ENGINE_KEY=""
+        PACK_ENGINE_KEY_YAML=""
 
         set_stage "start-cli"
         nohup "$CLI_DIR/run.sh" >> "$INSTALL_ROOT/logs/cli-proxy-api.log" 2>&1 &
-        printf '%s\n' "$!" > "$INSTALL_ROOT/cli-proxy-api.pid"
+        printf '%s\\n' "$!" > "$INSTALL_ROOT/cli-proxy-api.pid"
 
         set_stage "wait-cli"
         for _ in $(seq 1 45); do
-          if curl -fsS -H "Authorization: Bearer $MANAGEMENT_KEY" http://127.0.0.1:8317/v0/management/config >/dev/null 2>&1; then
+          if oases_mgmt_curl "$INSTALL_ROOT/secrets/cpa-management-key" -fsS -o /dev/null "http://127.0.0.1:$ENGINE_PORT/v0/management/config" >/dev/null 2>&1; then
             break
           fi
           sleep 1
         done
-        curl -fsS -H "Authorization: Bearer $MANAGEMENT_KEY" http://127.0.0.1:8317/v0/management/config >/dev/null
+        oases_mgmt_curl "$INSTALL_ROOT/secrets/cpa-management-key" -fsS -o /dev/null "http://127.0.0.1:$ENGINE_PORT/v0/management/config"
 
         set_stage "start-cpamp"
         nohup "$CPAMP_DIR/run.sh" >> "$INSTALL_ROOT/logs/cpa-manager-plus.log" 2>&1 &
-        printf '%s\n' "$!" > "$INSTALL_ROOT/cpa-manager-plus.pid"
+        printf '%s\\n' "$!" > "$INSTALL_ROOT/cpa-manager-plus.pid"
 
         set_stage "wait-cpamp"
         for _ in $(seq 1 45); do
-          if curl -fsS http://127.0.0.1:18317/health >/dev/null 2>&1; then
+          if curl -fsS "http://127.0.0.1:$CPAMP_PORT/health" >/dev/null 2>&1; then
             break
           fi
           sleep 1
         done
-        curl -fsS http://127.0.0.1:18317/health >/dev/null
+        curl -fsS "http://127.0.0.1:$CPAMP_PORT/health" >/dev/null
+
+        set_stage "start-gateway"
+        nohup "$GATEWAY_DIR/run.sh" >> "$INSTALL_ROOT/logs/gateway.log" 2>&1 &
+        GATEWAY_PID="$!"
+        printf '%s\\n' "$GATEWAY_PID" > "$INSTALL_ROOT/gateway.pid"
+
+        # Healthy means: our gateway process is alive and the admin listener answers /healthz
+        # (no credentials) with ok and the version that was just installed.
+        set_stage "wait-gateway"
+        GATEWAY_HEALTHY=0
+        for _ in $(seq 1 45); do
+          HEALTHZ_BODY="$(curl -fsS --max-time 2 "http://127.0.0.1:$GATEWAY_ADMIN_PORT/healthz" 2>/dev/null || true)"
+          case "$HEALTHZ_BODY" in
+            *'"ok":true'*'"version":"'"$GATEWAY_VERSION"'"'*)
+              if kill -0 "$GATEWAY_PID" >/dev/null 2>&1; then
+                GATEWAY_HEALTHY=1
+                break
+              fi
+              ;;
+          esac
+          kill -0 "$GATEWAY_PID" >/dev/null 2>&1 || break
+          sleep 1
+        done
+        if [ "$GATEWAY_HEALTHY" -ne 1 ]; then
+          printf '%s\\n' 'Oases 网关在 45 秒内没有通过健康检查。' >&2
+          tail -n 40 "$INSTALL_ROOT/logs/gateway.log" 2>/dev/null || true
+          exit 26
+        fi
 
         set_stage "finalize"
+        oases_write_versions "$INSTALL_ROOT" "$CLI_VERSION_TAG" "$CPAMP_VERSION_TAG" "$NODE_VERSION_TAG" "$GATEWAY_VERSION"
+        if [ "$SHA256_COMMAND" = "shasum" ]; then
+          PACK_ENGINE_KEY_SHA256="$(tr -d '\\n' < "$INSTALL_ROOT/secrets/pack-engine-key" | shasum -a 256 | awk '{print $1}')"
+        else
+          PACK_ENGINE_KEY_SHA256="$(tr -d '\\n' < "$INSTALL_ROOT/secrets/pack-engine-key" | sha256sum | awk '{print $1}')"
+        fi
         touch "$INSTALL_ROOT/.oases-cpa-installed"
-        printf '[%s] Oases CPA 原生部署完成。\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-        printf 'OASES_CPA_MANAGEMENT_KEY=%s\n' "$(cat "$INSTALL_ROOT/secrets/cpa-management-key")" >&3
-        printf 'OASES_CPAMP_ADMIN_KEY=%s\n' "$(cat "$INSTALL_ROOT/secrets/cpamp-admin-key")" >&3
+        printf '[%s] Oases CPA 原生部署完成。\\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+        printf 'OASES_CPA_MANAGEMENT_KEY=%s\\n' "$(cat "$INSTALL_ROOT/secrets/cpa-management-key")" >&3
+        printf 'OASES_CPAMP_ADMIN_KEY=%s\\n' "$(cat "$INSTALL_ROOT/secrets/cpamp-admin-key")" >&3
+        printf 'OASES_PACK_ENGINE_KEY_SHA256=%s\\n' "$PACK_ENGINE_KEY_SHA256" >&3
         """
     }
 
     private func dockerScript(
         installDirectory: String,
         controlToken: String,
+        pins: DeploymentPinSet = .current,
         installerURL: String = Self.cpampInstallerURL,
         installerSHA256: String = Self.cpampInstallerSHA256,
         installerMaxBytes: Int = Self.cpampInstallerMaxBytes
@@ -685,7 +808,11 @@ struct DeploymentExecutor {
         CPAMP_INSTALLER_URL=\(shellQuote(installerURL))
         INSTALLER_EXPECTED_SHA256=\(shellQuote(installerSHA256))
         INSTALLER_MAX_BYTES=\(installerMaxBytes)
-        \(DeploymentPinSet.current.dockerImageEnvironmentScript())
+        \(pins.dockerImageEnvironmentScript())
+        CLI_DOCKER_VERSION_TAG="\(pins.engine.tag)"
+        CPAMP_DOCKER_VERSION_TAG="\(pins.cpamp.tag)"
+        \(DeploymentScriptFragments.managementCurl())
+        \(DeploymentScriptFragments.writeVersionsFile())
         cleanup_installer() {
           if [ -n "${INSTALLER:-}" ]; then
             rm -f "$INSTALLER" || true
@@ -877,13 +1004,13 @@ struct DeploymentExecutor {
         curl -fsS http://127.0.0.1:18317/health >/dev/null
 
         set_stage "verify-cli"
-        CPA_KEY="$(cat "$INSTALL_ROOT/secrets/cpa-management-key")"
-        curl -fsS -H "Authorization: Bearer $CPA_KEY" http://127.0.0.1:8317/v0/management/config >/dev/null
+        oases_mgmt_curl "$INSTALL_ROOT/secrets/cpa-management-key" -fsS -o /dev/null http://127.0.0.1:8317/v0/management/config
 
         set_stage "finalize"
+        oases_write_versions "$INSTALL_ROOT" "$CLI_DOCKER_VERSION_TAG" "$CPAMP_DOCKER_VERSION_TAG"
         touch "$INSTALL_ROOT/.oases-cpa-installed"
         printf '[%s] Oases CPA Docker 部署完成。\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-        printf 'OASES_CPA_MANAGEMENT_KEY=%s\n' "$CPA_KEY" >&3
+        printf 'OASES_CPA_MANAGEMENT_KEY=%s\n' "$(cat "$INSTALL_ROOT/secrets/cpa-management-key")" >&3
         printf 'OASES_CPAMP_ADMIN_KEY=%s\n' "$(cat "$INSTALL_ROOT/secrets/cpamp-admin-key")" >&3
         """
     }

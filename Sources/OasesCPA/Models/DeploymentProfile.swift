@@ -13,6 +13,9 @@ struct DeploymentProfile: Codable, Sendable, Identifiable, Equatable {
     var lastAttachedAt: Date?
     /// Saved by app 0.1.4 and later; profiles saved before have no value and are `legacy`.
     var topology: DeploymentTopology
+    /// SHA-256 of the gateway's internal engine key, reported by the install script (fd 3);
+    /// the key itself never leaves the target. Nil for Docker and for older profiles.
+    var packEngineKeyFingerprint: String?
 
     init(
         id: UUID = UUID(),
@@ -25,7 +28,8 @@ struct DeploymentProfile: Codable, Sendable, Identifiable, Equatable {
         installDirectory: String,
         isInstalled: Bool,
         lastAttachedAt: Date?,
-        topology: DeploymentTopology = .legacy
+        topology: DeploymentTopology = .legacy,
+        packEngineKeyFingerprint: String? = nil
     ) {
         self.id = id
         self.targetKind = targetKind
@@ -38,6 +42,7 @@ struct DeploymentProfile: Codable, Sendable, Identifiable, Equatable {
         self.isInstalled = isInstalled
         self.lastAttachedAt = lastAttachedAt
         self.topology = topology
+        self.packEngineKeyFingerprint = packEngineKeyFingerprint
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -52,6 +57,7 @@ struct DeploymentProfile: Codable, Sendable, Identifiable, Equatable {
         case isInstalled
         case lastAttachedAt
         case topology
+        case packEngineKeyFingerprint
     }
 
     init(from decoder: Decoder) throws {
@@ -67,6 +73,7 @@ struct DeploymentProfile: Codable, Sendable, Identifiable, Equatable {
         isInstalled = try container.decode(Bool.self, forKey: .isInstalled)
         lastAttachedAt = try container.decodeIfPresent(Date.self, forKey: .lastAttachedAt)
         topology = try container.decodeIfPresent(DeploymentTopology.self, forKey: .topology) ?? .legacy
+        packEngineKeyFingerprint = try container.decodeIfPresent(String.self, forKey: .packEngineKeyFingerprint)
     }
 
     var displayName: String {

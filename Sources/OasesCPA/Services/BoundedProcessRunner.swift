@@ -308,6 +308,12 @@ struct BoundedProcessRunner {
                       Darwin.fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) == 0 else {
                     return
                 }
+                // A script that exits before it has read all of its input (an early guard of a
+                // large install script) closes the pipe: the write must fail with EPIPE, not
+                // raise SIGPIPE, which would end this app.
+                guard Darwin.fcntl(descriptor, F_SETNOSIGPIPE, 1) == 0 else {
+                    return
+                }
 
                 var offset = 0
                 while offset < inputData.count,

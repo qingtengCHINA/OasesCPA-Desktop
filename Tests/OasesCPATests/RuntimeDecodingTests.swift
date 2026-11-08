@@ -700,8 +700,13 @@ final class RuntimeDecodingTests: XCTestCase {
         XCTAssertTrue(script.contains("CPAMP_VERSION_TAG=\"v1.14.10\""))
         XCTAssertTrue(script.contains("CPAMP_EXPECTED_SHA256="))
         XCTAssertTrue(script.contains("verify_fixed_archive \"$CPAMP_EXPECTED_SHA256\" \"$CPAMP_PACKAGE.tar.gz\" \"$CPAMP_ARCHIVE_PART\""))
-        XCTAssertTrue(script.contains("\"adminKeyFile\": \"../../../secrets/cpamp-admin-key\""))
-        XCTAssertTrue(script.contains("\"managementKeyFile\": \"../../../secrets/cpa-management-key\""))
+        // Absolute paths, in the fixed cpamp/config.json (not in the versioned runtime directory).
+        XCTAssertTrue(script.contains("CPAMP_ADMIN_KEY_JSON=\"$(yaml_escape \"$INSTALL_ROOT/secrets/cpamp-admin-key\")\""))
+        XCTAssertTrue(script.contains("CPAMP_MANAGEMENT_KEY_JSON=\"$(yaml_escape \"$INSTALL_ROOT/secrets/cpa-management-key\")\""))
+        XCTAssertTrue(script.contains("\"adminKeyFile\": \"$CPAMP_ADMIN_KEY_JSON\""))
+        XCTAssertTrue(script.contains("\"managementKeyFile\": \"$CPAMP_MANAGEMENT_KEY_JSON\""))
+        XCTAssertTrue(script.contains("cat > \"$CPAMP_DIR/config.json\" <<EOF"))
+        XCTAssertFalse(script.contains("../../../secrets"))
         XCTAssertFalse(script.contains("cpa-manager-plus_${CPAMP_VERSION}_${RELEASE_OS}_${CPAMP_ARCH}"))
     }
 
@@ -2130,8 +2135,11 @@ final class RuntimeDecodingTests: XCTestCase {
         process.standardOutput = output
         process.standardError = error
         try process.run()
-        input.fileHandleForWriting.write(Data(script.utf8))
-        input.fileHandleForWriting.closeFile()
+        // A script may exit before it has read all of its input (the native install script is
+        // larger than a pipe buffer): EPIPE instead of SIGPIPE, and the rest is dropped.
+        _ = fcntl(input.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
+        try? input.fileHandleForWriting.write(contentsOf: Data(script.utf8))
+        try? input.fileHandleForWriting.close()
         process.waitUntilExit()
 
         return (

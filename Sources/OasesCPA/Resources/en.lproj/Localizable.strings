@@ -2176,3 +2176,8 @@
 "网关缺少内部引擎 Key，无法测试模型；请检查部署是否完整。" = "The gateway has no internal engine key, so models cannot be tested; check that the deployment is complete.";
 "此构建只含占位网关，不能部署；请先放入正式网关包" = "This build only carries the placeholder gateway and cannot deploy; add a released gateway package first";
 "应用内的网关包缺失或校验失败，已停止部署。请重新安装应用。" = "The gateway package inside the app is missing or failed its check, so the deployment stopped. Reinstall the app.";
+"安装 Node 运行时" = "Install the Node runtime";
+"下载固定版本的 Node.js 并校验 SHA-256，不使用目标机已有的 Node" = "Download the pinned Node.js and verify its SHA-256; a Node already on the target is never used";
+"部署 Oases 网关" = "Deploy the Oases gateway";
+"解压应用内置的网关包，初始化网关数据目录与内部引擎 Key" = "Unpack the gateway package the app carries and set up the gateway data directory and the internal engine key";
+"验证引擎、CPA Manager Plus 与网关的本机健康检查" = "Verify the local health checks of the engine, CPA Manager Plus and the gateway";

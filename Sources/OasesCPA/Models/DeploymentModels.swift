@@ -124,13 +124,26 @@ enum DeploymentPlanFactory {
             ? OasesLocalization.localized("下载官方 CLIProxyAPI 与 CPAMP 原生包，并校验 SHA-256")
             : OasesLocalization.localized("生成 Compose 文件，准备 CLIProxyAPI 与 CPAMP 两个服务")
 
-        return [
+        var steps: [DeploymentStep] = [
             .init(title: OasesLocalization.localized("连接目标环境"), detail: connectionDetail, systemImage: "point.3.connected.trianglepath.dotted", status: .current),
             .init(title: OasesLocalization.localized("检测系统与依赖"), detail: OasesLocalization.localized("识别 OS、架构、curl、SSH、Docker 与可写目录"), systemImage: "checkmark.shield", status: .pending),
-            .init(title: OasesLocalization.localized("部署 CLIProxyAPI"), detail: runtimeDetail, systemImage: "arrow.down.app", status: .pending),
+            .init(title: OasesLocalization.localized("部署 CLIProxyAPI"), detail: runtimeDetail, systemImage: "arrow.down.app", status: .pending)
+        ]
+        if method == .native {
+            // The native deployment installs the gateway topology; Docker keeps the legacy one.
+            steps += [
+                .init(title: OasesLocalization.localized("安装 Node 运行时"), detail: OasesLocalization.localized("下载固定版本的 Node.js 并校验 SHA-256，不使用目标机已有的 Node"), systemImage: "shippingbox", status: .pending),
+                .init(title: OasesLocalization.localized("部署 Oases 网关"), detail: OasesLocalization.localized("解压应用内置的网关包，初始化网关数据目录与内部引擎 Key"), systemImage: "point.3.filled.connected.trianglepath.dotted", status: .pending)
+            ]
+        }
+        let verifyDetail = method == .native
+            ? OasesLocalization.localized("验证引擎、CPA Manager Plus 与网关的本机健康检查")
+            : OasesLocalization.localized("验证 8317 管理 API 与本机回环访问")
+        steps += [
             .init(title: OasesLocalization.localized("生成私有配置"), detail: OasesLocalization.localized("创建 config.yaml、认证目录与管理密钥，不覆盖已有配置"), systemImage: "lock.doc", status: .pending),
-            .init(title: OasesLocalization.localized("启动并验证网关"), detail: OasesLocalization.localized("验证 8317 管理 API 与本机回环访问"), systemImage: "bolt.horizontal.circle", status: .pending),
+            .init(title: OasesLocalization.localized("启动并验证网关"), detail: verifyDetail, systemImage: "bolt.horizontal.circle", status: .pending),
             .init(title: OasesLocalization.localized("接入 CPA Manager Plus"), detail: OasesLocalization.localized("Full Mode 提供请求监控、成本、配额与账号健康"), systemImage: "rectangle.3.group", status: .pending)
         ]
+        return steps
     }
 }

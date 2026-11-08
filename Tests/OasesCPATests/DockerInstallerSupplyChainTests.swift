@@ -105,6 +105,49 @@ final class DockerInstallerSupplyChainTests: XCTestCase {
         XCTAssertTrue(result.stdout.contains("OASES_CPAMP_ADMIN_KEY=cpamp_fixture"))
     }
 
+    func testDockerInstallNeverPassesKeyInArgv() throws {
+        let fixture = try makeFixture(contents: "#!/bin/bash\nexit 0\n")
+        let result = try runDockerScript(
+            fixture: fixture,
+            installerURL: fixtureURL,
+            installerSHA256: try sha256(of: fixture),
+            installerMaxBytes: 131_072,
+            finalURL: fixtureURL
+        )
+        XCTAssertEqual(result.status, 0, result.stderr)
+        // The fake installer wrote these keys; no curl or docker argument may carry them.
+        XCTAssertFalse(result.argv.isEmpty)
+        XCTAssertFalse(result.argv.contains("cpa_fixture"))
+        XCTAssertFalse(result.argv.contains("cpamp_fixture"))
+        XCTAssertFalse(result.argv.contains("Authorization"))
+        let keyed = result.argv.split(separator: "\n").filter { $0.contains("/v0/management/config") }
+        XCTAssertEqual(keyed.count, 1)
+        XCTAssertTrue(keyed[0].contains(" -K - "), String(keyed[0]))
+        let log = try String(contentsOf: try XCTUnwrap(result.root).appendingPathComponent("logs/deployment.log"), encoding: .utf8)
+        XCTAssertFalse(log.contains("cpa_fixture"))
+        let script = DeploymentExecutor().scriptForVerification(method: .docker, installDirectory: "~/.oases-cpa")
+        XCTAssertFalse(script.contains("-H \"Authorization"))
+        XCTAssertTrue(script.contains("oases_mgmt_curl \"$INSTALL_ROOT/secrets/cpa-management-key\""))
+    }
+
+    func testDockerInstallWritesEngineAndCPAMPVersions() throws {
+        let fixture = try makeFixture(contents: "#!/bin/bash\nexit 0\n")
+        let result = try runDockerScript(
+            fixture: fixture,
+            installerURL: fixtureURL,
+            installerSHA256: try sha256(of: fixture),
+            installerMaxBytes: 131_072,
+            finalURL: fixtureURL
+        )
+        XCTAssertEqual(result.status, 0, result.stderr)
+        let root = try XCTUnwrap(result.root)
+        let data = try Data(contentsOf: root.appendingPathComponent(".oases-cpa-versions"))
+        let versions = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: String])
+        XCTAssertEqual(versions, ["engine": DeploymentPinSet.current.engine.tag, "cpamp": DeploymentPinSet.current.cpamp.tag])
+        XCTAssertEqual(versions, ["engine": "v8.0.51", "cpamp": "v1.14.10"])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(".oases-cpa-installed").path))
+    }
+
     private func runDockerScript(
         fixture: URL,
         installerURL: String,
@@ -124,12 +167,14 @@ final class DockerInstallerSupplyChainTests: XCTestCase {
             #!/bin/bash
             set -e
             printf '%s\\n' curl >> "$ORDER_LOG"
+            { printf 'curl'; for arg in "$@"; do printf ' %s' "$arg"; done; printf '\\n'; } >> "$ARGV_LOG"
             output=""
             write_out=0
             while [ "$#" -gt 0 ]; do
               case "$1" in
                 -o) output="$2"; shift 2 ;;
                 -w|--write-out) write_out=1; shift 2 ;;
+                -K) if [ "${2:-}" = "-" ]; then cat > /dev/null; fi; shift 2 ;;
                 *) shift ;;
               esac
             done
@@ -146,6 +191,7 @@ final class DockerInstallerSupplyChainTests: XCTestCase {
             """
             #!/bin/bash
             printf 'docker:%s\\n' "$*" >> "$ORDER_LOG"
+            printf 'docker %s\\n' "$*" >> "$ARGV_LOG"
             exit 0
             """,
             to: fakeDocker
@@ -174,11 +220,15 @@ final class DockerInstallerSupplyChainTests: XCTestCase {
         script = """
         export FIXTURE_PATH=\(shellQuote(fixture.path))
         export ORDER_LOG=\(shellQuote(orderLog.path))
+        export ARGV_LOG=\(shellQuote(root.appendingPathComponent("argv.log").path))
         export CURL_FINAL_URL=\(shellQuote(finalURL))
         PATH=\(shellQuote(fakeBin.path)):$PATH
         \(script)
         """
-        return try runShellScript(script)
+        var result = try runShellScript(script)
+        result.root = root
+        result.argv = (try? String(contentsOf: root.appendingPathComponent("argv.log"), encoding: .utf8)) ?? ""
+        return result
     }
 
     private func makeFixture(contents: String) throws -> URL {
@@ -266,6 +316,8 @@ private struct ShellResult {
     let stdout: String
     let stderr: String
     let order: [String]
+    var root: URL?
+    var argv: String = ""
 }
 
 private struct CommandResult {
