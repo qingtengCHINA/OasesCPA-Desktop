@@ -60,6 +60,27 @@ final class AppExperienceTests: XCTestCase {
         XCTAssertEqual(OasesLocalization.localizedFormat("%lld 个模型", language: .english, 3), "3 models")
     }
 
+    func testKeysPageHasEnglishTexts() {
+        let expected = [
+            "调用 API Key": OasesLocalization.localized("调用 API Key", language: .english),
+            "还没有调用 Key": "No client keys yet",
+            "编辑 Key 策略": "Edit Key Policy",
+            "允许全部模型": "Allow all models",
+            "按模型指定供应商": "Provider per model",
+            "只走这一家": "Only this provider",
+            "优先这一家": "Prefer this provider",
+            "清除供应商指定？": "Clear provider pins?",
+            "新 Key 已创建": "New key created",
+            "普通 Key 每天 00:00 UTC 恢复；定时恢复只适用于模型包 Key": "Limits of regular keys reset daily at 00:00 UTC; scheduled resets apply to model pack keys only",
+            "这把 Key 的策略已被其他客户端修改，本次修改没有保存。请关闭编辑器、刷新后重新编辑。": "This key's policy was changed by another client; your change was not saved. Close the editor, refresh, and edit again."
+        ]
+        for (source, translation) in expected {
+            XCTAssertEqual(OasesLocalization.localized(source, language: .english), translation, source)
+            XCTAssertNotEqual(OasesLocalization.localized(source, language: .english), source, "missing English for \(source)")
+        }
+        XCTAssertEqual(OasesLocalization.localizedFormat("%lld 个调用 Key", language: .english, 2), "2 client keys")
+    }
+
     func testAppVersionInfoUsesBundleMarketingVersionAndBuild() {
         let version = AppVersionInfo(
             infoDictionary: [

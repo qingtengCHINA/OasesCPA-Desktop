@@ -230,3 +230,40 @@ final class GatewayKeyPolicyContractTests: XCTestCase {
         XCTAssertEqual(error.errorDescription, OasesLocalization.localized("这把 Key 是网关内部使用的引擎 Key，由网关自己管理，不能修改或删除。"))
     }
 }
+
+/// Pure logic of the shared editor components.
+final class GatewayKeyComponentTests: XCTestCase {
+    func testLimitFieldParsing() {
+        XCTAssertEqual(LimitFields.parse(""), .success(nil))
+        XCTAssertEqual(LimitFields.parse("  "), .success(nil))
+        XCTAssertEqual(LimitFields.parse("60"), .success(60))
+        XCTAssertEqual(LimitFields.parse("1,000,000"), .success(1_000_000))
+        XCTAssertEqual(LimitFields.parse("0"), .failure(.notPositiveInteger))
+        XCTAssertEqual(LimitFields.parse("-3"), .failure(.notPositiveInteger))
+        XCTAssertEqual(LimitFields.parse("1.5"), .failure(.notPositiveInteger))
+        XCTAssertEqual(LimitFields.parse("١٢"), .failure(.notPositiveInteger), "only ASCII digits")
+        XCTAssertEqual(LimitFields.parseDecimal("2.5"), .success(2.5))
+        XCTAssertEqual(LimitFields.parseDecimal(""), .success(nil))
+        XCTAssertEqual(LimitFields.parseDecimal("0"), .failure(.notPositiveNumber))
+    }
+
+    func testPickerOptionsDropInternalIDs() {
+        let options = ModelMultiPicker.options(from: ["compat-a": ["glm-5", "pin-a/glm-5", "cc-pin-a/x"], "empty": ["pin-b/y"], "认证文件 / 引擎模型": ["gpt-5.5"]])
+        XCTAssertEqual(Set(options.map(\.group)), ["compat-a", "认证文件 / 引擎模型"], "a group of internal ids only is dropped")
+        XCTAssertEqual(options.first { $0.group == "compat-a" }?.models, ["glm-5"])
+    }
+
+    func testPinEditorOffersCompatProvidersOnly() {
+        let providers = [
+            GatewayModelProvider(id: "compat-a", kind: .compat, name: "compat-a", priority: 2, prefix: "pin-a", draggable: true, upstreamModel: "glm-5"),
+            GatewayModelProvider(id: "oauth:codex", kind: .oauth, name: "Codex 账号 ×3", priority: 1, prefix: nil, draggable: false, upstreamModel: "glm-5"),
+            GatewayModelProvider(id: "compat-b", kind: .compat, name: "compat-b", priority: 0, prefix: "team-b", draggable: true, upstreamModel: "glm-5")
+        ]
+        XCTAssertEqual(ProviderPinEditor.options(from: providers), ["compat-a", "compat-b"])
+    }
+
+    func testMaskShowsFirstAndLastFour() {
+        XCTAssertEqual(GatewayKeyRow.mask("client-key-for-mask-test"), "clie••••test")
+        XCTAssertEqual(GatewayKeyRow.mask("short"), "••••")
+    }
+}

@@ -183,7 +183,7 @@ struct DetailWorkspaceView: View {
         case .config:
             ConfigurationView()
         case .accessKeys:
-            AccessKeysView()
+            AccessKeysView(deploymentStore: deploymentStore)
         case .models:
             ModelsView(deploymentStore: deploymentStore)
         case .aiProviders:

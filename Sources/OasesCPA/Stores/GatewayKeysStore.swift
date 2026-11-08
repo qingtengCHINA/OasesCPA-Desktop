@@ -62,9 +62,32 @@ final class GatewayKeysStore: GatewayWorkbenchStore {
 
     private let packEngineKeyFingerprint: @MainActor () -> String?
 
-    init(provider: GatewayClientProviding, packEngineKeyFingerprint: @escaping @MainActor () -> String?) {
+    /// `section` is the page whose ⌘R refreshes this store (the dashboard's summary card has its own).
+    init(
+        provider: GatewayClientProviding,
+        packEngineKeyFingerprint: @escaping @MainActor () -> String?,
+        section: AppSection = .accessKeys
+    ) {
         self.packEngineKeyFingerprint = packEngineKeyFingerprint
-        super.init(provider: provider, section: .accessKeys)
+        super.init(provider: provider, section: section)
+    }
+
+    /// The providers a key may pin for `model` (openai-compatibility providers, in the engine's
+    /// order), read on demand for the editor. A 401 latches the key like any other request.
+    func pinnableProviders(for model: String) async -> Result<[GatewayModelProvider], GatewayAdminError> {
+        guard let client = provider.gatewayAdminClient() else { return .failure(.unauthorized) }
+        do {
+            let response = try await client.modelProviders(model: model)
+            return .success(response.pinnableProviders)
+        } catch let error as GatewayAdminError {
+            if case .unauthorized = error {
+                provider.reportGatewayUnauthorized(rejectedKey: client.managementKey)
+                refreshNow()
+            }
+            return .failure(error)
+        } catch {
+            return .failure(.transport(SecretRedactor.redact(error.localizedDescription, secrets: [])))
+        }
     }
 
     override func load(using client: GatewayAdminClient) async throws {

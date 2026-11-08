@@ -83,7 +83,6 @@ final class RuntimeDataStore: ObservableObject {
     @Published private(set) var codexInspectionRuns: [RuntimeCodexInspectionRun] = []
     @Published private(set) var selectedCodexInspectionRunID: Int64?
     @Published private(set) var codexInspectionDetail: RuntimeCodexInspectionRunDetail?
-    @Published private(set) var apiKeys: [RuntimeAPIKey] = []
     @Published private(set) var gatewayModels: [RuntimeGatewayModel] = []
     @Published private(set) var pluginCatalog: RuntimePluginsResponse?
     @Published private(set) var pluginStoreCatalog: RuntimePluginStoreResponse?
@@ -108,7 +107,6 @@ final class RuntimeDataStore: ObservableObject {
     @Published private(set) var isSavingQuota = false
     @Published private(set) var errorMessage: String?
     @Published private(set) var authFilesErrorMessage: String?
-    @Published private(set) var gatewayAccessErrorMessage: String?
     @Published private(set) var gatewayModelsErrorMessage: String?
     @Published private(set) var isLoadingAuthFiles = false
     @Published private(set) var isSavingAuthFiles = false
@@ -130,9 +128,7 @@ final class RuntimeDataStore: ObservableObject {
     @Published private(set) var isStartingCodexInspection = false
     @Published private(set) var isCancellingCodexInspection = false
     @Published private(set) var codexInspectionMutatingRunID: Int64?
-    @Published private(set) var isLoadingGatewayAccess = false
     @Published private(set) var isLoadingGatewayModels = false
-    @Published private(set) var isSavingGatewayAccess = false
     @Published private(set) var pluginsErrorMessage: String?
     @Published private(set) var isLoadingPlugins = false
     @Published private(set) var isSavingPlugins = false
@@ -183,7 +179,6 @@ final class RuntimeDataStore: ObservableObject {
     private var accountActionsTask: Task<Void, Never>?
     private var codexInspectionRunsTask: Task<Void, Never>?
     private var codexInspectionDetailTask: Task<Void, Never>?
-    private var gatewayAccessTask: Task<Void, Never>?
     private var gatewayModelsTask: Task<Void, Never>?
     private var pluginsTask: Task<Void, Never>?
     private var pluginStoreTask: Task<Void, Never>?
@@ -216,7 +211,6 @@ final class RuntimeDataStore: ObservableObject {
         resetMonitoringAccountHistory()
         resetProviderConnectivity()
         authFilesTask?.cancel()
-        gatewayAccessTask?.cancel()
         gatewayModelsTask?.cancel()
         pluginsTask?.cancel()
         pluginStoreTask?.cancel()
@@ -264,7 +258,6 @@ final class RuntimeDataStore: ObservableObject {
             codexInspectionRuns = []
             selectedCodexInspectionRunID = nil
             codexInspectionDetail = nil
-            apiKeys = []
             gatewayModels = []
             pluginCatalog = nil
             pluginStoreCatalog = nil
@@ -279,7 +272,6 @@ final class RuntimeDataStore: ObservableObject {
             quotaEvidence = [:]
             errorMessage = nil
             authFilesErrorMessage = nil
-            gatewayAccessErrorMessage = nil
             gatewayModelsErrorMessage = nil
             isLoadingAuthFiles = false
             isSavingAuthFiles = false
@@ -301,9 +293,7 @@ final class RuntimeDataStore: ObservableObject {
             isStartingCodexInspection = false
             isCancellingCodexInspection = false
             codexInspectionMutatingRunID = nil
-            isLoadingGatewayAccess = false
             isLoadingGatewayModels = false
-            isSavingGatewayAccess = false
             pluginsErrorMessage = nil
             isLoadingPlugins = false
             isSavingPlugins = false
@@ -336,7 +326,7 @@ final class RuntimeDataStore: ObservableObject {
         isLoading = true
         errorMessage = nil
         refreshAuthFiles(using: deploymentStore)
-        refreshGatewayAccess(using: deploymentStore)
+        refreshGatewayModels(using: deploymentStore)
 
         refreshTask = Task { [weak self] in
             do {
@@ -469,47 +459,6 @@ final class RuntimeDataStore: ObservableObject {
         }
     }
 
-    func refreshGatewayAccess(using deploymentStore: DeploymentStore) {
-        gatewayAccessTask?.cancel()
-        refreshGatewayModels(using: deploymentStore)
-        guard deploymentStore.stage == .attached, !deploymentStore.managementKey.isEmpty else {
-            apiKeys = []
-            gatewayAccessErrorMessage = nil
-            isLoadingGatewayAccess = false
-            return
-        }
-
-        let baseURL = deploymentStore.engineBaseURL
-        let managementKey = deploymentStore.managementKey
-        isLoadingGatewayAccess = true
-        gatewayAccessErrorMessage = nil
-
-        gatewayAccessTask = Task { [weak self] in
-            let client = ManagementAPIClient()
-            do {
-                let response = try await client.apiKeys(
-                    baseURL: baseURL,
-                    managementKey: managementKey
-                )
-                let fetchedKeys = response.keys.enumerated().map { index, value in
-                    RuntimeAPIKey(index: index, value: value)
-                }
-                guard !Task.isCancelled,
-                      deploymentStore.stage == .attached,
-                      deploymentStore.managementKey == managementKey else { return }
-
-                self?.apiKeys = fetchedKeys
-                self?.gatewayAccessErrorMessage = nil
-                self?.isLoadingGatewayAccess = false
-            } catch {
-                guard !Task.isCancelled else { return }
-                self?.apiKeys = []
-                self?.gatewayAccessErrorMessage = error.localizedDescription
-                self?.isLoadingGatewayAccess = false
-            }
-        }
-    }
-
     /// The model directory. A gateway deployment reads the gateway's `groupedModels`
     /// (`permissions/api/data`, internal `pin-x/…` ids dropped); a legacy (0.1.x) deployment reads
     /// the engine's `/v1/models` without a client key (no client key is borrowed for it), and
@@ -584,49 +533,6 @@ final class RuntimeDataStore: ObservableObject {
                 self.isLoadingGatewayModels = false
             }
         }
-    }
-
-    func addAPIKey(_ value: String, using deploymentStore: DeploymentStore) async throws {
-        let value = try normalizedAPIKey(value)
-        let (baseURL, managementKey) = try authManagementContext(using: deploymentStore)
-        isSavingGatewayAccess = true
-        defer { isSavingGatewayAccess = false }
-        try await ManagementAPIClient().addAPIKey(
-            value,
-            baseURL: baseURL,
-            managementKey: managementKey
-        )
-        refreshGatewayAccess(using: deploymentStore)
-    }
-
-    func replaceAPIKey(
-        _ apiKey: RuntimeAPIKey,
-        with value: String,
-        using deploymentStore: DeploymentStore
-    ) async throws {
-        let value = try normalizedAPIKey(value)
-        let (baseURL, managementKey) = try authManagementContext(using: deploymentStore)
-        isSavingGatewayAccess = true
-        defer { isSavingGatewayAccess = false }
-        try await ManagementAPIClient().replaceAPIKey(
-            at: apiKey.index,
-            with: value,
-            baseURL: baseURL,
-            managementKey: managementKey
-        )
-        refreshGatewayAccess(using: deploymentStore)
-    }
-
-    func deleteAPIKey(_ apiKey: RuntimeAPIKey, using deploymentStore: DeploymentStore) async throws {
-        let (baseURL, managementKey) = try authManagementContext(using: deploymentStore)
-        isSavingGatewayAccess = true
-        defer { isSavingGatewayAccess = false }
-        try await ManagementAPIClient().deleteAPIKey(
-            at: apiKey.index,
-            baseURL: baseURL,
-            managementKey: managementKey
-        )
-        refreshGatewayAccess(using: deploymentStore)
     }
 
     func refreshPlugins(using deploymentStore: DeploymentStore) {

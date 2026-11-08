@@ -37,7 +37,7 @@ struct DashboardView: View {
                     }
                 }
 
-                GatewayAccessSummaryCard()
+                GatewayAccessSummaryCard(deploymentStore: deploymentStore)
 
                 AdaptiveDashboardRow {
                     TrafficChartCard(points: runtimeTraffic)
