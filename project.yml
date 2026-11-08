@@ -20,7 +20,7 @@ configFiles:
   AppStore: Config/Base.xcconfig
 settings:
   base:
-    CURRENT_PROJECT_VERSION: "40"
+    CURRENT_PROJECT_VERSION: "41"
     DEVELOPMENT_LANGUAGE: zh-Hans
     MACOSX_DEPLOYMENT_TARGET: "14.0"
     MARKETING_VERSION: "0.1.4"
