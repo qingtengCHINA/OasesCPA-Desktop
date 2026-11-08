@@ -30,7 +30,8 @@ private final class ProbeWorkbenchStore: GatewayWorkbenchStore {
 final class GatewayWorkbenchStoreTests: XCTestCase {
     override func tearDown() async throws {
         URLProtocolStub.reset()
-        try await super.tearDown()
+        // XCTestCase.tearDown() does nothing; its async form would send `self` across isolation,
+        // which the Swift 6.1 toolchain of Xcode 16 rejects.
     }
 
     private func waitUntil(_ condition: () -> Bool) async throws {

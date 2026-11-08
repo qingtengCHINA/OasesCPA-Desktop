@@ -243,11 +243,12 @@ final class RuntimeLifecycleGatewayTests: XCTestCase {
         }
 
         // A foreign pid in gateway.pid survives all four.
-        for (index, makeScript) in [
+        let makeScripts: [(URL) -> String] = [
             { (root: URL) in self.lifecycle.stopScriptForVerification(method: .native, installDirectory: root.path) },
             { (root: URL) in DeploymentRemovalService().scriptForVerification(method: .native, installDirectory: root.path) },
             { (root: URL) in DeploymentRecoveryService().scriptForVerification(method: .native, installDirectory: root.path, backupName: "foreign") },
-        ].enumerated() {
+        ]
+        for (index, makeScript) in makeScripts.enumerated() {
             let fake = try FakeArtifacts.make(caseName: "foreign-\(index)")
             let root = fake.caseDirectory.appendingPathComponent("root", isDirectory: true)
             try write("owned-by=oases-cpa\n", to: root.appendingPathComponent(".oases-cpa-managed"))

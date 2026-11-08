@@ -105,12 +105,16 @@ final class PublicModelNameTests: XCTestCase {
         XCTAssertEqual(event.displayResolvedModel, "glm-5-0414")
         XCTAssertEqual(event.displayFailSummary, "glm-5 failed")
 
-        let shown = dashboard.publicTopModels.map(\.model) + rank.map(\.model)
-            + (dashboard.recentFailures ?? []).map(\.displayModel)
-            + stats.map(\.model) + analytics.recentFailures.map(\.displayModel)
-            + (analytics.drilldownPreview?.items ?? []).map(\.displayModel)
-            + (analytics.filterOptions?.publicModels ?? [])
-            + [event.displayModel, event.displayResolvedModel]
+        // One append per source: a single `+` chain is too much for the Swift 6.1 type checker.
+        var shown: [String] = []
+        shown += dashboard.publicTopModels.map(\.model)
+        shown += rank.map(\.model)
+        shown += (dashboard.recentFailures ?? []).map(\.displayModel)
+        shown += stats.map(\.model)
+        shown += analytics.recentFailures.map(\.displayModel)
+        shown += (analytics.drilldownPreview?.items ?? []).map(\.displayModel)
+        shown += analytics.filterOptions?.publicModels ?? []
+        shown += [event.displayModel, event.displayResolvedModel]
         for name in shown {
             XCTAssertFalse(name.hasPrefix("pin-") || name.contains("/pin-"), name)
         }
