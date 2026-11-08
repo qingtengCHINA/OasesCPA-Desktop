@@ -264,7 +264,7 @@ struct CodexInspectionPolicyEditor: View {
 
             HStack(spacing: 10) {
                 Text(OasesLocalization.localizedFormat("提示词会发送给 xAI；当前 %lld 个字符。", draft.xaiInferencePrompt.count))
-                    .font(.caption)
+                    .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
                 Button("恢复默认提示词", systemImage: "arrow.counterclockwise") {

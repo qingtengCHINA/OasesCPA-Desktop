@@ -122,7 +122,7 @@ struct CPAQuickConfigurationView: View {
         Label {
             VStack(alignment: .leading, spacing: 4) {
                 Text(OasesLocalization.localizedFormat("有 %lld 项设置读取失败", store.fieldErrors.count))
-                    .font(.headline)
+                    .font(.headline.monospacedDigit())
                 Text("这通常表示目标版本暂不支持该端点；其他设置仍然可以保存。")
                     .font(.caption)
                     .foregroundStyle(.secondary)

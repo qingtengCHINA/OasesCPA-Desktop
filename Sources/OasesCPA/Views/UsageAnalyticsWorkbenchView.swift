@@ -474,7 +474,7 @@ struct UsageAnalyticsWorkbenchView: View {
                     .font(.callout.weight(.semibold))
                     .lineLimit(1)
                 Text(OasesLocalization.localizedFormat("%lld 次 · %@ Token", calls, formatTokens(tokens)))
-                    .font(.caption)
+                    .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
             Spacer()

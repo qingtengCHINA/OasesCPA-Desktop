@@ -378,7 +378,6 @@ private struct ModelPriceRow: View {
                 .font(.title3)
                 .foregroundStyle(row.payload == nil ? Oases.Color.warning : Oases.Color.textSecondary)
                 .frame(width: 32, height: 32)
-                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 8) {

@@ -128,7 +128,6 @@ private struct OAuthModelPolicyChannelRow: View {
                 .font(.title3)
                 .foregroundStyle(Oases.Color.textSecondary)
                 .frame(width: 36, height: 36)
-                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(channel)

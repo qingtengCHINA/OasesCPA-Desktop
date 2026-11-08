@@ -310,16 +310,6 @@ enum AuthFilesWorkbenchSort: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-enum AuthFilesWorkbenchDisplayMode: String, CaseIterable, Identifiable, Sendable {
-    case regular
-    case compact
-
-    var id: String { rawValue }
-    var title: String {
-        OasesLocalization.localized(self == .regular ? "卡片" : "紧凑")
-    }
-}
-
 private struct DynamicCodingKey: CodingKey {
     let stringValue: String
     let intValue: Int? = nil

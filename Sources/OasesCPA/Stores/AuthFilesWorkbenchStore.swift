@@ -14,7 +14,6 @@ final class AuthFilesWorkbenchStore: ObservableObject {
     @Published var providerFilter: AuthFilesWorkbenchProviderFilter = .all
     @Published var attentionFilter: AuthFilesWorkbenchAttentionFilter = .all
     @Published var sort: AuthFilesWorkbenchSort = .default
-    @Published var displayMode: AuthFilesWorkbenchDisplayMode = .regular
 
     init(files: [AuthFilesWorkbenchFile] = []) {
         self.files = files
@@ -126,6 +125,11 @@ final class AuthFilesWorkbenchStore: ObservableObject {
         } else {
             selectedIDs.subtract(visible)
         }
+    }
+
+    /// The table's selection (click, shift- and command-click).
+    func setSelection(_ ids: Set<String>) {
+        selectedIDs = ids.intersection(Set(files.map(\.id)))
     }
 
     func clearSelection() {

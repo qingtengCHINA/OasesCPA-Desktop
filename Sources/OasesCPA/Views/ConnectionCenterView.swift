@@ -171,6 +171,13 @@ struct ConnectionCenterView: View {
         .formStyle(.grouped)
         .frame(maxWidth: 680)
         .frame(maxWidth: .infinity)
+        // A gateway page's "备份并升级…" routes here (`AppStore.requestDeploymentUpgrade`). The
+        // legacy state above already shows the one upgrade button with its promise and backup
+        // location, so the request is only consumed: nothing runs without this page's own click.
+        .onAppear { appStore.deploymentUpgradeRequested = false }
+        .onChange(of: appStore.deploymentUpgradeRequested) { _, requested in
+            if requested { appStore.deploymentUpgradeRequested = false }
+        }
         .fileImporter(isPresented: $isImportingKey, allowedContentTypes: [.item], allowsMultipleSelection: false) { result in
             if case .success(let urls) = result, let url = urls.first {
                 deploymentStore.importSSHKey(from: url)

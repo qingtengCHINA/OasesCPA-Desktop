@@ -198,7 +198,7 @@ struct PackKeysRevealSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Oases.Space.md) {
             Text(OasesLocalization.localizedFormat("已创建 %lld 把 Key", keys.count))
-                .font(.title2.weight(.bold))
+                .font(.title2.weight(.bold).monospacedDigit())
             Text("这是唯一一次显示完整 Key。请立即复制到密码管理器或客户端配置中；之后列表里只显示掩码。")
                 .font(.callout)
                 .foregroundStyle(Oases.Color.textSecondary)
@@ -227,7 +227,6 @@ struct PackKeysRevealSheet: View {
                             .controlSize(.small)
                         }
                         .padding(Oases.Space.sm)
-                        .oasesIconTile()
                     }
                 }
             }

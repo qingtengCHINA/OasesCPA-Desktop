@@ -1,3 +1,4 @@
+import AppKit
 import CryptoKit
 import Foundation
 import XCTest
@@ -263,5 +264,53 @@ final class GatewayKeysStoreTests: XCTestCase {
         draft.policy.label = String(repeating: "😀", count: 50)
         draft.policy.notes = String(repeating: "\n", count: 2_000) + "ok"
         XCTAssertEqual(draft.validationErrors(), [], "removed characters do not count")
+    }
+
+    // MARK: - One-time key sheet and copying
+
+    func testNewKeySnippetHasTheEndpointAndTheKey() {
+        XCTAssertEqual(
+            GatewayNewKeySheet.snippet(baseURL: "http://127.0.0.1:8317/v1", key: "demo-key-1234"),
+            "OPENAI_BASE_URL=http://127.0.0.1:8317/v1\nOPENAI_API_KEY=demo-key-1234"
+        )
+    }
+
+    func testSecretCopyIsMarkedConcealedAndPlainCopyIsNot() throws {
+        let pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+
+        OasesPasteboard.copySecret("demo-secret", to: pasteboard)
+        XCTAssertEqual(pasteboard.string(forType: .string), "demo-secret")
+        XCTAssertTrue(pasteboard.types?.contains(OasesPasteboard.concealedType) ?? false)
+
+        OasesPasteboard.copy("http://127.0.0.1:8317/v1", to: pasteboard)
+        XCTAssertEqual(pasteboard.string(forType: .string), "http://127.0.0.1:8317/v1")
+        XCTAssertFalse(pasteboard.types?.contains(OasesPasteboard.concealedType) ?? true, "a plain copy replaces the marker")
+    }
+
+    func testKeyTableTextsUseTheMaskAndCompactNumbers() {
+        var policy = GatewayKeyPolicy.newKeyDefault
+        policy.rateLimit.tokensPerDay = 2_000_000
+        policy.rateLimit.requestsPerMinute = 60
+        let row = GatewayKeyRow(
+            key: "demo-0000000000000000abcd",
+            policy: policy,
+            usage: GatewayKeyUsage(day: "d", requests: 1, requestsLastMinute: 3, tokens: 12_345, tokensPerDay: 2_000_000, requestsPerMinute: 60)
+        )
+        XCTAssertEqual(row.maskedKey, "demo••••abcd")
+        let usage = GatewayKeysTable.usageText(row)
+        XCTAssertTrue(usage.contains("12.3K"), usage)
+        XCTAssertTrue(usage.contains("2.0M"), usage)
+        XCTAssertTrue(usage.contains("3 / 60"), usage)
+        XCTAssertFalse(usage.contains("abcd"), "no key material in the usage text")
+    }
+
+    func testFirstProviderNameComesFromTheEndpointHost() {
+        XCTAssertEqual(FirstProviderForm.providerName(forBaseURL: "https://api.deepseek.com/v1"), "deepseek")
+        XCTAssertEqual(FirstProviderForm.providerName(forBaseURL: " https://openrouter.ai/api "), "openrouter")
+        XCTAssertEqual(FirstProviderForm.providerName(forBaseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1"), "dashscope")
+        XCTAssertEqual(FirstProviderForm.providerName(forBaseURL: "http://127.0.0.1:11434/v1"), "127.0.0.1")
+        XCTAssertEqual(FirstProviderForm.providerName(forBaseURL: "http://localhost:8080"), "localhost")
+        XCTAssertEqual(FirstProviderForm.providerName(forBaseURL: "not a url"), "not a url")
     }
 }

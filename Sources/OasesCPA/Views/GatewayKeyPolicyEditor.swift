@@ -34,8 +34,8 @@ struct GatewayKeyPolicyEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(mode == .create ? "新建调用 API Key" : "编辑 Key 策略")
-                .font(.title2.weight(.bold))
+            Text(mode == .create ? "创建 Key" : "编辑 Key 策略")
+                .font(.title3.weight(.semibold))
                 .padding([.horizontal, .top], Oases.Space.xl)
                 .padding(.bottom, Oases.Space.m)
             Form {
@@ -145,7 +145,7 @@ struct GatewayKeyPolicyEditor: View {
         } else {
             HStack(spacing: Oases.Space.m) {
                 Text(model)
-                    .font(.system(.callout, design: .monospaced))
+                    .font(.callout.monospaced())
                     .lineLimit(1)
                     .frame(minWidth: 140, alignment: .leading)
                 if let pin = draft.pin(for: model) {
@@ -214,7 +214,7 @@ struct GatewayKeyPolicyEditor: View {
                 Spacer()
                 if isSaving { ProgressView().controlSize(.small) }
                 Button(mode == .create ? "创建 Key" : "保存") { requestSave() }
-                    .buttonStyle(.oasesPrimary)
+                    .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(isSaving || limitsInvalid || !canSave)
             }
@@ -280,39 +280,63 @@ struct GatewayKeyPolicyEditor: View {
     }
 }
 
-/// Shows a new key once, with a copy button.
+/// Shows a new key once: the full key and a ready-to-paste client snippet, both with a copy
+/// button. The key lives only in this sheet's value; closing the sheet forgets it (the list
+/// shows the mask from then on).
 struct GatewayNewKeySheet: View {
     @Environment(\.dismiss) private var dismiss
     let key: String
-    @State private var copied = false
+    let baseURL: String
+
+    /// The two environment variables an OpenAI-compatible client reads.
+    static func snippet(baseURL: String, key: String) -> String {
+        "OPENAI_BASE_URL=\(baseURL)\nOPENAI_API_KEY=\(key)"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Oases.Space.md) {
             Text("新 Key 已创建")
-                .font(.title2.weight(.bold))
-            Text("这是唯一一次显示完整 Key。请立即复制到密码管理器或客户端配置中；之后列表里只显示掩码。")
-                .font(.callout)
+                .font(.title3.weight(.semibold))
+            Text("这是唯一一次显示完整 Key。复制后保存好。")
                 .foregroundStyle(Oases.Color.textSecondary)
-            Text(key)
-                .font(.system(.body, design: .monospaced))
-                .textSelection(.enabled)
-                .padding(Oases.Space.m)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .oasesIconTile()
+                .fixedSize(horizontal: false, vertical: true)
+
+            secretBlock(
+                text: key,
+                copyValue: key,
+                accessibilityName: OasesLocalization.localized("API Key")
+            )
+
+            Text("客户端配置")
+                .font(.headline)
+            secretBlock(
+                text: Self.snippet(baseURL: baseURL, key: key),
+                copyValue: Self.snippet(baseURL: baseURL, key: key),
+                accessibilityName: OasesLocalization.localized("客户端配置")
+            )
+
             HStack {
-                Button(copied ? "已复制" : "复制 Key", systemImage: copied ? "checkmark" : "doc.on.doc") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(key, forType: .string)
-                    copied = true
-                }
-                .buttonStyle(.bordered)
                 Spacer()
                 Button("完成") { dismiss() }
-                    .buttonStyle(.oasesPrimary)
+                    .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
             }
         }
         .padding(Oases.Space.xl)
         .frame(width: 560)
+    }
+
+    private func secretBlock(text: String, copyValue: String, accessibilityName: String) -> some View {
+        HStack(alignment: .top, spacing: Oases.Space.m) {
+            Text(text)
+                .font(.callout.monospaced())
+                .textSelection(.enabled)
+                .privacySensitive()
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            CopyButton(value: copyValue, accessibilityName: accessibilityName, isSecret: true)
+        }
+        .padding(Oases.Space.m)
+        .background(Oases.Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: Oases.Radius.row, style: .continuous))
     }
 }

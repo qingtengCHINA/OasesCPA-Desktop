@@ -414,6 +414,7 @@ struct WelcomeFlowView: View {
                     actionTitle: "创建",
                     isPrimary: false
                 ) {
+                    store.createKeyRequested = true
                     onFinish(.accessKeys)
                 }
             }

@@ -468,7 +468,6 @@ private struct PluginStoreEntryRow: View {
                 .font(.title3)
                 .foregroundStyle(statusTint)
                 .frame(width: 34, height: 34)
-                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 8) {

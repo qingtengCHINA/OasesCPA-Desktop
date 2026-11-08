@@ -1,27 +1,49 @@
 import SwiftUI
 
-/// The gateway's models with their latest health results (#4). Internal `pin-x/…` ids never
-/// reach this page (`ModelsWorkbenchStore` drops them).
+/// The gateway's models with their latest health results (#4), as a table with a filter, a
+/// search field and an inspector for the selected model. Internal `pin-x/…` ids never reach
+/// this page (`ModelsWorkbenchStore` drops them).
 struct ModelsView: View {
     @EnvironmentObject private var deploymentStore: DeploymentStore
+    @EnvironmentObject private var appStore: AppStore
     @StateObject private var store: ModelsWorkbenchStore
     @State private var search = ""
+    @State private var filter: ModelHealthFilter = .all
+    @State private var selection: GatewayModelRow.ID?
+    @State private var sortOrder = [KeyPathComparator(\GatewayModelRow.id)]
     @State private var modelToTest: String?
     @State private var testAllConfirmationPresented = false
+    @State private var path: [String] = []
 
     init(deploymentStore: DeploymentStore) {
         _store = StateObject(wrappedValue: ModelsWorkbenchStore(provider: deploymentStore))
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Oases.Space.l) {
-                    header
-                    content
+        NavigationStack(path: $path) {
+            DetailPaneSplit(
+                showsPane: selectedRow != nil,
+                paneTitle: "模型详情",
+                onClose: { selection = nil }
+            ) {
+                content
+            } pane: {
+                if let row = selectedRow {
+                    ModelInspector(
+                        row: row,
+                        isTesting: store.testingModel == row.id,
+                        canTest: canTest && !runInProgress,
+                        testDisabledReason: testDisabledReason,
+                        onTest: { modelToTest = row.id },
+                        onOpenDetail: {
+                            selection = nil
+                            path.append(row.id)
+                        }
+                    )
                 }
-                .padding(Oases.Space.page)
             }
+            .searchable(text: $search, placement: .toolbar, prompt: Text("搜索模型"))
+            .toolbar { toolbar }
             .navigationDestination(for: String.self) { modelID in
                 ModelDetailView(modelID: modelID, deploymentStore: deploymentStore)
             }
@@ -59,31 +81,28 @@ struct ModelsView: View {
         "\(deploymentStore.stage.rawValue)|\(deploymentStore.gatewayAvailability)"
     }
 
-    // MARK: - Header
+    // MARK: - Toolbar
 
-    private var header: some View {
-        HStack(alignment: .bottom) {
-            Spacer()
-            if store.phase == .loading || store.isMutating {
-                ProgressView().controlSize(.small)
+    @ToolbarContentBuilder
+    private var toolbar: some ToolbarContent {
+        ToolbarItem(placement: .automatic) {
+            Picker("筛选", selection: $filter) {
+                ForEach(ModelHealthFilter.allCases) { filter in
+                    Text(filter.title).tag(filter)
+                }
             }
-            Button("刷新", systemImage: "arrow.clockwise") {
-                store.refreshNow()
-            }
-            .buttonStyle(.bordered)
-            .disabled(store.phase == .loading || !isReady)
-
-            Button("全部测活", systemImage: "waveform.path.ecg") {
-                testAllConfirmationPresented = true
-            }
-            .buttonStyle(.oasesPrimary)
-            .disabled(!canTest || store.rows.isEmpty || runInProgress)
+            .pickerStyle(.segmented)
+            .fixedSize()
+            .disabled(store.phase != .loaded || store.rows.isEmpty)
+            .help("按测活结果筛选")
         }
-    }
-
-    private var isReady: Bool {
-        if case .unavailable = store.phase { return false }
-        return true
+        ToolbarItem(placement: .automatic) {
+            Button { testAllConfirmationPresented = true } label: {
+                Label("全部测活", systemImage: "waveform.path.ecg")
+            }
+            .disabled(!canTest || store.rows.isEmpty || runInProgress)
+            .help(testDisabledReason ?? OasesLocalization.localized("测试全部模型？"))
+        }
     }
 
     private var canTest: Bool {
@@ -92,6 +111,13 @@ struct ModelsView: View {
 
     private var runInProgress: Bool {
         store.run.map { !$0.isFinished } ?? false
+    }
+
+    /// Why 测活 is unavailable, shown next to the disabled button.
+    private var testDisabledReason: String? {
+        if store.engineKeyMissing { return OasesLocalization.localized("网关缺少内部引擎 Key，无法测试模型；请检查部署是否完整。") }
+        if runInProgress { return OasesLocalization.localized("正在全部测活") }
+        return nil
     }
 
     // MARK: - Content
@@ -103,11 +129,12 @@ struct ModelsView: View {
             GatewayUnavailableView(availability: availability) {
                 store.retryAuthentication()
             }
+            .padding(Oases.Space.page)
         case .loading:
-            ProgressView("正在读取网关模型…")
-                .frame(maxWidth: .infinity, minHeight: 220)
+            GatewayLoadingView(title: "正在读取网关模型…")
         case .failed(let message):
             GatewayLoadFailedView(message: message) { store.refreshNow() }
+                .padding(Oases.Space.page)
         case .loaded:
             loaded
         }
@@ -115,44 +142,51 @@ struct ModelsView: View {
 
     @ViewBuilder
     private var loaded: some View {
-        statusStrip
-        if store.engineKeyMissing {
-            InfoBanner(
-                title: "无法测活",
-                message: OasesLocalization.localized("网关缺少内部引擎 Key，无法测试模型；请检查部署是否完整。"),
-                systemImage: "key.slash",
-                tint: Oases.Color.danger
+        if store.rows.isEmpty {
+            OasesEmptyState(
+                systemImage: "cpu",
+                title: "网关还没有可用模型",
+                message: "先添加一个 AI 提供商。",
+                actionTitle: "添加提供商",
+                action: { appStore.selectSection(.aiProviders) }
             )
-        } else if let error = store.actionError {
-            InfoBanner(
-                title: "操作未完成",
-                message: error,
-                systemImage: "exclamationmark.triangle",
-                tint: Oases.Color.danger
-            )
-        }
-        if let run = store.run {
-            runCard(run)
-        }
-        modelsCard
-    }
-
-    private var statusStrip: some View {
-        let counts = healthCounts
-        return HStack(spacing: Oases.Space.m) {
-            StatusPill(
-                title: OasesLocalization.localizedFormat("%lld 个模型", store.rows.count),
-                tint: store.rows.isEmpty ? Oases.Color.warning : Oases.Color.accent,
-                systemImage: "cpu"
-            )
-            StatusPill(title: OasesLocalization.localizedFormat("可用 %lld", counts.up), tint: Oases.Color.success)
-            StatusPill(title: OasesLocalization.localizedFormat("不可用 %lld", counts.down), tint: Oases.Color.danger)
-            StatusPill(title: OasesLocalization.localizedFormat("未测 %lld", counts.untested), tint: Oases.Color.neutral)
-            Spacer()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                statusLines
+                if visibleRows.isEmpty {
+                    Text("没有匹配的模型。")
+                        .foregroundStyle(Oases.Color.textSecondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ModelsTable(rows: visibleRows, selection: $selection, sortOrder: $sortOrder, testingModel: store.testingModel)
+                }
+            }
         }
     }
 
-    private var healthCounts: (up: Int, down: Int, untested: Int) {
+    /// The state lines above the table: a problem, the running test, the counts.
+    @ViewBuilder
+    private var statusLines: some View {
+        VStack(alignment: .leading, spacing: Oases.Space.sm) {
+            if store.engineKeyMissing {
+                InlineProblem(message: OasesLocalization.localized("网关缺少内部引擎 Key，无法测试模型；请检查部署是否完整。"))
+            } else if let error = store.actionError {
+                InlineProblem(message: error)
+            }
+            if let run = store.run {
+                ModelTestRunLine(run: run)
+            }
+            Text(countsText)
+                .font(.callout.monospacedDigit())
+                .foregroundStyle(Oases.Color.textSecondary)
+        }
+        .padding(.horizontal, Oases.Space.page)
+        .padding(.vertical, Oases.Space.sm)
+        Divider()
+    }
+
+    private var countsText: String {
         var up = 0, down = 0, untested = 0
         for row in store.rows {
             switch row.health?.status {
@@ -162,139 +196,214 @@ struct ModelsView: View {
             default: break
             }
         }
-        return (up, down, untested)
+        return OasesLocalization.localizedFormat("%lld 个模型 · 可用 %lld · 不可用 %lld · 未测 %lld", store.rows.count, up, down, untested)
     }
 
-    private func runCard(_ run: GatewayTestRun) -> some View {
-        VStack(alignment: .leading, spacing: Oases.Space.m) {
-            CardTitle(
-                title: run.isFinished ? OasesLocalization.localized("上次全部测活") : OasesLocalization.localized("正在全部测活"),
-                subtitle: run.isFinished
-                    ? OasesLocalization.localizedFormat("完成于 %@", (run.finishedAt ?? run.startedAt).formatted(date: .abbreviated, time: .shortened))
-                    : OasesLocalization.localized("结果会每隔几秒自动刷新；离开这一页后测活仍在网关上继续。"),
-                icon: "waveform.path.ecg"
-            )
-            ProgressView(value: Double(min(run.done, max(run.total, 1))), total: Double(max(run.total, 1)))
+    private var visibleRows: [GatewayModelRow] {
+        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        return store.rows
+            .filter { filter.includes($0.health?.status) }
+            .filter { row in
+                query.isEmpty
+                    || row.id.localizedCaseInsensitiveContains(query)
+                    || row.groups.contains { $0.localizedCaseInsensitiveContains(query) }
+            }
+            .sorted(using: sortOrder)
+    }
+
+    private var selectedRow: GatewayModelRow? {
+        guard let selection else { return nil }
+        return store.rows.first { $0.id == selection }
+    }
+}
+
+/// The segmented filter of the models page.
+enum ModelHealthFilter: String, CaseIterable, Identifiable {
+    case all, up, down
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .all: OasesLocalization.localized("全部")
+        case .up: OasesLocalization.localized("可用")
+        case .down: OasesLocalization.localized("失败")
+        }
+    }
+
+    func includes(_ status: GatewayHealthStatus?) -> Bool {
+        switch self {
+        case .all: true
+        case .up: status == .up
+        case .down: status == .down
+        }
+    }
+}
+
+extension GatewayModelRow {
+    /// The providers (model groups) as one line, for the table and for sorting.
+    var providersText: String { groups.joined(separator: ", ") }
+    /// Sort rank of the health result: available, failed, other, not applicable, untested.
+    var healthRank: Int {
+        switch health?.status {
+        case .up?: 0
+        case .down?: 1
+        case .other?: 2
+        case .skipped?: 3
+        case nil: 4
+        }
+    }
+    var testedAtSortKey: Date { health?.testedAt ?? .distantPast }
+}
+
+/// The models table: id (monospaced), providers, status dot + word, latency, last test.
+struct ModelsTable: View {
+    let rows: [GatewayModelRow]
+    @Binding var selection: GatewayModelRow.ID?
+    @Binding var sortOrder: [KeyPathComparator<GatewayModelRow>]
+    var testingModel: String?
+
+    var body: some View {
+        Table(rows, selection: $selection, sortOrder: $sortOrder) {
+            TableColumn("模型 ID", value: \.id) { row in
+                Text(row.id)
+                    .font(.body.monospaced())
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(row.id)
+            }
+            .width(min: 160, ideal: 260)
+            TableColumn("提供商", value: \.providersText) { row in
+                Text(row.providersText)
+                    .foregroundStyle(Oases.Color.textSecondary)
+                    .lineLimit(1)
+                    .help(row.providersText)
+            }
+            .width(min: 100, ideal: 180)
+            TableColumn("状态", value: \.healthRank) { row in
+                HStack(spacing: Oases.Space.s) {
+                    if testingModel == row.id {
+                        ProgressView().controlSize(.mini)
+                    } else {
+                        ModelHealthDot(status: row.health?.status)
+                    }
+                    Text(ModelHealthDot.title(for: row.health?.status))
+                }
+                .accessibilityElement(children: .combine)
+            }
+            .width(min: 90, ideal: 130)
+            TableColumn("延迟") { row in
+                Text(row.health?.latencyMs.map { OasesLocalization.localizedFormat("%lld 毫秒", $0) } ?? "—")
+                    .monospacedDigit()
+                    .foregroundStyle(Oases.Color.textSecondary)
+            }
+            .width(min: 60, ideal: 80)
+            TableColumn("最近测试", value: \.testedAtSortKey) { row in
+                if let testedAt = row.health?.testedAt {
+                    Text(testedAt, style: .relative)
+                        .monospacedDigit()
+                        .foregroundStyle(Oases.Color.textSecondary)
+                } else {
+                    Text("—").foregroundStyle(Oases.Color.textTertiary)
+                }
+            }
+            .width(min: 80, ideal: 110)
+        }
+        .alternatingRowBackgrounds(.disabled)
+    }
+}
+
+/// The running or last "全部测活": one line with a determinate bar.
+struct ModelTestRunLine: View {
+    let run: GatewayTestRun
+
+    var body: some View {
+        HStack(spacing: Oases.Space.m) {
+            Text(run.isFinished
+                 ? OasesLocalization.localizedFormat("上次全部测活完成于 %@", (run.finishedAt ?? run.startedAt).oasesShortDateTime)
+                 : OasesLocalization.localized("正在全部测活"))
+            if !run.isFinished {
+                ProgressView(value: Double(min(run.done, max(run.total, 1))), total: Double(max(run.total, 1)))
+                    .frame(maxWidth: 160)
+            }
             Text(OasesLocalization.localizedFormat("已完成 %lld / %lld · 可用 %lld · 不可用 %lld · 不适用 %lld", run.done, run.total, run.up, run.down, run.skipped))
-                .font(.caption.monospacedDigit())
+                .monospacedDigit()
                 .foregroundStyle(Oases.Color.textSecondary)
         }
-        .padding(Oases.Space.l)
-        .oasesCard()
+        .font(.callout)
+        .accessibilityElement(children: .combine)
     }
+}
 
-    private var modelsCard: some View {
-        VStack(alignment: .leading, spacing: Oases.Space.md) {
-            HStack(alignment: .top) {
-                CardTitle(
-                    title: "网关模型",
-                    subtitle: "来自网关的模型目录；测活结果是最近一次请求的结果",
-                    icon: "cpu"
-                )
-                Spacer()
-                TextField("筛选模型", text: $search)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 220)
-            }
-            if store.rows.isEmpty {
-                OasesEmptyState(
-                    systemImage: "cpu",
-                    title: "网关还没有可用模型",
-                    message: "添加 AI 提供商或认证文件后，模型会出现在这里。"
-                )
-            } else if filteredRows.isEmpty {
-                Text("没有匹配的模型。")
-                    .font(.callout)
-                    .foregroundStyle(Oases.Color.textSecondary)
-                    .frame(maxWidth: .infinity, minHeight: 110)
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(filteredRows) { row in
-                        modelRow(row)
-                        if row.id != filteredRows.last?.id {
-                            Divider()
+/// The selected model: label-above-value rows, the last test in one line, 测试 and 打开详情.
+struct ModelInspector: View {
+    let row: GatewayModelRow
+    var isTesting = false
+    var canTest = true
+    var testDisabledReason: String?
+    var onTest: () -> Void = {}
+    var onOpenDetail: () -> Void = {}
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Oases.Space.md) {
+                InspectorField(label: "模型 ID") {
+                    Text(row.id)
+                        .font(.body.monospaced())
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                InspectorField(label: "提供商") {
+                    VStack(alignment: .leading, spacing: Oases.Space.xxs) {
+                        ForEach(row.groups, id: \.self) { group in
+                            Text(group).textSelection(.enabled)
                         }
                     }
                 }
-            }
-        }
-        .padding(Oases.Space.l)
-        .oasesCard()
-    }
-
-    private var filteredRows: [GatewayModelRow] {
-        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return store.rows }
-        return store.rows.filter { row in
-            row.id.localizedCaseInsensitiveContains(query) || row.groups.contains { $0.localizedCaseInsensitiveContains(query) }
-        }
-    }
-
-    private func modelRow(_ row: GatewayModelRow) -> some View {
-        HStack(spacing: Oases.Space.m) {
-            NavigationLink(value: row.id) {
-                HStack(spacing: Oases.Space.m) {
-                    ModelHealthDot(status: row.health?.status)
-                    VStack(alignment: .leading, spacing: Oases.Space.xxs) {
-                        Text(row.id)
-                            .font(.system(.callout, design: .monospaced).weight(.semibold))
-                            .foregroundStyle(Oases.Color.textPrimary)
-                            .lineLimit(1)
-                            .textSelection(.enabled)
-                        Text(row.groups.joined(separator: " · "))
-                            .font(.caption)
-                            .foregroundStyle(Oases.Color.textSecondary)
-                            .lineLimit(1)
+                InspectorField(label: "最近测试") {
+                    VStack(alignment: .leading, spacing: Oases.Space.xs) {
+                        HStack(spacing: Oases.Space.s) {
+                            ModelHealthDot(status: row.health?.status)
+                            Text(lastTestText)
+                                .monospacedDigit()
+                        }
                         if let error = row.health?.error, row.health?.status == .down {
                             Text(SecretRedactor.redact(InternalModelID.publicText(error), secrets: []))
-                                .font(.caption)
-                                .foregroundStyle(Oases.Color.dangerText)
-                                .lineLimit(2)
+                                .font(.callout)
+                                .foregroundStyle(Oases.Color.textSecondary)
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
-                    Spacer(minLength: Oases.Space.m)
-                    healthSummary(row.health)
                 }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if store.testingModel == row.id {
-                ProgressView().controlSize(.small)
-            }
-            Button("测活") {
-                modelToTest = row.id
-            }
-            .buttonStyle(.bordered)
-            .disabled(!canTest || runInProgress)
-        }
-        .padding(.vertical, Oases.Space.m)
-    }
-
-    private func healthSummary(_ health: GatewayHealthResult?) -> some View {
-        VStack(alignment: .trailing, spacing: Oases.Space.xxs) {
-            Text(statusTitle(health?.status))
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(ModelHealthDot.tone(for: health?.status).text)
-            if let health {
-                Text(health.latencyMs.map { OasesLocalization.localizedFormat("%lld 毫秒", $0) } ?? "—")
-                    .font(.caption.monospacedDigit())
+                HStack(spacing: Oases.Space.sm) {
+                    Button("测试", action: onTest)
+                        .disabled(!canTest || isTesting)
+                    if isTesting { ProgressView().controlSize(.small) }
+                    Spacer()
+                    Button("打开详情", action: onOpenDetail)
+                }
+                if let testDisabledReason, !canTest {
+                    Text(testDisabledReason)
+                        .font(.caption)
+                        .foregroundStyle(Oases.Color.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text("测活会向上游发送真实请求并产生费用")
+                    .font(.caption)
                     .foregroundStyle(Oases.Color.textSecondary)
-                Text(health.testedAt, style: .relative)
-                    .font(.caption2)
-                    .foregroundStyle(Oases.Color.textTertiary)
             }
+            .padding(Oases.Space.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
-    private func statusTitle(_ status: GatewayHealthStatus?) -> String {
-        switch status {
-        case .up?: OasesLocalization.localized("可用")
-        case .down?: OasesLocalization.localized("不可用")
-        case .skipped?: OasesLocalization.localized("不适用")
-        case .other(let value)?: value
-        case nil: OasesLocalization.localized("未测")
-        }
+    private var lastTestText: String {
+        guard let health = row.health else { return OasesLocalization.localized("未测") }
+        var parts = [ModelHealthDot.title(for: health.status)]
+        if let latency = health.latencyMs { parts.append(OasesLocalization.localizedFormat("%lld 毫秒", latency)) }
+        parts.append(health.testedAt.oasesShortDateTime)
+        return parts.joined(separator: " · ")
     }
 }
 
@@ -311,14 +420,24 @@ struct ModelHealthDot: View {
         }
     }
 
+    static func title(for status: GatewayHealthStatus?) -> String {
+        switch status {
+        case .up?: OasesLocalization.localized("可用")
+        case .down?: OasesLocalization.localized("不可用")
+        case .skipped?: OasesLocalization.localized("不适用")
+        case .other(let value)?: value
+        case nil: OasesLocalization.localized("未测")
+        }
+    }
+
     var body: some View {
         if status == nil {
             Circle()
                 .strokeBorder(Oases.Color.textTertiary, lineWidth: 1.5)
-                .frame(width: 9, height: 9)
+                .frame(width: 8, height: 8)
                 .accessibilityHidden(true)
         } else {
-            StatusDot(tone: Self.tone(for: status), size: 9)
+            StatusDot(tone: Self.tone(for: status))
         }
     }
 }

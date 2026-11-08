@@ -2,9 +2,11 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// A native, focused auth-file workbench. It deliberately owns list state so
-/// it can evolve independently from the legacy auth-file page.
+/// Auth files as a dense native table: sortable columns, a provider menu and a status filter,
+/// search in the toolbar, a selection bar for bulk actions, and a detail pane for one selected
+/// file. Import is the toolbar action; destructive actions are confirmed.
 struct AuthFilesWorkbenchView: View {
+    @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var deploymentStore: DeploymentStore
     @EnvironmentObject private var runtimeDataStore: RuntimeDataStore
     @StateObject private var workbench = AuthFilesWorkbenchStore()
@@ -22,36 +24,58 @@ struct AuthFilesWorkbenchView: View {
     @State private var exportDocument = RuntimeAuthJSONDocument()
     @State private var exportFileName = "auth.json"
     @State private var operationError: String?
+    @State private var sortOrder: [KeyPathComparator<AuthFilesWorkbenchFile>] = []
+
+    private var isAttached: Bool { deploymentStore.stage == .attached }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                header
-                if deploymentStore.stage != .attached {
-                    workbenchBanner(
-                        title: "连接后读取认证文件",
-                        message: "先在连接与部署中连接本机或 SSH/VPS；认证文件只从当前目标环境读取。",
-                        systemImage: "lock.shield",
-                        tint: .oasesOrange
-                    )
-                } else {
-                    filters
-                    selectionBar
-                    if let error = workbench.errorMessage ?? operationError {
-                        workbenchBanner(
-                            title: "认证文件操作失败",
-                            message: error,
-                            systemImage: "exclamationmark.triangle.fill",
-                            tint: .oasesRed
-                        )
-                    }
-                    content
-                }
+        DetailPaneSplit(
+            showsPane: selectedFile != nil,
+            paneTitle: "认证文件详情",
+            onClose: { workbench.clearSelection() }
+        ) {
+            page
+        } pane: {
+            if let file = selectedFile {
+                AuthFileInspector(
+                    file: file,
+                    evidence: runtimeDataStore.quotaEvidence[file.name],
+                    hasRuntimeFile: runtimeFile(for: file) != nil,
+                    isMutating: workbench.isMutating,
+                    onModels: { modelFile = file },
+                    onMetadata: { metadataFile = file },
+                    onEdit: { editingRuntimeFile = runtimeFile(for: file) },
+                    onExport: { exportFile(file) },
+                    onToggle: { toggle(file) },
+                    onDelete: { deleteSelectionConfirmationPresented = true }
+                )
             }
-            .padding(28)
+        }
+        .searchable(text: $workbench.searchText, placement: .toolbar, prompt: Text("搜索名称、Provider、邮箱、项目或备注"))
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Button("导入…") { importingFile = true }
+                    Divider()
+                    Button("删除全部认证文件…", role: .destructive) {
+                        deleteAllConfirmationPresented = true
+                    }
+                    .disabled(workbench.files.isEmpty || workbench.isMutating)
+                } label: {
+                    Label("导入…", systemImage: "square.and.arrow.down")
+                } primaryAction: {
+                    importingFile = true
+                }
+                .disabled(!isAttached)
+                .help(isAttached ? OasesLocalization.localized("导入 JSON 认证文件") : OasesLocalization.localized("请先连接一个目标环境。"))
+            }
         }
         .task(id: deploymentStore.stage) {
             await refresh()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .oasesRefreshCurrentSection)) { notification in
+            guard notification.userInfo?["section"] as? String == AppSection.authFiles.rawValue else { return }
+            Task { await refresh() }
         }
         .sheet(item: $modelFile) { file in
             AuthFilesWorkbenchModelSheet(
@@ -132,203 +156,122 @@ struct AuthFilesWorkbenchView: View {
         }
     }
 
-    private var header: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .center, spacing: 14) {
-                authFilesTitle
-                Spacer()
-                headerActions
-            }
-            VStack(alignment: .leading, spacing: 12) {
-                authFilesTitle
-                headerActions
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-            }
-        }
-    }
+    // MARK: - Page
 
-    /// The page title lives in the toolbar; the header keeps only the page's one sentence.
-    private var authFilesTitle: some View {
-        Text("集中查看账号状态、套餐、配额证据和支持模型")
-            .font(.callout)
-            .foregroundStyle(.secondary)
-    }
-
-    private var headerActions: some View {
-        HStack(spacing: 12) {
-            if workbench.isLoading || workbench.isMutating {
-                ProgressView()
-                    .controlSize(.small)
-            }
-            Button("刷新", systemImage: "arrow.clockwise") {
-                Task { await refresh() }
-            }
-            .buttonStyle(.bordered)
-            .disabled(workbench.isLoading || workbench.isMutating || deploymentStore.stage != .attached)
-            Menu("更多", systemImage: "ellipsis.circle") {
-                Button("导入 JSON", systemImage: "square.and.arrow.down") {
-                    importingFile = true
-                }
-                Button("删除全部认证文件", systemImage: "trash", role: .destructive) {
-                    deleteAllConfirmationPresented = true
-                }
-                .disabled(workbench.files.isEmpty || workbench.isMutating)
-            }
-            .menuStyle(.borderedButton)
-        }
-    }
-
-    private var authSearchField: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-            TextField("搜索名称、Provider、邮箱、项目或备注", text: $workbench.searchText)
-                .textFieldStyle(.plain)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-        .background(Oases.Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: Oases.Radius.row, style: .continuous))
-    }
-
-    private var authFilterPickers: some View {
-        AuthFilesWorkbenchFilterPickers(workbench: workbench)
-    }
-
-    private var filters: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) {
-                    authSearchField
-                    authFilterPickers
-                }
-                VStack(alignment: .leading, spacing: 10) {
-                    authSearchField
-                    authFilterPickers
-                }
-            }
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    providerChip("全部 Provider", selection: .all)
-                    ForEach(workbench.providers, id: \.self) { provider in
-                        providerChip(provider, selection: .provider(provider))
+    @ViewBuilder
+    private var page: some View {
+        if !isAttached {
+            GatewayStateLine(
+                systemImage: "link",
+                message: "先在“连接与部署”接入本机或 SSH / VPS 目标，这一页才有数据。",
+                actionTitle: "打开连接与部署",
+                action: { store.selectSection(.environments) }
+            )
+            .padding(Oases.Space.page)
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: Oases.Space.m) {
+                    AuthFilesFilterBar(workbench: workbench)
+                    Spacer(minLength: Oases.Space.sm)
+                    if workbench.isLoading || workbench.isMutating {
+                        ProgressView().controlSize(.small)
                     }
+                    Text(OasesLocalization.localizedFormat("显示 %lld / %lld 个", workbench.filteredFiles.count, workbench.total ?? workbench.files.count))
+                        .font(.callout.monospacedDigit())
+                        .foregroundStyle(Oases.Color.textSecondary)
                 }
-            }
-
-            Picker("状态", selection: $workbench.attentionFilter) {
-                ForEach(AuthFilesWorkbenchAttentionFilter.allCases) { filter in
-                    Text(filter.title).tag(filter)
+                .padding(.horizontal, Oases.Space.page)
+                .padding(.vertical, Oases.Space.sm)
+                if let error = workbench.errorMessage ?? operationError {
+                    InlineProblem(message: error)
+                        .padding(.horizontal, Oases.Space.page)
+                        .padding(.bottom, Oases.Space.sm)
                 }
+                if !workbench.selectedIDs.isEmpty {
+                    selectionBar
+                }
+                Divider()
+                content
             }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 430)
         }
-        .padding(16)
     }
 
-    private func providerChip(
-        _ title: String,
-        selection: AuthFilesWorkbenchProviderFilter
-    ) -> some View {
-        let isSelected = workbench.providerFilter == selection
-        return Button {
-            workbench.providerFilter = selection
-        } label: {
-            Text(LocalizedStringKey(title))
-                .font(.callout.weight(.medium))
-                .foregroundStyle(isSelected ? Oases.Color.textPrimary : Oases.Color.textSecondary)
-                .padding(.horizontal, Oases.Space.sm)
-                .padding(.vertical, Oases.Space.xs)
-                .background(isSelected ? Oases.Color.washStrong : Color.clear, in: RoundedRectangle(cornerRadius: Oases.Radius.row, style: .continuous))
-        }
-        .buttonStyle(.plain)
-    }
-
+    /// Shown only while at least one file is selected.
     private var selectionBar: some View {
-        HStack(spacing: 10) {
-            Button {
-                workbench.setVisibleSelection(workbench.selectedVisibleCount != workbench.filteredFiles.count)
-            } label: {
-                Label(
-                    workbench.selectedVisibleCount == workbench.filteredFiles.count && !workbench.filteredFiles.isEmpty ? OasesLocalization.localized("取消全选") : OasesLocalization.localized("选择当前结果"),
-                    systemImage: workbench.selectedVisibleCount == workbench.filteredFiles.count && !workbench.filteredFiles.isEmpty ? "checkmark.square" : "square"
-                )
-            }
-            .buttonStyle(.bordered)
-            .disabled(workbench.filteredFiles.isEmpty)
-
-            Text(OasesLocalization.localizedFormat("显示 %lld / %lld 个", workbench.filteredFiles.count, workbench.total ?? workbench.files.count))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            if !workbench.selectedIDs.isEmpty {
-                Text(OasesLocalization.localizedFormat("已选 %lld 个", workbench.selectedIDs.count))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
-                Button("删除所选", systemImage: "trash", role: .destructive) {
-                    deleteSelectionConfirmationPresented = true
-                }
-                .buttonStyle(.bordered)
+        HStack(spacing: Oases.Space.sm) {
+            Text(OasesLocalization.localizedFormat("已选 %lld 个", workbench.selectedIDs.count))
+                .monospacedDigit()
+            Button("启用所选") { setSelectedDisabled(false) }
                 .disabled(workbench.isMutating)
-                Button("清除选择") { workbench.clearSelection() }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-            }
+            Button("停用所选") { setSelectedDisabled(true) }
+                .disabled(workbench.isMutating)
+            Button("删除…") { deleteSelectionConfirmationPresented = true }
+                .disabled(workbench.isMutating)
             Spacer()
+            Button("取消选择") { workbench.clearSelection() }
+                .buttonStyle(.borderless)
         }
+        .padding(.horizontal, Oases.Space.page)
+        .padding(.vertical, Oases.Space.s)
+        .background(Oases.Color.wash)
     }
 
     @ViewBuilder
     private var content: some View {
-        if workbench.filteredFiles.isEmpty {
-            ContentUnavailableView(
-                workbench.files.isEmpty ? OasesLocalization.localized("暂无认证文件") : OasesLocalization.localized("没有匹配结果"),
-                systemImage: workbench.files.isEmpty ? "doc.badge.plus" : "line.3.horizontal.decrease.circle",
-                description: Text(workbench.files.isEmpty ? "可以从“更多”导入 JSON，或先在“OAuth 登录”中完成授权。" : "试试清空搜索词或切换状态筛选。")
+        if workbench.files.isEmpty, workbench.isLoading {
+            GatewayLoadingView(title: "正在读取认证文件…")
+        } else if workbench.files.isEmpty {
+            OasesEmptyState(
+                systemImage: "doc.badge.plus",
+                title: "还没有认证文件",
+                message: "用“导入…”添加 JSON，或在“OAuth”中授权。",
+                actionTitle: "导入…",
+                action: { importingFile = true }
             )
-            .frame(maxWidth: .infinity, minHeight: 260)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if workbench.filteredFiles.isEmpty {
+            Text("没有匹配的认证文件。")
+                .foregroundStyle(Oases.Color.textSecondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            LazyVStack(spacing: workbench.displayMode == .regular ? 12 : 6) {
-                ForEach(workbench.filteredFiles) { file in
-                    AuthFilesWorkbenchRow(
-                        file: file,
-                        evidence: runtimeDataStore.quotaEvidence[file.name],
-                        isSelected: workbench.selectedIDs.contains(file.id),
-                        compact: workbench.displayMode == .compact,
-                        runtimeFile: runtimeDataStore.authFiles.first { $0.name == file.name },
-                        onSelect: { workbench.toggleSelection(for: file) },
-                        onModels: { modelFile = file },
-                        onMetadata: { metadataFile = file },
-                        onEdit: { editingRuntimeFile = runtimeDataStore.authFiles.first { $0.name == file.name } },
-                        onExport: { exportFile(file) },
-                        onToggle: { toggle(file) },
-                        onDelete: {
-                            workbench.selectOnly(file)
-                            deleteSelectionConfirmationPresented = true
-                        }
-                    )
+            AuthFilesTable(
+                files: workbench.filteredFiles.sorted(using: sortOrder),
+                evidence: runtimeDataStore.quotaEvidence,
+                selection: Binding(get: { workbench.selectedIDs }, set: { workbench.setSelection($0) }),
+                sortOrder: $sortOrder,
+                isMutating: workbench.isMutating,
+                onModels: { modelFile = $0 },
+                onMetadata: { metadataFile = $0 },
+                onToggle: { toggle($0) },
+                onDelete: { file in
+                    if !workbench.selectedIDs.contains(file.id) { workbench.selectOnly(file) }
+                    deleteSelectionConfirmationPresented = true
                 }
-            }
+            )
         }
     }
 
-    private func workbenchBanner(
-        title: String,
-        message: String,
-        systemImage: String,
-        tint: Color
-    ) -> some View {
-        Label {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(OasesLocalization.localized(title)).font(.headline)
-                Text(OasesLocalization.localized(message)).font(.subheadline).foregroundStyle(.secondary)
+    private var selectedFile: AuthFilesWorkbenchFile? {
+        guard workbench.selectedIDs.count == 1, let id = workbench.selectedIDs.first else { return nil }
+        return workbench.files.first { $0.id == id }
+    }
+
+    private func runtimeFile(for file: AuthFilesWorkbenchFile) -> RuntimeAuthFile? {
+        runtimeDataStore.authFiles.first { $0.name == file.name }
+    }
+
+    private func setSelectedDisabled(_ disabled: Bool) {
+        let targets = workbench.files.filter { workbench.selectedIDs.contains($0.id) && $0.isDisabled != disabled }
+        Task {
+            for file in targets {
+                await workbench.setDisabled(
+                    file,
+                    disabled: disabled,
+                    baseURL: deploymentStore.engineBaseURL,
+                    managementKey: deploymentStore.managementKey
+                )
             }
-        } icon: {
-            Image(systemName: systemImage).foregroundStyle(tint)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(18)
     }
 
     private func refresh() async {
@@ -457,132 +400,232 @@ struct AuthFilesWorkbenchView: View {
     }
 }
 
-private struct AuthFilesWorkbenchRow: View {
-    let file: AuthFilesWorkbenchFile
-    let evidence: RuntimeQuotaEvidence?
-    let isSelected: Bool
-    let compact: Bool
-    let runtimeFile: RuntimeAuthFile?
-    let onSelect: () -> Void
-    let onModels: () -> Void
-    let onMetadata: () -> Void
-    let onEdit: () -> Void
-    let onExport: () -> Void
-    let onToggle: () -> Void
-    let onDelete: () -> Void
+/// The auth files table. Columns sort through their headers; checkboxes are the table's own
+/// multi-selection; the context menu acts on the clicked row.
+struct AuthFilesTable: View {
+    let files: [AuthFilesWorkbenchFile]
+    let evidence: [String: RuntimeQuotaEvidence]
+    @Binding var selection: Set<AuthFilesWorkbenchFile.ID>
+    @Binding var sortOrder: [KeyPathComparator<AuthFilesWorkbenchFile>]
+    var isMutating = false
+    var onModels: (AuthFilesWorkbenchFile) -> Void = { _ in }
+    var onMetadata: (AuthFilesWorkbenchFile) -> Void = { _ in }
+    var onToggle: (AuthFilesWorkbenchFile) -> Void = { _ in }
+    var onDelete: (AuthFilesWorkbenchFile) -> Void = { _ in }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: compact ? 8 : 14) {
-            HStack(alignment: .top, spacing: 12) {
-                Button(action: onSelect) {
-                    Image(systemName: isSelected ? "checkmark.square.fill" : "square")
-                        .font(.title3)
-                        .foregroundStyle(isSelected ? Color.accentColor : .secondary)
-                }
-                .buttonStyle(.plain)
+        Table(files, selection: $selection, sortOrder: $sortOrder) {
+            TableColumn("名称", value: \.name) { file in
+                Text(file.name)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(file.name)
+            }
+            .width(min: 140, ideal: 220)
+            TableColumn("提供商", value: \.providerTitle) { file in
+                Text(file.providerTitle).lineLimit(1)
+            }
+            .width(min: 70, ideal: 90)
+            TableColumn("登录账号", value: \.accountSortKey) { file in
+                Text(file.accountTitle ?? "—")
+                    .foregroundStyle(Oases.Color.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .width(min: 100, ideal: 170)
+            TableColumn("套餐", value: \.planSortKey) { file in
+                Text(file.plan ?? "—")
+                    .foregroundStyle(file.plan == nil ? Oases.Color.textTertiary : Oases.Color.textPrimary)
+                    .lineLimit(1)
+            }
+            .width(min: 50, ideal: 70)
+            TableColumn("额度") { file in
+                Text(AuthFileTexts.quota(evidence[file.name]))
+                    .monospacedDigit()
+                    .foregroundStyle(Oases.Color.textSecondary)
+            }
+            .width(min: 50, ideal: 70)
+            TableColumn("优先级", value: \.prioritySortKey) { file in
+                Text(file.priority.map(String.init) ?? "—")
+                    .monospacedDigit()
+                    .foregroundStyle(Oases.Color.textSecondary)
+            }
+            .width(min: 50, ideal: 60)
+            TableColumn("状态", value: \.statusRank) { file in
+                AuthFileStatusLabel(file: file)
+            }
+            .width(min: 80, ideal: 110)
+        }
+        .alternatingRowBackgrounds(.disabled)
+        .contextMenu(forSelectionType: AuthFilesWorkbenchFile.ID.self) { ids in
+            if ids.count == 1, let file = files.first(where: { $0.id == ids.first }) {
+                Button("查看支持模型") { onModels(file) }
+                Button("编辑管理字段…") { onMetadata(file) }.disabled(isMutating)
+                Button(file.isDisabled ? "启用认证文件" : "禁用认证文件") { onToggle(file) }.disabled(isMutating)
+                Divider()
+                Button("删除…", role: .destructive) { onDelete(file) }.disabled(isMutating)
+            }
+        } primaryAction: { ids in
+            if ids.count == 1, let file = files.first(where: { $0.id == ids.first }) { onMetadata(file) }
+        }
+    }
+}
 
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Text(file.name)
-                            .font(.headline.weight(.semibold))
-                            .textSelection(.enabled)
-                        Text(file.providerTitle)
-                            .font(.caption.weight(.semibold))
-                        statusBadge
-                    }
-                    if let account = file.accountTitle {
-                        Label(account, systemImage: "person.crop.circle")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    if !compact {
-                        HStack(spacing: 16) {
-                            metadata("auth_index", file.authIndex)
-                            metadata("套餐", file.plan)
-                            metadata("项目", file.projectID ?? file.project)
-                            if let priority = file.priority { metadata("优先级", String(priority)) }
+extension AuthFilesWorkbenchFile {
+    var accountSortKey: String { accountTitle ?? "" }
+    var planSortKey: String { plan ?? "" }
+    var prioritySortKey: Int { priority ?? Int.min }
+    /// Needs attention first, then disabled, then normal.
+    var statusRank: Int { isDisabled ? 1 : (needsAttention ? 0 : 2) }
+}
+
+enum AuthFileTexts {
+    /// The highest used percentage of the file's quota windows, or "—" without evidence.
+    static func quota(_ evidence: RuntimeQuotaEvidence?) -> String {
+        guard let used = evidence?.windows.compactMap(\.normalizedUsedPercent).max() else { return "—" }
+        return "\(Int(used.rounded()))%"
+    }
+}
+
+/// Status dot and the status word.
+struct AuthFileStatusLabel: View {
+    let file: AuthFilesWorkbenchFile
+
+    private var tone: Oases.Tone {
+        if file.isDisabled { return .neutral }
+        return file.needsAttention ? .warning : .success
+    }
+
+    var body: some View {
+        HStack(spacing: Oases.Space.s) {
+            StatusDot(tone: tone)
+            Text(file.displayStatus)
+                .lineLimit(1)
+        }
+        .help(file.statusMessage ?? file.displayStatus)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The provider menu and the status filter of the auth files page. Both keep their ideal
+/// width (`fixedSize`), so a label is never squeezed to zero width (the letters of a squeezed
+/// English label used to stack vertically).
+struct AuthFilesFilterBar: View {
+    @ObservedObject var workbench: AuthFilesWorkbenchStore
+
+    var body: some View {
+        HStack(spacing: Oases.Space.m) {
+            Picker(OasesLocalization.localized("提供商"), selection: $workbench.providerFilter) {
+                Text("全部").tag(AuthFilesWorkbenchProviderFilter.all)
+                ForEach(workbench.providers, id: \.self) { provider in
+                    Text(verbatim: provider).tag(AuthFilesWorkbenchProviderFilter.provider(provider))
+                }
+            }
+            .pickerStyle(.menu)
+            .fixedSize()
+
+            Picker(OasesLocalization.localized("状态"), selection: $workbench.attentionFilter) {
+                ForEach(AuthFilesWorkbenchAttentionFilter.allCases) { filter in
+                    Text(filter.title).tag(filter)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+        }
+    }
+}
+
+/// One selected auth file: label-above-value rows, quota evidence as plain rows, and the file's
+/// actions (the destructive one last, behind a menu).
+struct AuthFileInspector: View {
+    let file: AuthFilesWorkbenchFile
+    let evidence: RuntimeQuotaEvidence?
+    var hasRuntimeFile = false
+    var isMutating = false
+    var onModels: () -> Void = {}
+    var onMetadata: () -> Void = {}
+    var onEdit: () -> Void = {}
+    var onExport: () -> Void = {}
+    var onToggle: () -> Void = {}
+    var onDelete: () -> Void = {}
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Oases.Space.md) {
+                InspectorField(label: "名称") {
+                    Text(file.name).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                }
+                InspectorField(label: "状态") { AuthFileStatusLabel(file: file) }
+                if let message = file.statusMessage, !message.isEmpty {
+                    Text(message)
+                        .font(.callout)
+                        .foregroundStyle(Oases.Color.textSecondary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                InspectorField(label: "提供商") { Text(file.providerTitle) }
+                if let account = file.accountTitle {
+                    InspectorField(label: "登录账号") { Text(account).textSelection(.enabled) }
+                }
+                if let plan = file.plan, !plan.isEmpty {
+                    InspectorField(label: "套餐") { Text(plan) }
+                }
+                if let project = file.projectID ?? file.project, !project.isEmpty {
+                    InspectorField(label: "项目") { Text(project).font(.body.monospaced()).textSelection(.enabled) }
+                }
+                if let priority = file.priority {
+                    InspectorField(label: "优先级") { Text(String(priority)).monospacedDigit() }
+                }
+                if let note = file.note, !note.isEmpty {
+                    InspectorField(label: "备注") { Text(note).textSelection(.enabled).fixedSize(horizontal: false, vertical: true) }
+                }
+                if let evidence {
+                    InspectorField(label: "配额证据") {
+                        VStack(alignment: .leading, spacing: Oases.Space.xs) {
+                            ForEach(evidence.windows) { window in
+                                HStack {
+                                    Text(window.label)
+                                    Spacer()
+                                    Text(window.normalizedUsedPercent.map { "\(Int($0.rounded()))%" } ?? "—")
+                                        .monospacedDigit()
+                                        .foregroundStyle(Oases.Color.textSecondary)
+                                }
+                            }
+                            Text(OasesLocalization.localizedFormat("记录于 %@", evidence.observedAt.oasesShortDateTime))
+                                .font(.caption)
+                                .foregroundStyle(Oases.Color.textSecondary)
                         }
-                        if let note = file.note, !note.isEmpty {
-                            Text(note)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2)
+                    }
+                }
+                Divider()
+                VStack(alignment: .leading, spacing: Oases.Space.sm) {
+                    Button("查看支持模型", action: onModels)
+                    Button("编辑管理字段…", action: onMetadata).disabled(isMutating)
+                    if hasRuntimeFile {
+                        HStack {
+                            Button("编辑 JSON", action: onEdit)
+                            Button("导出 JSON", action: onExport)
                         }
                     }
                 }
-                Spacer(minLength: 8)
-                actionMenu
-            }
-            if !compact, let evidence {
-                quotaEvidenceView(evidence)
-            }
-        }
-        .padding(compact ? 10 : 16)
-    }
-
-    private var statusBadge: some View {
-        Text(file.displayStatus)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(file.needsAttention ? Color.oasesOrange : Color.oasesGreen)
-    }
-
-    private func metadata(_ title: String, _ value: String?) -> some View {
-        Group {
-            if let value, !value.isEmpty {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(OasesLocalization.localized(title)).font(.caption2).foregroundStyle(.tertiary)
-                    Text(value).font(.caption).textSelection(.enabled)
+                HStack {
+                    Button(file.isDisabled ? "启用认证文件" : "禁用认证文件", action: onToggle)
+                        .disabled(isMutating)
+                    Spacer()
+                    Menu {
+                        Button("删除…", role: .destructive, action: onDelete)
+                    } label: {
+                        Text("更多")
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .disabled(isMutating)
                 }
             }
+            .padding(Oases.Space.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-    }
-
-    private var actionMenu: some View {
-        Menu {
-            Button("查看支持模型", systemImage: "square.grid.2x2") { onModels() }
-            Button("编辑管理字段", systemImage: "slider.horizontal.3") { onMetadata() }
-            if runtimeFile != nil {
-                Button("编辑 JSON", systemImage: "curlybraces") { onEdit() }
-                Button("导出 JSON", systemImage: "square.and.arrow.up") { onExport() }
-            }
-            Divider()
-            Button(file.isDisabled ? "启用认证文件" : "禁用认证文件", systemImage: file.isDisabled ? "checkmark.circle" : "pause.circle") { onToggle() }
-            Button("删除认证文件", systemImage: "trash", role: .destructive) { onDelete() }
-        } label: {
-            Image(systemName: "ellipsis.circle")
-                .font(.title3)
-                .foregroundStyle(.secondary)
-                .frame(width: 30, height: 30)
-        }
-        .menuStyle(.borderlessButton)
-    }
-
-    private func quotaEvidenceView(_ evidence: RuntimeQuotaEvidence) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Label("配额证据", systemImage: evidence.status == .success ? "checkmark.shield" : "exclamationmark.shield")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(evidence.status == .success ? Color.oasesGreen : Color.oasesOrange)
-                Spacer()
-                Text(evidence.observedAt.formatted(date: .omitted, time: .shortened))
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-            ForEach(evidence.windows) { window in
-                HStack(spacing: 8) {
-                    Text(window.label).font(.caption).frame(width: 110, alignment: .leading)
-                    ProgressView(value: (window.normalizedUsedPercent ?? 0) / 100)
-                        .tint((window.normalizedUsedPercent ?? 0) > 85 ? Color.oasesOrange : Color.oasesGreen)
-                    Text(window.normalizedUsedPercent.map { "\(Int($0))%" } ?? "—")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                }
-            }
-            if let message = evidence.message, !message.isEmpty {
-                Text(message).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-            }
-        }
-        .padding(10)
     }
 }
 
@@ -614,8 +657,7 @@ private struct AuthFilesWorkbenchModelSheet: View {
                             }
                             Spacer()
                             Button("复制") {
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(model.id, forType: .string)
+                                OasesPasteboard.copy(model.id)
                             }
                             .buttonStyle(.borderless)
                         }
@@ -623,7 +665,7 @@ private struct AuthFilesWorkbenchModelSheet: View {
                     }
                 }
             }
-            .navigationTitle("支持模型 · \(file.name)")
+            .navigationTitle(OasesLocalization.localizedFormat("支持模型 · %@", file.name))
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("关闭") { dismiss() }
@@ -690,37 +732,11 @@ private struct AuthFilesWorkbenchMetadataEditor: View {
                             dismiss()
                         }
                     }
-                    .buttonStyle(.oasesPrimary)
+                    .buttonStyle(.borderedProminent)
                     .disabled(isSaving || (Int(priority.trimmingCharacters(in: .whitespacesAndNewlines)) == nil && !priority.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
                 }
             }
         }
         .frame(minWidth: 520, minHeight: 360)
-    }
-}
-
-/// Sort and display pickers of the auth-file toolbar. Both keep their ideal width
-/// (`fixedSize`): squeezed into a fixed frame, the "Display" label of the segmented picker
-/// collapsed to zero width in English and its letters stacked vertically.
-struct AuthFilesWorkbenchFilterPickers: View {
-    @ObservedObject var workbench: AuthFilesWorkbenchStore
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Picker(OasesLocalization.localized("排序"), selection: $workbench.sort) {
-                ForEach(AuthFilesWorkbenchSort.allCases) { sort in
-                    Text(sort.title).tag(sort)
-                }
-            }
-            .fixedSize() // the label keeps its width in every language
-
-            Picker(OasesLocalization.localized("显示"), selection: $workbench.displayMode) {
-                ForEach(AuthFilesWorkbenchDisplayMode.allCases) { mode in
-                    Text(mode.title).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .fixedSize() // the label keeps its width in every language
-        }
     }
 }

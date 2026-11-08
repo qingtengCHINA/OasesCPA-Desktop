@@ -10,6 +10,26 @@ extension PrimitiveButtonStyle where Self == BorderedProminentButtonStyle {
     static var oasesPrimary: BorderedProminentButtonStyle { .borderedProminent }
 }
 
+/// The app's pasteboard writes. A secret (an API key) is marked with the
+/// `org.nspasteboard.ConcealedType` convention so clipboard managers do not keep it in their
+/// history; the value itself is written exactly as given.
+@MainActor
+enum OasesPasteboard {
+    static let concealedType = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
+
+    static func copy(_ value: String, to pasteboard: NSPasteboard = .general) {
+        pasteboard.clearContents()
+        pasteboard.setString(value, forType: .string)
+    }
+
+    static func copySecret(_ value: String, to pasteboard: NSPasteboard = .general) {
+        pasteboard.clearContents()
+        pasteboard.declareTypes([.string, concealedType], owner: nil)
+        pasteboard.setString(value, forType: .string)
+        pasteboard.setString("", forType: concealedType)
+    }
+}
+
 /// An 8 pt status dot. Status colour lives here, never in a fill or a capsule.
 struct StatusDot: View {
     var tone: Oases.Tone
@@ -105,82 +125,6 @@ struct OasesRowGroup<Content: View>: View {
     }
 }
 
-/// Clickable row: icon, title, subtitle, trailing content, chevron; wash on hover.
-struct OasesLinkRow<Trailing: View>: View {
-    var systemImage: String?
-    var title: String
-    var subtitle: String?
-    var monoTitle = false
-    var statusDot: Oases.Tone?
-    var action: (() -> Void)?
-    @ViewBuilder var trailing: () -> Trailing
-
-    @State private var isHovered = false
-
-    var body: some View {
-        if let action {
-            Button(action: action) { row(showChevron: true) }
-                .buttonStyle(.plain)
-                .background(isHovered ? Oases.Color.wash : Color.clear)
-                .onHover { isHovered = $0 }
-        } else {
-            row(showChevron: false)
-        }
-    }
-
-    private func row(showChevron: Bool) -> some View {
-        HStack(spacing: Oases.Space.m) {
-            if let systemImage {
-                Image(systemName: systemImage)
-                    .font(.body)
-                    .foregroundStyle(Oases.Color.textSecondary)
-                    .frame(width: 18)
-                    .overlay(alignment: .topTrailing) {
-                        if let statusDot { StatusDot(tone: statusDot, size: 6).offset(x: 3, y: -2) }
-                    }
-                    .accessibilityHidden(true)
-            } else if let statusDot {
-                StatusDot(tone: statusDot)
-            }
-            VStack(alignment: .leading, spacing: Oases.Space.xxs) {
-                Text(LocalizedStringKey(title))
-                    .font(monoTitle ? .system(.body, design: .monospaced).weight(.medium) : .body.weight(.medium))
-                    .foregroundStyle(Oases.Color.textPrimary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                if let subtitle, !subtitle.isEmpty {
-                    Text(LocalizedStringKey(subtitle))
-                        .font(.caption)
-                        .foregroundStyle(Oases.Color.textSecondary)
-                        .lineLimit(1)
-                }
-            }
-            Spacer(minLength: Oases.Space.sm)
-            trailing()
-                .font(.callout.monospacedDigit())
-                .foregroundStyle(Oases.Color.textSecondary)
-            if showChevron {
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Oases.Color.textTertiary)
-                    .accessibilityHidden(true)
-            }
-        }
-        .padding(.vertical, Oases.Space.sm + 2)
-        .padding(.horizontal, Oases.Space.md)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-    }
-}
-
-extension OasesLinkRow where Trailing == EmptyView {
-    init(systemImage: String? = nil, title: String, subtitle: String? = nil, monoTitle: Bool = false,
-         statusDot: Oases.Tone? = nil, action: (() -> Void)? = nil) {
-        self.init(systemImage: systemImage, title: title, subtitle: subtitle, monoTitle: monoTitle,
-                  statusDot: statusDot, action: action, trailing: { EmptyView() })
-    }
-}
-
 /// Label/value row for detail panes.
 struct OasesValueRow: View {
     var label: String
@@ -227,8 +171,7 @@ struct OasesMonoValue: View {
                 .privacySensitive(isSecret)
             if let copyValue {
                 Button {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(copyValue, forType: .string)
+                    if isSecret { OasesPasteboard.copySecret(copyValue) } else { OasesPasteboard.copy(copyValue) }
                     copied = true
                     Task {
                         try? await Task.sleep(for: .seconds(1.4))
@@ -290,5 +233,75 @@ extension View {
     /// the icon as it is. Call sites drop it as pages are reworked.
     func oasesIconTile(cornerRadius: CGFloat? = nil) -> some View {
         self
+    }
+}
+
+/// A page with a trailing detail pane for the selected item (label-above-value rows), shown
+/// only while something is selected. A plain split instead of `.inspector`: inside the
+/// window's split view and a page `NavigationStack`, `.inspector` sent the offscreen layout
+/// into an endless constraint pass, and this pane must never be able to do that on screen.
+struct DetailPaneSplit<Main: View, Pane: View>: View {
+    var showsPane: Bool
+    var paneTitle: String
+    var onClose: () -> Void
+    @ViewBuilder var main: () -> Main
+    @ViewBuilder var pane: () -> Pane
+
+    var body: some View {
+        HStack(spacing: 0) {
+            main()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            if showsPane {
+                Divider()
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: Oases.Space.sm) {
+                        Text(LocalizedStringKey(paneTitle))
+                            .font(.headline)
+                            .lineLimit(1)
+                            .accessibilityAddTraits(.isHeader)
+                        Spacer(minLength: 0)
+                        Button(action: onClose) {
+                            Image(systemName: "xmark")
+                        }
+                        .buttonStyle(.borderless)
+                        .keyboardShortcut(.cancelAction)
+                        .help("关闭详情")
+                        .accessibilityLabel(Text("关闭详情"))
+                    }
+                    .padding(.horizontal, Oases.Space.md)
+                    .padding(.vertical, Oases.Space.sm)
+                    Divider()
+                    pane()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
+                .frame(width: 320)
+                .frame(maxHeight: .infinity)
+            }
+        }
+    }
+}
+
+/// A label above its value (detail pane rows).
+struct InspectorField<Content: View>: View {
+    var label: String
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Oases.Space.xs) {
+            Text(LocalizedStringKey(label))
+                .font(.caption)
+                .foregroundStyle(Oases.Color.textSecondary)
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+extension Date {
+    /// Date and time in the in-app language ("Nov 8, 2026 at 12:46" / "2026年11月8日 12:46"),
+    /// not the macOS language that `formatted(date:time:)` would use.
+    var oasesShortDateTime: String {
+        formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(OasesLocalization.preferredLanguage.locale))
     }
 }

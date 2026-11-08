@@ -131,11 +131,10 @@ struct ProviderConnectivityCard: View {
                 .font(.title2)
                 .foregroundStyle(Oases.Color.textSecondary)
                 .frame(width: 40, height: 40)
-                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(OasesLocalization.localizedFormat("准备检查 %lld 个配置", preview.targetCount))
-                    .font(.headline)
+                    .font(.headline.monospacedDigit())
                 Text(OasesLocalization.localized(readyStateDetail))
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -173,7 +172,7 @@ struct ProviderConnectivityCard: View {
                 Spacer()
                 if let date = runtimeDataStore.providerConnectivityLastCheckedAt {
                     Text(OasesLocalization.localizedFormat("最近检查 %@", date.formatted(date: .omitted, time: .shortened)))
-                        .font(.caption)
+                        .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
             }
@@ -213,7 +212,6 @@ private struct ProviderConnectivityResultRow: View {
                 .font(.title3)
                 .foregroundStyle(tint)
                 .frame(width: 36, height: 36)
-                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
