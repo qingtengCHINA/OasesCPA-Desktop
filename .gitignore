@@ -18,3 +18,4 @@ ExportOptions.plist
 Config/Local.xcconfig
 script/private-terms.local
 script/history-mailmap.local
+script/history-replace-text.local
