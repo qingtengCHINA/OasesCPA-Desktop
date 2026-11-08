@@ -32,6 +32,8 @@
 		24117114E0696D2F6FE759AB /* CredentialHealthInspectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFBC9BB20EA1E5E0618EB8A4 /* CredentialHealthInspectionView.swift */; };
 		24626C59C0673DA8BF458641 /* AuthFilesWorkbenchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 917E8179E65B7B7D3AE365D5 /* AuthFilesWorkbenchTests.swift */; };
 		270BDBBC83A06F4BFA97A5EF /* RuntimeLogModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DB6D6EC97D882F1031902F4 /* RuntimeLogModels.swift */; };
+		297F95A8CEA29260D79E8B50 /* DeploymentSupplyChainContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C033E1DDCFEE136AB5FA26A9 /* DeploymentSupplyChainContractTests.swift */; };
+		2E770DF3D9E2B0618EC6A4AE /* BoundedProcessRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75B816D949DE47A02AB2CF96 /* BoundedProcessRunner.swift */; };
 		2F503A118377F949CE3A95CC /* HealthNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9437EB8CB28FF989C00D2A47 /* HealthNotificationService.swift */; };
 		308770041AB29182F20CE423 /* RuntimeDirectProviderModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9E2618C787484A509F70688 /* RuntimeDirectProviderModels.swift */; };
 		32758946F9F34BB57BD93A2D /* UsageAnalyticsWorkbenchStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 104146D46FDEE4A35A208397 /* UsageAnalyticsWorkbenchStore.swift */; };
@@ -47,6 +49,7 @@
 		4A3F22BF404E9F4607F7CF59 /* OasesAppearanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79E24EBF7DA4561E3B9E169C /* OasesAppearanceTests.swift */; };
 		4E8AA78862436698BE50EC63 /* SystemInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DBEB3B098880EE23ED742DC /* SystemInfoView.swift */; };
 		4F5DEE03B63A61953F1EED73 /* RuntimeModelPriceContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC2894D05170993E4E872410 /* RuntimeModelPriceContractTests.swift */; };
+		4F8BF937122A4CB90521C193 /* BoundedProcessRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3703C63C9337CC680230FD84 /* BoundedProcessRunnerTests.swift */; };
 		4FA1C9F17747E1389E5BDAED /* RuntimeAuthJSONDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D4DDFF34FB4EDE555E021F8 /* RuntimeAuthJSONDocument.swift */; };
 		53F9C8088B94C434BC6E2988 /* RuntimeModelPriceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02B865320B5E56CDCE39BE56 /* RuntimeModelPriceModels.swift */; };
 		556B86FE8E04327AD42B9D25 /* RuntimeDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23E00106516EC51FE20816DC /* RuntimeDecodingTests.swift */; };
@@ -80,6 +83,7 @@
 		8B7CCB05423DF3BAC32E8895 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AC44BC2E10C12464F9E8030 /* SidebarView.swift */; };
 		8C3B7E1FF161625AAB7DDD9D /* SparklineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD7060B31717B15B14A52F2 /* SparklineView.swift */; };
 		90B1B3CE1247888053C5B4DB /* UsageAnalyticsWorkbenchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75414B5851AD791FFE18B01B /* UsageAnalyticsWorkbenchTests.swift */; };
+		92CC64B9F95F4CE343C93020 /* DockerInstallerSupplyChainTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E18F55F4951B4381FBAED72 /* DockerInstallerSupplyChainTests.swift */; };
 		95DCD5CC6D3EA91BA8910039 /* AuthFilesWorkbenchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF493FFB8BD368E37321D8C /* AuthFilesWorkbenchModels.swift */; };
 		98138557908DEBBDFB9D2A52 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 042EAC68E099F9D326AFE146 /* SettingsView.swift */; };
 		9BBC3358E1BF2BAAB2A5949F /* AccountActionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB63E755A5614E0F6B50E611 /* AccountActionsView.swift */; };
@@ -88,6 +92,7 @@
 		A0893B418E3E185783BF9CF1 /* AppExperienceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A08962309C315022E2D5588 /* AppExperienceTests.swift */; };
 		A1A7ACC92DCCE74AB8F282CE /* AuthFilesWorkbenchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4CC7A12C7282B9976AD3750 /* AuthFilesWorkbenchView.swift */; };
 		A70FA8E72CC84E7D233EDD22 /* AppUpdateServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9744B2D4B993F7690CC815BC /* AppUpdateServiceTests.swift */; };
+		A8C72235E7972453A8D99422 /* OasesComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 371E1C126D431EEBA48F2BF4 /* OasesComponents.swift */; };
 		A9F0A17326F07C6287E2C331 /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F83EDFD8161AD114DC4B8248 /* AppLanguage.swift */; };
 		A9FDF890001EBF877AE9C032 /* PanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7C258B0B5C1A30B845C406F /* PanelView.swift */; };
 		ACE1B8C3ABD2279F334EE436 /* RuntimeSystemStatusModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F368A4FBC3439126FF23FC60 /* RuntimeSystemStatusModels.swift */; };
@@ -143,6 +148,7 @@
 		F6590136258EA4B4E971F1A8 /* AccessKeysView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE171ABADDE86992E1A61F3B /* AccessKeysView.swift */; };
 		F968CB5EC02BBE81C13CFCA1 /* ManagementAPIClient+QuickConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEDB8D14FBA9D5075AD5DC0B /* ManagementAPIClient+QuickConfig.swift */; };
 		F9FE7DC3E00212541182610F /* WelcomeFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15F47DF73FAFAC4A313CA13F /* WelcomeFlowView.swift */; };
+		FA4F03078D3BF5D8C879187E /* SSHConnectionServiceSecurityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD7BF40B1D1B98D7C5767D88 /* SSHConnectionServiceSecurityTests.swift */; };
 		FB9EB1DD3F14F5AD0514840C /* CLIProxyAPI-MIT.txt in Resources */ = {isa = PBXBuildFile; fileRef = CA80448BE2BFEE5DCFA741EE /* CLIProxyAPI-MIT.txt */; };
 /* End PBXBuildFile section */
 
@@ -191,6 +197,8 @@
 		3576D363D51FD184D001E8A4 /* RuntimeCodexInspectionPolicyModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeCodexInspectionPolicyModels.swift; sourceTree = "<group>"; };
 		365B0A6530F2F9C83786595D /* ExistingDeploymentAdoptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExistingDeploymentAdoptionService.swift; sourceTree = "<group>"; };
 		36A46B875E6365F132C9B69B /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
+		3703C63C9337CC680230FD84 /* BoundedProcessRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoundedProcessRunnerTests.swift; sourceTree = "<group>"; };
+		371E1C126D431EEBA48F2BF4 /* OasesComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OasesComponents.swift; sourceTree = "<group>"; };
 		3AEB6A9708E46CF52565EEC4 /* CPAQuickConfigurationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPAQuickConfigurationView.swift; sourceTree = "<group>"; };
 		3E3C98FA2803373A2E4AFB59 /* RuntimeCPAQuickConfigModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeCPAQuickConfigModels.swift; sourceTree = "<group>"; };
 		3EE173ADB3D34159BD7BD61C /* RuntimeAccountActionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeAccountActionModels.swift; sourceTree = "<group>"; };
@@ -225,6 +233,7 @@
 		70168752BA6AE6F2D4804B0C /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		73AAD8624932669F77997D23 /* RuntimeOpenRouterOAuthModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeOpenRouterOAuthModels.swift; sourceTree = "<group>"; };
 		75414B5851AD791FFE18B01B /* UsageAnalyticsWorkbenchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageAnalyticsWorkbenchTests.swift; sourceTree = "<group>"; };
+		75B816D949DE47A02AB2CF96 /* BoundedProcessRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoundedProcessRunner.swift; sourceTree = "<group>"; };
 		762EEE50190A70179F89D4CA /* WindowLayoutPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowLayoutPolicy.swift; sourceTree = "<group>"; };
 		791EFC6BD3F76C71DFC4EC3A /* OasesCPA.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OasesCPA.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		79E24EBF7DA4561E3B9E169C /* OasesAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OasesAppearanceTests.swift; sourceTree = "<group>"; };
@@ -243,6 +252,7 @@
 		9744B2D4B993F7690CC815BC /* AppUpdateServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateServiceTests.swift; sourceTree = "<group>"; };
 		989AAC7F0DA5DA583C25DA57 /* OasesMenuBarIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = OasesMenuBarIcon.png; sourceTree = "<group>"; };
 		9D6F8F87AC1428651625292C /* DeploymentRecoveryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentRecoveryService.swift; sourceTree = "<group>"; };
+		9E18F55F4951B4381FBAED72 /* DockerInstallerSupplyChainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerInstallerSupplyChainTests.swift; sourceTree = "<group>"; };
 		9E4DB17E2E9370B2FA386010 /* RuntimeCodexInspectionContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeCodexInspectionContractTests.swift; sourceTree = "<group>"; };
 		9FA7767A48FFF26462E335AE /* ModelPricesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPricesView.swift; sourceTree = "<group>"; };
 		A1E75C1119AFD0C1E1A603FC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -254,9 +264,11 @@
 		B8AE364A2E03BBDAE59507A6 /* RuntimeAccountActionContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeAccountActionContractTests.swift; sourceTree = "<group>"; };
 		BC15A57CE6C8174C1C25EDDF /* StatusPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusPill.swift; sourceTree = "<group>"; };
 		BC2894D05170993E4E872410 /* RuntimeModelPriceContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeModelPriceContractTests.swift; sourceTree = "<group>"; };
+		BD7BF40B1D1B98D7C5767D88 /* SSHConnectionServiceSecurityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHConnectionServiceSecurityTests.swift; sourceTree = "<group>"; };
 		BEE0F1301F1A40B2E03C9CFB /* RuntimeDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeDataStore.swift; sourceTree = "<group>"; };
 		BFE83C899C626CE00D19B7EA /* LaunchAtLoginService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginService.swift; sourceTree = "<group>"; };
 		C0017A03565B9CFF2B187219 /* DeploymentModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentModels.swift; sourceTree = "<group>"; };
+		C033E1DDCFEE136AB5FA26A9 /* DeploymentSupplyChainContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentSupplyChainContractTests.swift; sourceTree = "<group>"; };
 		C7B7E5A270BB6F778F048E5C /* RuntimeMonitoringEventsContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeMonitoringEventsContractTests.swift; sourceTree = "<group>"; };
 		CA80448BE2BFEE5DCFA741EE /* CLIProxyAPI-MIT.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "CLIProxyAPI-MIT.txt"; sourceTree = "<group>"; };
 		CB63E755A5614E0F6B50E611 /* AccountActionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountActionsView.swift; sourceTree = "<group>"; };
@@ -278,6 +290,7 @@
 		DD8550D03C0E724AA091BF54 /* RuntimeOAuthModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeOAuthModels.swift; sourceTree = "<group>"; };
 		DE0E12FC1F4DE45B8BE4D70C /* ProviderConnectivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderConnectivityView.swift; sourceTree = "<group>"; };
 		DFD5192E6EAC97171DD3646C /* CPA-Manager-Plus-MIT.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "CPA-Manager-Plus-MIT.txt"; sourceTree = "<group>"; };
+		E0E9051221B13A58A3D47A13 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
 		E351E1FC4AF5DDC855E47964 /* RuntimeManagerConfigModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeManagerConfigModels.swift; sourceTree = "<group>"; };
 		E567BCDCB556E1F634D895C3 /* RuntimeQuotaModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeQuotaModels.swift; sourceTree = "<group>"; };
 		E6563B04F362EAF3B5D7C155 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -306,11 +319,11 @@
 			children = (
 				A1E75C1119AFD0C1E1A603FC /* Assets.xcassets */,
 				E6563B04F362EAF3B5D7C155 /* Info.plist */,
-				B449A4709469035427350F58 /* Localizable.strings */,
 				569387330C4103211781E8D4 /* OasesBrandIcon.png */,
 				B390BECFAC33611234C4164F /* OasesCPA.icns */,
 				989AAC7F0DA5DA583C25DA57 /* OasesMenuBarIcon.png */,
 				5DF80D7534B783CB6C58D1B5 /* PrivacyInfo.xcprivacy */,
+				B449A4709469035427350F58 /* Localizable.strings */,
 				77B1654829C65E7B90301DA2 /* Notices */,
 			);
 			path = Resources;
@@ -370,9 +383,12 @@
 				2A08962309C315022E2D5588 /* AppExperienceTests.swift */,
 				9744B2D4B993F7690CC815BC /* AppUpdateServiceTests.swift */,
 				917E8179E65B7B7D3AE365D5 /* AuthFilesWorkbenchTests.swift */,
+				3703C63C9337CC680230FD84 /* BoundedProcessRunnerTests.swift */,
 				66A79A9BA41BD5DA3BAB4F50 /* ConfigurationStateTests.swift */,
 				0EAE2D6DC120131901F8762A /* CPAQuickConfigTests.swift */,
 				33598341B509506D16443FAF /* DeploymentLifecycleServiceTests.swift */,
+				C033E1DDCFEE136AB5FA26A9 /* DeploymentSupplyChainContractTests.swift */,
+				9E18F55F4951B4381FBAED72 /* DockerInstallerSupplyChainTests.swift */,
 				79E24EBF7DA4561E3B9E169C /* OasesAppearanceTests.swift */,
 				D71CF28144C36877997E7F4F /* OnboardingStateTests.swift */,
 				574ADEA79E28A10743D248C4 /* PanelAndQuotaStateTests.swift */,
@@ -391,6 +407,7 @@
 				6745A70A7AB963310176A92A /* RuntimePluginStoreContractTests.swift */,
 				82FB39834AAFC71C09B23AE1 /* RuntimeProviderConnectivityContractTests.swift */,
 				80C6000AD9FC58BCB173A402 /* RuntimeProviderDraftDiagnosticsContractTests.swift */,
+				BD7BF40B1D1B98D7C5767D88 /* SSHConnectionServiceSecurityTests.swift */,
 				096C174C9ABE8222B66C798C /* SystemModelDirectoryTests.swift */,
 				75414B5851AD791FFE18B01B /* UsageAnalyticsWorkbenchTests.swift */,
 				45F6EFD34B3B75F326460945 /* WindowLayoutPolicyTests.swift */,
@@ -444,6 +461,7 @@
 			children = (
 				CDF04C0F30A3FFF31AE2F922 /* AdaptiveWindowConfigurator.swift */,
 				437DB3F8504078C6F87B8A89 /* MetricCard.swift */,
+				371E1C126D431EEBA48F2BF4 /* OasesComponents.swift */,
 				00D7CF43176922D4849BF5B4 /* OasesMark.swift */,
 				435819142CFF57BC0AE87707 /* PageHeader.swift */,
 				5BD7060B31717B15B14A52F2 /* SparklineView.swift */,
@@ -465,6 +483,14 @@
 			path = Stores;
 			sourceTree = "<group>";
 		};
+		5D504C3E3F1836936F1B5271 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				E0E9051221B13A58A3D47A13 /* Base.xcconfig */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
 		77B1654829C65E7B90301DA2 /* Notices */ = {
 			isa = PBXGroup;
 			children = (
@@ -478,6 +504,7 @@
 			isa = PBXGroup;
 			children = (
 				0CF34C4BB4E3CB8FE65B8B4F /* AppUpdateService.swift */,
+				75B816D949DE47A02AB2CF96 /* BoundedProcessRunner.swift */,
 				CF58C12FC15E4DB0EA341B9C /* DeploymentControlService.swift */,
 				B81A322BC0F34D7ACDE11BA7 /* DeploymentExecutor.swift */,
 				D9F88AABC854BD8A2855DAE0 /* DeploymentLogService.swift */,
@@ -503,6 +530,7 @@
 		B051CEA510A7D1803BCC6810 = {
 			isa = PBXGroup;
 			children = (
+				5D504C3E3F1836936F1B5271 /* Config */,
 				B455DD39A784209756417F5F /* OasesCPA */,
 				190E0C04BF61A33C9786A01E /* OasesCPATests */,
 				161E9FE91AE4E575F0438A18 /* Products */,
@@ -594,15 +622,16 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					A6AC49B3B4FBA35B0AE53E2F = {
+						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 					E672E1B2A0BE1ED1C79E27EA = {
+						DevelopmentTeam = "";
 						TestTargetID = A6AC49B3B4FBA35B0AE53E2F;
 					};
 				};
 			};
 			buildConfigurationList = 401628C348AE70398AEBAFB9 /* Build configuration list for PBXProject "OasesCPA" */;
-			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = "zh-Hans";
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -613,6 +642,7 @@
 			mainGroup = B051CEA510A7D1803BCC6810;
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
+			productRefGroup = 161E9FE91AE4E575F0438A18 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -656,6 +686,7 @@
 				95DCD5CC6D3EA91BA8910039 /* AuthFilesWorkbenchModels.swift in Sources */,
 				1F914EED67A4B5D33DB7E5B4 /* AuthFilesWorkbenchStore.swift in Sources */,
 				A1A7ACC92DCCE74AB8F282CE /* AuthFilesWorkbenchView.swift in Sources */,
+				2E770DF3D9E2B0618EC6A4AE /* BoundedProcessRunner.swift in Sources */,
 				E0C9D5A6CBEBF6041422410E /* CPAConfigEditorView.swift in Sources */,
 				C9426F51E31CDB43C27E3378 /* CPAQuickConfigStore.swift in Sources */,
 				16CB16EA8A567123E8A8F6E0 /* CPAQuickConfigurationView.swift in Sources */,
@@ -694,6 +725,7 @@
 				E2838A50B11235F206781220 /* OAuthView.swift in Sources */,
 				3A539F70570AE6339B7FB61C /* OasesAppearance.swift in Sources */,
 				0E2D05ADEF4F92905DAEB934 /* OasesCPAApp.swift in Sources */,
+				A8C72235E7972453A8D99422 /* OasesComponents.swift in Sources */,
 				ACEA9D0E30909CD3442C3934 /* OasesMark.swift in Sources */,
 				88FC3FA97E4B1292153F80FA /* OnboardingState.swift in Sources */,
 				0410218F6AD9D0F5F0679F6D /* OpenAICompatibilityEditorView.swift in Sources */,
@@ -757,9 +789,12 @@
 				A0893B418E3E185783BF9CF1 /* AppExperienceTests.swift in Sources */,
 				A70FA8E72CC84E7D233EDD22 /* AppUpdateServiceTests.swift in Sources */,
 				24626C59C0673DA8BF458641 /* AuthFilesWorkbenchTests.swift in Sources */,
+				4F8BF937122A4CB90521C193 /* BoundedProcessRunnerTests.swift in Sources */,
 				DC54E1907EDAF5474119CF21 /* CPAQuickConfigTests.swift in Sources */,
 				D035C1540F2809CC6856203F /* ConfigurationStateTests.swift in Sources */,
 				F17803E741D5EE26459BB164 /* DeploymentLifecycleServiceTests.swift in Sources */,
+				297F95A8CEA29260D79E8B50 /* DeploymentSupplyChainContractTests.swift in Sources */,
+				92CC64B9F95F4CE343C93020 /* DockerInstallerSupplyChainTests.swift in Sources */,
 				4A3F22BF404E9F4607F7CF59 /* OasesAppearanceTests.swift in Sources */,
 				6B285E4C7F4BCDF44028ADFA /* OnboardingStateTests.swift in Sources */,
 				DDD536C9E4B5175CA4AEE697 /* PanelAndQuotaStateTests.swift in Sources */,
@@ -778,6 +813,7 @@
 				3CE052C84A59EE02C48DD9D7 /* RuntimePluginStoreContractTests.swift in Sources */,
 				E31A0ABF1AC4EC60B3B0A5FD /* RuntimeProviderConnectivityContractTests.swift in Sources */,
 				6911849EA065279F794E490C /* RuntimeProviderDraftDiagnosticsContractTests.swift in Sources */,
+				FA4F03078D3BF5D8C879187E /* SSHConnectionServiceSecurityTests.swift in Sources */,
 				AE92D506AAF6CC5B9E38CBC3 /* SystemModelDirectoryTests.swift in Sources */,
 				90B1B3CE1247888053C5B4DB /* UsageAnalyticsWorkbenchTests.swift in Sources */,
 				0AB246D60D2FF354DCA126D6 /* WindowLayoutPolicyTests.swift in Sources */,
@@ -820,7 +856,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = dev.oases.cpa.macos;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(OASES_BUNDLE_ID_PREFIX).cpa.macos";
 				PRODUCT_MODULE_NAME = OasesCPA;
 				SDKROOT = macosx;
 			};
@@ -839,7 +875,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = dev.oases.cpa.macos;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(OASES_BUNDLE_ID_PREFIX).cpa.macos";
 				PRODUCT_MODULE_NAME = OasesCPA;
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) APP_STORE";
@@ -857,7 +893,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = dev.oases.cpa.macos.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(OASES_BUNDLE_ID_PREFIX).cpa.macos.tests";
 				SDKROOT = macosx;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Oases CPA.app/Contents/MacOS/Oases CPA";
 				TEST_TARGET_NAME = OasesCPA;
@@ -866,6 +902,7 @@
 		};
 		666EE467A591EC13A4013A13 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = E0E9051221B13A58A3D47A13 /* Base.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -898,7 +935,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 40;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_LANGUAGE = "zh-Hans";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -918,7 +955,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1.3;
+				MARKETING_VERSION = 0.1.4;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -942,7 +979,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = dev.oases.cpa.macos.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(OASES_BUNDLE_ID_PREFIX).cpa.macos.tests";
 				SDKROOT = macosx;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Oases CPA.app/Contents/MacOS/Oases CPA";
 				TEST_TARGET_NAME = OasesCPA;
@@ -960,7 +997,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = dev.oases.cpa.macos.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(OASES_BUNDLE_ID_PREFIX).cpa.macos.tests";
 				SDKROOT = macosx;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Oases CPA.app/Contents/MacOS/Oases CPA";
 				TEST_TARGET_NAME = OasesCPA;
@@ -969,6 +1006,7 @@
 		};
 		B79615BB6A1228CA9AFCB141 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = E0E9051221B13A58A3D47A13 /* Base.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -1001,7 +1039,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 40;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_LANGUAGE = "zh-Hans";
 				ENABLE_NS_ASSERTIONS = NO;
@@ -1015,7 +1053,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1.3;
+				MARKETING_VERSION = 0.1.4;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "Oases CPA";
@@ -1040,7 +1078,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = dev.oases.cpa.macos;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(OASES_BUNDLE_ID_PREFIX).cpa.macos";
 				PRODUCT_MODULE_NAME = OasesCPA;
 				SDKROOT = macosx;
 			};
@@ -1048,6 +1086,7 @@
 		};
 		F528925A7564B08D0BC491A3 /* AppStore */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = E0E9051221B13A58A3D47A13 /* Base.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -1080,7 +1119,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 40;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_LANGUAGE = "zh-Hans";
 				ENABLE_NS_ASSERTIONS = NO;
@@ -1094,7 +1133,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1.3;
+				MARKETING_VERSION = 0.1.4;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "Oases CPA";

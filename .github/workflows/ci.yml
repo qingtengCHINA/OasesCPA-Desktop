@@ -1,0 +1,118 @@
+name: macOS CI
+
+on:
+  push:
+    paths:
+      - '.github/**'
+      - 'Package.swift'
+      - 'project.yml'
+      - 'Config/**'
+      - 'Sources/**'
+      - 'Tests/**'
+      - 'OasesCPA.xcodeproj/**'
+      - 'script/**'
+      - '*.entitlements'
+  pull_request:
+    paths:
+      - '.github/**'
+      - 'Package.swift'
+      - 'project.yml'
+      - 'Config/**'
+      - 'Sources/**'
+      - 'Tests/**'
+      - 'OasesCPA.xcodeproj/**'
+      - 'script/**'
+      - '*.entitlements'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: Swift and unsigned Xcode build
+    # macos-15 ships Xcode 16 (Swift 6); macos-14 defaults to Xcode 15, which cannot build
+    # swift-tools-version 6.0.
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        # v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          # The private-string scan reads the commits since f0f2500.
+          fetch-depth: 0
+
+      - name: Show toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+          swift --version | grep -q "Swift version 6"
+
+      - name: Check private strings
+        shell: bash
+        env:
+          OASES_PRIVATE_TERMS: ${{ secrets.OASES_PRIVATE_TERMS }}
+        run: |
+          set -euo pipefail
+          # With the OASES_PRIVATE_TERMS secret (one literal per line) the private-term rule
+          # runs too; without it only the generic rules do.
+          require=()
+          if [ -n "${OASES_PRIVATE_TERMS:-}" ]; then
+            umask 077
+            printf '%s\n' "$OASES_PRIVATE_TERMS" > "$RUNNER_TEMP/private-terms"
+            export OASES_PRIVATE_TERMS_FILE="$RUNNER_TEMP/private-terms"
+            require=(--require-private-terms)
+          else
+            export OASES_PRIVATE_TERMS_FILE="$RUNNER_TEMP/no-private-terms"
+          fi
+          bash script/check-no-private.sh --tree ${require[@]+"${require[@]}"}
+          # Commits since f0f2500 (the last commit before the open edition): added lines,
+          # messages, and author/committer emails. Removed lines are never scanned.
+          { git log -p -U0 --no-color --no-ext-diff --format= f0f2500..HEAD | LC_ALL=C grep -E '^\+' | LC_ALL=C grep -vE '^\+\+\+ ' || true; } \
+            | bash script/check-no-private.sh --stdin ${require[@]+"${require[@]}"}
+          git log --format=%B f0f2500..HEAD | bash script/check-no-private.sh --stdin ${require[@]+"${require[@]}"}
+          git log --format='%ae%n%ce' f0f2500..HEAD | bash script/check-no-private.sh --stdin ${require[@]+"${require[@]}"}
+
+      - name: Check the private-string scanner contract
+        run: bash script/check_no_private_contract_test.sh
+
+      - name: Check Xcode project membership
+        run: bash script/check_xcodeproj_membership.sh
+
+      - name: Run Swift package tests
+        run: swift test --scratch-path "$RUNNER_TEMP/oases-swift-test"
+
+      - name: Build Swift package
+        run: swift build --scratch-path "$RUNNER_TEMP/oases-swift-build"
+
+      - name: Build Xcode project without signing
+        run: >-
+          xcodebuild
+          -project OasesCPA.xcodeproj
+          -scheme "Oases CPA"
+          -configuration Debug
+          -derivedDataPath "$RUNNER_TEMP/OasesCPA-DerivedData"
+          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_REQUIRED=NO
+          CODE_SIGN_IDENTITY=""
+          build
+
+      - name: Run Xcode tests without signing
+        run: >-
+          xcodebuild
+          -project OasesCPA.xcodeproj
+          -scheme "Oases CPA"
+          -configuration Debug
+          -derivedDataPath "$RUNNER_TEMP/OasesCPA-Xcode-Test-DerivedData"
+          -destination "platform=macOS"
+          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_REQUIRED=NO
+          CODE_SIGN_IDENTITY=""
+          test
+
+      - name: Validate release policy contract
+        run: bash script/package_release_contract_test.sh
