@@ -471,6 +471,156 @@ final class UpgradeScriptTests: XCTestCase {
         XCTAssertFalse(MaintenanceLabels.planConfirmationMessage(method: .native, language: .simplifiedChinese).contains(notice))
         XCTAssertTrue(MaintenanceLabels.upgradeConfirmationMessage(method: .docker, topology: .legacy, language: .simplifiedChinese).contains("Oases 网关只支持原生部署"))
         XCTAssertTrue(MaintenanceLabels.dockerGatewayNotice(language: .english).contains("native deployments only"))
+
+        // Rollback, stop, removal and health texts name what really happens.
+        for language in [AppLanguage.simplifiedChinese, .english] {
+            let rollback = MaintenanceLabels.rollbackMessage(ports: "8317 / 18320 / 18316 / 18317", language: language)
+            for fact in ["config.yaml", "gateway-data", "after-upgrade", "18320"] { XCTAssertTrue(rollback.contains(fact), "\(language): \(fact)") }
+            XCTAssertTrue(MaintenanceLabels.removalMessage(topology: .gateway, directory: "/x", language: language).contains("/x"))
+        }
+        XCTAssertTrue(MaintenanceLabels.stopMessage(topology: .gateway, language: .simplifiedChinese).contains("Oases 网关"))
+        XCTAssertFalse(MaintenanceLabels.stopMessage(topology: .legacy, language: .simplifiedChinese).contains("网关"))
+        XCTAssertTrue(MaintenanceLabels.removalMessage(topology: .gateway, directory: "/x", language: .english).contains("Oases gateway"))
+        XCTAssertTrue(MaintenanceLabels.healthyMessage(topology: .gateway, language: .english).contains("Oases gateway"))
+        XCTAssertTrue(MaintenanceLabels.checkingMessage(topology: .gateway, language: .simplifiedChinese).contains("Oases 网关"))
+        XCTAssertFalse(MaintenanceLabels.healthyMessage(topology: .legacy, language: .english).contains("gateway"))
+        XCTAssertFalse(OasesLocalization.localized("正在下载并切换到本应用固定的运行时版本…", language: .english).contains("latest"))
+    }
+
+    // MARK: - Fix round 1
+
+    /// A rollback puts the pre-upgrade engine configuration back, but the configuration edited
+    /// after the upgrade (providers, upstream keys, client keys) is kept inside the backup.
+    func testRollbackKeepsTheNewerEngineConfigurationInTheBackup() throws {
+        let (fake, root) = try installed("rollback-keeps-config")
+        let before = text(root, "cli-proxy-api/config.yaml")
+        XCTAssertEqual(try upgrade(try fake.withGateway(version: "0.9.1-test"), root).status, 0)
+        let edited = text(root, "cli-proxy-api/config.yaml") + "openai-compatibility:\n  - name: added-after-the-upgrade\n"
+        try write(edited, root, "cli-proxy-api/config.yaml")
+
+        let result = try rollback(fake, root)
+        XCTAssertEqual(result.status, 0, result.stderr)
+        XCTAssertEqual(text(root, "cli-proxy-api/config.yaml"), before)
+        let backup = try XCTUnwrap(upgradeBackups(root).last)
+        XCTAssertEqual(text(root, "backups/\(backup)/cli-proxy-api-config.yaml.after-upgrade"), edited, "the newer config is kept")
+        // The newer engine runtime of the same package name is moved aside, not deleted.
+        let kept = (try? FileManager.default.contentsOfDirectory(atPath: root.appendingPathComponent("backups/\(backup)/cli-proxy-api-runtime-after-upgrade").path)) ?? []
+        XCTAssertEqual(kept.count, 1, "\(kept)")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("backups/\(backup)/cli-proxy-api-run.sh.after-upgrade").path),
+                       "an identical run script is not duplicated")
+    }
+
+    /// After the stop nothing may still run from the root; a gateway without a pid file makes
+    /// upgrade and rollback refuse with 28, before any backup copy or restore, and nothing is
+    /// started next to it.
+    func testUpgradeAndRollbackRefuseWhileAProcessWithoutPidFileRuns() throws {
+        let (fake, root) = try installed("orphan-gateway")
+        let next = try fake.withGateway(version: "0.9.1-test")
+        XCTAssertEqual(try upgrade(next, root).status, 0)
+        let gateway = try XCTUnwrap(pid(root, "gateway.pid"))
+        defer { kill(gateway, SIGTERM) }
+        try FileManager.default.removeItem(at: root.appendingPathComponent("gateway.pid"))
+        let versions = data(root, ".oases-cpa-versions")
+        let config = data(root, "cli-proxy-api/config.yaml")
+        let backupsBefore = upgradeBackups(root)
+
+        let refusedUpgrade = try upgrade(next, root)
+        XCTAssertEqual(refusedUpgrade.status, 28, refusedUpgrade.stderr)
+        XCTAssertTrue(refusedUpgrade.stderr.contains("仍有 Oases CPA 进程在运行"), refusedUpgrade.stderr)
+        XCTAssertEqual(kill(gateway, 0), 0, "the orphan was not touched")
+        XCTAssertEqual(data(root, ".oases-cpa-versions"), versions)
+        XCTAssertEqual(data(root, "cli-proxy-api/config.yaml"), config)
+        XCTAssertEqual(upgradeBackups(root), backupsBefore, "no backup was made (a rollback still finds the real one)")
+        XCTAssertNil(pid(root, "cli-proxy-api.pid"), "nothing was started next to it")
+
+        // The rollback refuses the same way, before restoring anything.
+        let refusedRollback = try rollback(fake, root)
+        XCTAssertEqual(refusedRollback.status, 28, refusedRollback.stderr)
+        XCTAssertEqual(data(root, "cli-proxy-api/config.yaml"), config)
+        XCTAssertEqual(kill(gateway, 0), 0)
+    }
+
+    /// Pruning happens after a successful upgrade: a failed move logs and never rolls it back.
+    func testFailedPruneDoesNotRollBackASuccessfulUpgrade() throws {
+        let (fake, root) = try installed("prune-best-effort")
+        for (index, old) in ["0.0.1", "0.0.2", "0.0.3"].enumerated() {
+            try write("old\n", root, "gateway/\(old)/VERSION")
+            let date = Date(timeIntervalSinceNow: TimeInterval(-86_400 * (5 - index)))
+            try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: root.appendingPathComponent("gateway/\(old)").path)
+        }
+        // An mv that refuses only moves into backups/pruned-*.
+        let bin = fake.caseDirectory.appendingPathComponent("prune-bin", isDirectory: true)
+        try write("#!/bin/bash\nfor arg in \"$@\"; do case \"$arg\" in */backups/pruned-*) exit 1 ;; esac; done\nexec /bin/mv \"$@\"\n", bin, "mv")
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bin.appendingPathComponent("mv").path)
+        let failing = try upgrade(try fake.withGateway(version: "0.9.1-test"), root,
+                                  extraEnvironment: ["PATH": "\(bin.path):\(fake.binDirectory.path):/usr/bin:/bin:/usr/sbin:/sbin"])
+        XCTAssertEqual(failing.status, 0, failing.stderr)
+        XCTAssertTrue(failing.stderr.contains("未能移入 backups，已保留原处"), failing.stderr)
+        XCTAssertEqual(link(root, "gateway/current"), "0.9.1-test", "the upgrade stands")
+        XCTAssertEqual(try versions(root)["gateway"], "0.9.1-test")
+
+        // Without the failing mv the oldest previous versions move to backups/pruned-*.
+        let pruned = try upgrade(try fake.withGateway(version: "0.9.2-test"), root)
+        XCTAssertEqual(pruned.status, 0, pruned.stderr)
+        let remaining = try FileManager.default.contentsOfDirectory(atPath: root.appendingPathComponent("gateway").path)
+            .filter { !["current", "downloads", "run.sh"].contains($0) && !$0.hasPrefix(".") }
+        XCTAssertEqual(Set(remaining), ["0.9.2-test", "0.9.1-test", fake.gatewayVersion], "current + the two newest previous")
+        let prunedDirectories = try FileManager.default.contentsOfDirectory(atPath: root.appendingPathComponent("backups").path).filter { $0.hasPrefix("pruned-") }
+        XCTAssertFalse(prunedDirectories.isEmpty)
+    }
+
+    /// A 0.1.x deployment has no versions file; a newer engine in its run.sh is still refused.
+    func testLegacyRunScriptWithNewerEngineRefusesWithExit22() throws {
+        let fake = try FakeArtifacts.make(caseName: "legacy-newer-engine")
+        let root = try legacyLayout(fake)
+        let newer = text(root, "cli-proxy-api/run.sh").replacingOccurrences(of: "CLIProxyAPI_7.2.141_", with: "CLIProxyAPI_9.1.0_")
+        try write(newer, root, "cli-proxy-api/run.sh")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(".oases-cpa-versions").path))
+        let result = try upgrade(fake, root, extraEnvironment: migrationEnvironment(root))
+        XCTAssertEqual(result.status, 22, result.stderr)
+        XCTAssertTrue(result.stderr.contains("OASES_DOWNGRADE_REFUSED component=engine installed=v9.1.0 target=\(FakeArtifacts.engineTag)"), result.stderr)
+        XCTAssertEqual(upgradeBackups(root), [])
+        XCTAssertTrue(text(root, "cli-proxy-api/config.yaml").contains("port: 8317"))
+    }
+
+    /// The migration only moves an engine bound to loopback: any other host fails closed.
+    func testLegacyMigrationRefusesANonLoopbackEngineHost() throws {
+        for (index, host) in ["host: \"0.0.0.0\"", "host: \"\"", "host: 192.168.1.20"].enumerated() {
+            let fake = try FakeArtifacts.make(caseName: "migrate-host-\(index)")
+            let root = try legacyLayout(fake)
+            let config = Self.legacyConfig(root: root).replacingOccurrences(of: "host: \"127.0.0.1\"", with: host)
+            try write(config, root, "cli-proxy-api/config.yaml")
+            let result = try upgrade(fake, root, extraEnvironment: migrationEnvironment(root))
+            XCTAssertEqual(result.status, 27, "\(host): \(result.stderr)")
+            XCTAssertTrue(result.stderr.contains("host 不是本机回环地址"), result.stderr)
+            XCTAssertEqual(text(root, "cli-proxy-api/config.yaml"), config, "restored")
+        }
+        // Unquoted loopback is accepted.
+        let fake = try FakeArtifacts.make(caseName: "migrate-host-plain")
+        let root = try legacyLayout(fake)
+        try write(Self.legacyConfig(root: root).replacingOccurrences(of: "host: \"127.0.0.1\"", with: "host: 127.0.0.1"), root, "cli-proxy-api/config.yaml")
+        XCTAssertEqual(try upgrade(fake, root, extraEnvironment: migrationEnvironment(root)).status, 0)
+    }
+
+    func testDockerRollbackMovesTheUpgradesVersionsFileAsideWhenThereWasNone() throws {
+        let fake = try FakeArtifacts.make(caseName: "docker-rollback-versions")
+        let root = fake.caseDirectory.appendingPathComponent("root", isDirectory: true)
+        try write("", root, ".oases-cpa-installed")
+        try write("services:\n  cpa:\n    image: test\n", root, "compose.yaml")
+        let bin = fake.caseDirectory.appendingPathComponent("docker-bin", isDirectory: true)
+        try write("#!/bin/bash\nexit 0\n", bin, "docker")
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bin.appendingPathComponent("docker").path)
+        let environment = ["PATH": "\(bin.path):\(fake.binDirectory.path):/usr/bin:/bin:/usr/sbin:/sbin"]
+        XCTAssertEqual(try fake.run(maintenance.upgradeScriptForVerification(method: .docker, installDirectory: root.path, pins: fake.pins),
+                                    extraEnvironment: environment).status, 0)
+        XCTAssertNotNil(data(root, ".oases-cpa-versions"), "the upgrade wrote one")
+        let backup = try XCTUnwrap(upgradeBackups(root).last)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("backups/\(backup)/versions.absent").path))
+
+        let rolledBack = try fake.run(maintenance.rollbackScriptForVerification(method: .docker, installDirectory: root.path), extraEnvironment: environment)
+        XCTAssertEqual(rolledBack.status, 0, rolledBack.stderr)
+        XCTAssertNil(data(root, ".oases-cpa-versions"))
+        XCTAssertTrue(text(root, "backups/\(backup)/versions-after-upgrade.json").contains(FakeArtifacts.engineTag), "moved, not deleted")
     }
 
     // MARK: - Docker (10a)

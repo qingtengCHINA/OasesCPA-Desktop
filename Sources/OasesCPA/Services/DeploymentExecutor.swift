@@ -312,6 +312,7 @@ struct DeploymentExecutor {
 
         \(DeploymentScriptFragments.managedProcessList(topology: .gateway))
         \(DeploymentScriptFragments.managedProcessStop())
+        \(DeploymentScriptFragments.gatewayHealthWait())
 
         RECOVERY_NOTE=""
         LEGACY_OWNERSHIP_MARKER_PRESENT=0
@@ -667,19 +668,9 @@ struct DeploymentExecutor {
         # (no credentials) with ok and the version that was just installed.
         set_stage "wait-gateway"
         GATEWAY_HEALTHY=0
-        for _ in $(seq 1 \(max(1, gatewayHealthAttempts))); do
-          HEALTHZ_BODY="$(curl -fsS --max-time 2 "http://127.0.0.1:$GATEWAY_ADMIN_PORT/healthz" 2>/dev/null || true)"
-          case "$HEALTHZ_BODY" in
-            *'"ok":true'*'"version":"'"$GATEWAY_VERSION"'"'*)
-              if kill -0 "$GATEWAY_PID" >/dev/null 2>&1; then
-                GATEWAY_HEALTHY=1
-                break
-              fi
-              ;;
-          esac
-          kill -0 "$GATEWAY_PID" >/dev/null 2>&1 || break
-          sleep 1
-        done
+        if oases_wait_gateway_healthz "$GATEWAY_ADMIN_PORT" "$GATEWAY_VERSION" "$GATEWAY_PID" "$INSTALL_ROOT/gateway" \(max(1, gatewayHealthAttempts)) 1; then
+          GATEWAY_HEALTHY=1
+        fi
         if [ "$GATEWAY_HEALTHY" -ne 1 ]; then
           printf '%s\\n' 'Oases 网关在 45 秒内没有通过健康检查。' >&2
           tail -n 40 "$INSTALL_ROOT/logs/gateway.log" 2>/dev/null || true

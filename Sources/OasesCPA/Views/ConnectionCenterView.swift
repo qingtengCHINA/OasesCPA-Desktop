@@ -98,7 +98,7 @@ struct ConnectionCenterView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("只停止 CLIProxyAPI 与 CPAMP，不删除安装目录、认证文件或 Keychain 凭据。")
+            Text(MaintenanceLabels.stopMessage(topology: deploymentStore.topology))
         }
         .confirmationDialog(
             "取消当前部署？",
@@ -125,7 +125,7 @@ struct ConnectionCenterView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("将停止 CLIProxyAPI 与 CPAMP，并删除 \(deploymentStore.installDirectory) 中的全部文件、备份和日志，同时清除该目标的 Keychain 凭据与保存记录。此操作不可撤销。")
+            Text(MaintenanceLabels.removalMessage(topology: deploymentStore.topology, directory: deploymentStore.installDirectory))
         }
         .confirmationDialog(
             "清理失败部署并重试？",
@@ -173,7 +173,7 @@ struct ConnectionCenterView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("App 会使用目标目录中最近的 backups/upgrade-*，恢复上一版启动脚本并重新验证 \(deploymentStore.tunnelPortList)。不会删除认证文件或 CPAMP 数据。")
+            Text(MaintenanceLabels.rollbackMessage(ports: deploymentStore.tunnelPortList))
         }
         .confirmationDialog(
             "删除未部署目标？",
@@ -281,9 +281,9 @@ struct ConnectionCenterView: View {
     private var healthMessage: String {
         switch deploymentStore.healthState {
         case .healthy:
-            return OasesLocalization.localized("CLIProxyAPI、CPAMP 和 SSH 隧道（如适用）均可访问；App 会每 30 秒自动检查")
+            return MaintenanceLabels.healthyMessage(topology: deploymentStore.topology)
         case .checking:
-            return OasesLocalization.localized("App 正在确认 CLIProxyAPI、CPAMP 和 SSH 隧道状态")
+            return MaintenanceLabels.checkingMessage(topology: deploymentStore.topology)
         case .degraded:
             let detail = deploymentStore.healthError ?? OasesLocalization.localized("健康检查未通过")
             return OasesLocalization.localizedFormat("%@；保持运行时 App 会继续重试，手动停止后不会自动启动", detail)
@@ -984,6 +984,46 @@ enum MaintenanceLabels {
             OasesLocalization.localized("App 会先把启动脚本、版本记录、运行时和 gateway-data 备份到目标目录的 backups/upgrade-*，再升级到本应用固定的 CLIProxyAPI、CPA Manager Plus、Node 与 Oases 网关版本；目标上已有更新的版本时会拒绝降级。配置、认证文件和 CPAMP 数据会保留。", language: language)
         case (.docker, _):
             OasesLocalization.localized("App 会先保存 Compose 文件和版本记录到目标目录的 backups/upgrade-*，再拉取本应用固定的 CLIProxyAPI 与 CPA Manager Plus 镜像。Oases 网关只支持原生部署；Docker 部署只包含上游 CLIProxyAPI 与 CPA Manager Plus。", language: language)
+        }
+    }
+
+    static func stopMessage(topology: DeploymentTopology, language: AppLanguage? = nil) -> String {
+        switch topology {
+        case .gateway:
+            OasesLocalization.localized("停止 Oases 网关、CLIProxyAPI 与 CPAMP（网关先停，最多等待 30 秒让进行中的请求完成），不删除安装目录、认证文件或 Keychain 凭据。", language: language)
+        case .legacy:
+            OasesLocalization.localized("只停止 CLIProxyAPI 与 CPAMP，不删除安装目录、认证文件或 Keychain 凭据。", language: language)
+        }
+    }
+
+    static func removalMessage(topology: DeploymentTopology, directory: String, language: AppLanguage? = nil) -> String {
+        switch topology {
+        case .gateway:
+            OasesLocalization.localizedFormat("将先停止 Oases 网关、CLIProxyAPI 与 CPAMP，再删除 %@ 中的全部文件、备份和日志（含网关数据），同时清除该目标的 Keychain 凭据与保存记录。此操作不可撤销。", language: language, directory)
+        case .legacy:
+            OasesLocalization.localizedFormat("将先停止 CLIProxyAPI 与 CPAMP，再删除 %@ 中的全部文件、备份和日志，同时清除该目标的 Keychain 凭据与保存记录。此操作不可撤销。", language: language, directory)
+        }
+    }
+
+    static func rollbackMessage(ports: String, language: AppLanguage? = nil) -> String {
+        OasesLocalization.localizedFormat("App 会使用目标目录中最近的 backups/upgrade-*：启动脚本、版本记录、引擎配置（config.yaml）和 Oases 网关数据（gateway-data，如有）都回到升级前的状态；升级后较新的这些文件保留在该备份的 *.after-upgrade 与 gateway-data-after-upgrade 中，不会删除。随后重新验证 %@。认证文件和 CPAMP 数据不变。", language: language, ports)
+    }
+
+    static func healthyMessage(topology: DeploymentTopology, language: AppLanguage? = nil) -> String {
+        switch topology {
+        case .gateway:
+            OasesLocalization.localized("Oases 网关、CLIProxyAPI、CPAMP 和 SSH 隧道（如适用）均可访问；App 会每 30 秒自动检查", language: language)
+        case .legacy:
+            OasesLocalization.localized("CLIProxyAPI、CPAMP 和 SSH 隧道（如适用）均可访问；App 会每 30 秒自动检查", language: language)
+        }
+    }
+
+    static func checkingMessage(topology: DeploymentTopology, language: AppLanguage? = nil) -> String {
+        switch topology {
+        case .gateway:
+            OasesLocalization.localized("App 正在确认 Oases 网关、CLIProxyAPI、CPAMP 和 SSH 隧道状态", language: language)
+        case .legacy:
+            OasesLocalization.localized("App 正在确认 CLIProxyAPI、CPAMP 和 SSH 隧道状态", language: language)
         }
     }
 

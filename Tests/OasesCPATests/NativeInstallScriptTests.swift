@@ -398,7 +398,16 @@ final class NativeInstallScriptTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: run.root.appendingPathComponent(".oases-cpa-installed").path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: run.root.appendingPathComponent(".oases-cpa-versions").path))
         let script = DeploymentExecutor().scriptForVerification(method: .native, installDirectory: "/x", gatewayPayloadBase64: "")
-        XCTAssertTrue(script.contains("for _ in $(seq 1 45); do\n  HEALTHZ_BODY="), "production waits 45 attempts")
+        XCTAssertTrue(script.contains("oases_wait_gateway_healthz \"$GATEWAY_ADMIN_PORT\" \"$GATEWAY_VERSION\" \"$GATEWAY_PID\" \"$INSTALL_ROOT/gateway\" 45 1; then"),
+                      "production waits 45 attempts and accepts one answer")
+        // One shared wait for the install and the maintenance scripts (they cannot drift).
+        let fragment = DeploymentScriptFragments.gatewayHealthWait()
+        XCTAssertTrue(script.contains(fragment))
+        let upgrade = DeploymentMaintenanceService().upgradeScriptForVerification(method: .native, installDirectory: "/x", gatewayPayloadBase64: "")
+        XCTAssertTrue(upgrade.contains(fragment))
+        XCTAssertTrue(upgrade.contains("oases_wait_gateway_healthz \"$admin_port\" \"$expected\" \"$gateway_pid\" \"$ROOT/gateway\" \"$HEALTH_ATTEMPTS\" 2; then"),
+                      "maintenance requires two answers")
+        XCTAssertTrue(DeploymentMaintenanceService().rollbackScriptForVerification(method: .native, installDirectory: "/x").contains(fragment))
     }
 
     /// Defence in depth (the rule of vendor_gateway.sh): Node and gateway archives with an

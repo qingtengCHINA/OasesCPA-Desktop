@@ -252,6 +252,7 @@ struct DeploymentMaintenanceService {
         HEALTH_ATTEMPTS=\(max(1, healthAttempts))
         \(DeploymentScriptFragments.managedProcessList(topology: .gateway))
         \(DeploymentScriptFragments.managedProcessStop())
+        \(DeploymentScriptFragments.gatewayHealthWait())
         \(DeploymentScriptFragments.managementCurl())
         \(DeploymentScriptFragments.versionCompareFunctions())
         \(DeploymentScriptFragments.readInstalledVersions())
@@ -283,7 +284,7 @@ struct DeploymentMaintenanceService {
         # gateway process lives, on two checks one second apart (a gateway that dies right after
         # its start must not pass on the first answer).
         oases_wait_services() {
-          local topology="$1" expected="${2:-}" engine_port admin_port gateway_pid body ready=0 confirmed=0
+          local topology="$1" expected="${2:-}" engine_port admin_port gateway_pid ready=0
           engine_port="$(oases_engine_port)"
           [ -n "$engine_port" ] || { printf '%s\\n' '引擎配置中没有可用的端口。' >&2; return 1; }
           for _ in $(seq 1 "$HEALTH_ATTEMPTS"); do
@@ -299,22 +300,20 @@ struct DeploymentMaintenanceService {
           admin_port="$(oases_gateway_admin_port)"
           [ -n "$admin_port" ] || { printf '%s\\n' 'gateway/run.sh 没有管理端口。' >&2; return 1; }
           gateway_pid="$(cat "$ROOT/gateway.pid" 2>/dev/null || true)"
-          for _ in $(seq 1 "$HEALTH_ATTEMPTS"); do
-            body="$(curl -fsS --max-time 2 "http://127.0.0.1:$admin_port/healthz" 2>/dev/null || true)"
-            case "$body" in
-              *'"ok":true'*'"version":"'"$expected"'"'*)
-                if oases_pid_owned_by "$gateway_pid" "$ROOT/gateway"; then
-                  confirmed=$((confirmed + 1))
-                  [ "$confirmed" -lt 2 ] || return 0
-                fi
-                ;;
-              *) confirmed=0 ;;
-            esac
-            oases_pid_owned_by "$gateway_pid" "$ROOT/gateway" || break
-            sleep 1
-          done
+          if oases_wait_gateway_healthz "$admin_port" "$expected" "$gateway_pid" "$ROOT/gateway" "$HEALTH_ATTEMPTS" 2; then
+            return 0
+          fi
           printf '%s\\n' 'Oases 网关没有通过健康检查。' >&2
           return 1
+        }
+
+        # After the stop nothing of the deployment may run any more, pid file or not (a gateway
+        # still writing gateway-data must not be copied or replaced). Exit 28, nothing changed.
+        oases_refuse_if_still_running() {
+          if oases_managed_process_alive_under "$ROOT"; then
+            printf '%s\\n' '停止后目标目录中仍有 Oases CPA 进程在运行（没有可信的 PID 文件）；没有做任何改动，服务保持停止。请先结束这些进程再重试。' >&2
+            exit 28
+          fi
         }
 
         oases_after_path() {
@@ -337,36 +336,54 @@ struct DeploymentMaintenanceService {
         # directories moved aside, cpamp/config.json, the versions file, gateway/run.sh, the
         # node/ and gateway/ symlinks and gateway-data/. What only the newer version had is
         # moved into the backup (…-after-upgrade), never deleted. Needs stopped processes.
+        # oases_restore_file <backup file> <current file> <kept name>: the backup's copy goes
+        # back; the current file, when it differs, is first moved into the backup as
+        # <kept name> (providers, upstream keys and client keys added since the upgrade stay
+        # recoverable there).
+        oases_restore_file() {
+          local saved="$1" current="$2" kept="$3"
+          [ -f "$saved" ] || return 0
+          if [ -e "$current" ] && ! cmp -s "$saved" "$current"; then
+            mv "$current" "$(oases_after_path "$kept")" || return 1
+          fi
+          cp -p "$saved" "$current"
+        }
+        # oases_restore_runtimes <backup dir> <runtime dir>: a runtime directory of the same name
+        # (the newer package) is moved into the backup, never deleted.
+        oases_restore_runtimes() {
+          local saved="$1" runtime="$2" package package_name
+          for package in "$saved"/*; do
+            [ -e "$package" ] || continue
+            package_name="$(basename "$package")"
+            if [ -e "$runtime/$package_name" ] || [ -L "$runtime/$package_name" ]; then
+              mkdir -p "$saved-after-upgrade" || return 1
+              mv "$runtime/$package_name" "$(oases_after_path "$saved-after-upgrade/$package_name")" || return 1
+            fi
+            mv "$package" "$runtime/$package_name" || return 1
+          done
+        }
+
         oases_restore_backup() {
-          local backup="$1" package package_name link name
+          local backup="$1" link name
           [ -d "$backup" ] || return 1
-          if [ -f "$backup/cli-proxy-api-run.sh" ]; then cp -p "$backup/cli-proxy-api-run.sh" "$ROOT/cli-proxy-api/run.sh" || return 1; fi
-          if [ -f "$backup/cpamp-run.sh" ]; then cp -p "$backup/cpamp-run.sh" "$ROOT/cpamp/run.sh" || return 1; fi
-          if [ -f "$backup/cli-proxy-api-config.yaml" ]; then cp -p "$backup/cli-proxy-api-config.yaml" "$ROOT/cli-proxy-api/config.yaml" || return 1; fi
-          for package in "$backup/cli-proxy-api-runtime"/*; do
-            [ -e "$package" ] || continue
-            package_name="$(basename "$package")"
-            rm -rf "$ROOT/cli-proxy-api/runtime/$package_name"
-            mv "$package" "$ROOT/cli-proxy-api/runtime/$package_name" || return 1
-          done
-          for package in "$backup/cpamp-runtime"/*; do
-            [ -e "$package" ] || continue
-            package_name="$(basename "$package")"
-            rm -rf "$ROOT/cpamp/runtime/$package_name"
-            mv "$package" "$ROOT/cpamp/runtime/$package_name" || return 1
-          done
+          oases_restore_file "$backup/cli-proxy-api-run.sh" "$ROOT/cli-proxy-api/run.sh" "$backup/cli-proxy-api-run.sh.after-upgrade" || return 1
+          oases_restore_file "$backup/cpamp-run.sh" "$ROOT/cpamp/run.sh" "$backup/cpamp-run.sh.after-upgrade" || return 1
+          oases_restore_file "$backup/cli-proxy-api-config.yaml" "$ROOT/cli-proxy-api/config.yaml" "$backup/cli-proxy-api-config.yaml.after-upgrade" || return 1
+          oases_restore_runtimes "$backup/cli-proxy-api-runtime" "$ROOT/cli-proxy-api/runtime" || return 1
+          oases_restore_runtimes "$backup/cpamp-runtime" "$ROOT/cpamp/runtime" || return 1
           if [ -f "$backup/cpamp-config.json" ]; then
-            cp -p "$backup/cpamp-config.json" "$ROOT/cpamp/config.json" || return 1
+            oases_restore_file "$backup/cpamp-config.json" "$ROOT/cpamp/config.json" "$backup/cpamp-config.json.after-upgrade" || return 1
           elif [ -f "$ROOT/cpamp/config.json" ]; then
             mv "$ROOT/cpamp/config.json" "$(oases_after_path "$backup/cpamp-config.json.after-upgrade")" || return 1
           fi
           if [ -f "$backup/versions.json" ]; then
-            cp -p "$backup/versions.json" "$ROOT/.oases-cpa-versions" || return 1
+            oases_restore_file "$backup/versions.json" "$ROOT/.oases-cpa-versions" "$backup/versions-after-upgrade.json" || return 1
           elif [ -f "$ROOT/.oases-cpa-versions" ]; then
             mv "$ROOT/.oases-cpa-versions" "$(oases_after_path "$backup/versions-after-upgrade.json")" || return 1
           fi
           if [ -f "$backup/gateway-run.sh" ]; then
-            mkdir -p "$ROOT/gateway" && cp -p "$backup/gateway-run.sh" "$ROOT/gateway/run.sh" || return 1
+            mkdir -p "$ROOT/gateway" || return 1
+            oases_restore_file "$backup/gateway-run.sh" "$ROOT/gateway/run.sh" "$backup/gateway-run.sh.after-upgrade" || return 1
           elif [ -f "$ROOT/gateway/run.sh" ]; then
             mv "$ROOT/gateway/run.sh" "$(oases_after_path "$backup/gateway-run.sh.after-upgrade")" || return 1
           fi
@@ -478,11 +495,42 @@ struct DeploymentMaintenanceService {
         fi
         \(nativeTargetTopologyDecision())
 
-        # --- Backup (before anything changes). ---
         BACKUP_NAME="upgrade-$(date -u '+%Y%m%d-%H%M%S')"
         if [ -e "$ROOT/backups/$BACKUP_NAME" ]; then BACKUP_NAME="$BACKUP_NAME-$$"; fi
         BACKUP_ROOT="$ROOT/backups/$BACKUP_NAME"
         TEMP_ROOT="$ROOT/.oases-cpa-upgrade-$BACKUP_NAME"
+        BACKUP_READY=0
+
+        upgrade_exit() {
+          local status="$?"
+          trap - EXIT
+          set +e
+          if [ "$status" -eq 28 ]; then
+            # Nothing was changed or backed up; a process without a pid file still runs, so
+            # nothing is started next to it either.
+            exit "$status"
+          fi
+          if [ "$status" -ne 0 ]; then
+            oases_stop_all >/dev/null 2>&1
+            if [ "$BACKUP_READY" -eq 1 ]; then
+              printf '升级失败（退出码 %s），正在恢复升级前的版本。\\n' "$status" >&2
+              oases_restore_backup "$BACKUP_ROOT" || printf '%s\\n' '自动恢复不完整，请使用回滚并查看 backups 目录。' >&2
+            else
+              printf '升级在备份完成前失败（退出码 %s），没有做任何改动，正在重新启动服务。\\n' "$status" >&2
+            fi
+            oases_start_all >/dev/null 2>&1
+          fi
+          rm -rf "$TEMP_ROOT" >/dev/null 2>&1
+          exit "$status"
+        }
+        trap upgrade_exit EXIT
+
+        # --- Stop all three processes (gateway first, up to 30 s); nothing of the deployment
+        # may still run, pid file or not (exit 28 before any backup). ---
+        oases_stop_all
+        oases_refuse_if_still_running
+
+        # --- Backup (before anything changes; gateway-data while the gateway is stopped). ---
         mkdir -p "$ROOT/backups"
         mkdir -m 700 "$BACKUP_ROOT"
         mkdir -p "$BACKUP_ROOT/cli-proxy-api-runtime" "$BACKUP_ROOT/cpamp-runtime" "$TEMP_ROOT"
@@ -495,28 +543,11 @@ struct DeploymentMaintenanceService {
         if [ -L "$ROOT/gateway/current" ]; then readlink "$ROOT/gateway/current" > "$BACKUP_ROOT/gateway-current"; fi
         if [ -L "$ROOT/node/current" ]; then readlink "$ROOT/node/current" > "$BACKUP_ROOT/node-current"; fi
         printf '%s\\n' "$PREVIOUS_TOPOLOGY" > "$BACKUP_ROOT/topology"
-
-        upgrade_exit() {
-          local status="$?"
-          trap - EXIT
-          set +e
-          if [ "$status" -ne 0 ]; then
-            printf '升级失败（退出码 %s），正在恢复升级前的版本。\\n' "$status" >&2
-            oases_stop_all >/dev/null 2>&1
-            oases_restore_backup "$BACKUP_ROOT" || printf '%s\\n' '自动恢复不完整，请使用回滚并查看 backups 目录。' >&2
-            oases_start_all >/dev/null 2>&1
-          fi
-          rm -rf "$TEMP_ROOT" >/dev/null 2>&1
-          exit "$status"
-        }
-        trap upgrade_exit EXIT
-
-        # --- Stop all three processes (gateway first, up to 30 s), then copy gateway-data. ---
-        oases_stop_all
         if [ -d "$ROOT/gateway-data" ] && [ ! -L "$ROOT/gateway-data" ]; then
           cp -Rp "$ROOT/gateway-data" "$BACKUP_ROOT/gateway-data"
           : > "$BACKUP_ROOT/gateway-data.saved"
         fi
+        BACKUP_READY=1
 
         # --- Engine (CLIProxyAPI). ---
         CLI_TEMP_DIR="$TEMP_ROOT/cli-proxy-api/runtime/$CLI_PACKAGE"
@@ -586,23 +617,27 @@ struct DeploymentMaintenanceService {
 
         # --- Keep the two newest previous versions of Node and the gateway. ---
         PRUNE_ROOT="$ROOT/backups/pruned-$(date -u '+%Y%m%d-%H%M%S')"
+        # Best effort: the upgrade has succeeded at this point, so a failed move only logs a
+        # line and never triggers the rollback of the EXIT trap.
         oases_prune_old_versions() {
           local dir="$1" current entry count=0
           [ -d "$ROOT/$dir" ] || return 0
           current="$(readlink "$ROOT/$dir/current" 2>/dev/null || true)"
-          for entry in $(ls -1t "$ROOT/$dir"); do
+          for entry in $(ls -1t "$ROOT/$dir" 2>/dev/null || true); do
             case "$entry" in current|downloads|run.sh|.*) continue ;; esac
             [ -d "$ROOT/$dir/$entry" ] && [ ! -L "$ROOT/$dir/$entry" ] || continue
             [ "$entry" != "$current" ] || continue
             count=$((count + 1))
             if [ "$count" -gt 2 ]; then
-              mkdir -p "$PRUNE_ROOT/$dir"
-              mv "$ROOT/$dir/$entry" "$PRUNE_ROOT/$dir/$entry"
+              if ! { mkdir -p "$PRUNE_ROOT/$dir" && mv "$ROOT/$dir/$entry" "$PRUNE_ROOT/$dir/$entry"; }; then
+                printf '旧版本 %s/%s 未能移入 backups，已保留原处。\\n' "$dir" "$entry" >&2
+              fi
             fi
           done
+          return 0
         }
-        oases_prune_old_versions node
-        oases_prune_old_versions gateway
+        oases_prune_old_versions node || true
+        oases_prune_old_versions gateway || true
 
         if [ -s "$ROOT/secrets/pack-engine-key" ]; then
           if [ "$SHA256_COMMAND" = "shasum" ]; then
@@ -658,6 +693,13 @@ struct DeploymentMaintenanceService {
         """
         ENGINE_CONFIG="$ROOT/cli-proxy-api/config.yaml"
           [ -f "$ENGINE_CONFIG" ] || { printf '%s\\n' '旧部署缺少引擎配置 config.yaml，无法迁移。' >&2; exit 27; }
+          # Behind the gateway the engine must stay on loopback (18316 would be reachable from
+          # the network otherwise): only a loopback host is migrated.
+          ENGINE_HOST="$(sed -n 's/^host:[[:space:]]*//p' "$ENGINE_CONFIG" | head -n 1 | sed -e 's/[[:space:]]*$//' -e 's/^"\\(.*\\)"$/\\1/' -e "s/^'\\(.*\\)'$/\\1/")"
+          case "$ENGINE_HOST" in
+            127.0.0.1|localhost|::1) ;;
+            *) printf '%s\\n' '引擎配置的 host 不是本机回环地址（127.0.0.1）；为避免把引擎端口暴露到网络，已停止迁移并恢复原版本。' >&2; exit 27 ;;
+          esac
           sed "s/^port: 8317$/port: $ENGINE_PORT/" "$ENGINE_CONFIG" > "$ENGINE_CONFIG.migrate.$$"
           if cmp -s "$ENGINE_CONFIG" "$ENGINE_CONFIG.migrate.$$"; then
             rm -f "$ENGINE_CONFIG.migrate.$$"
@@ -764,6 +806,7 @@ struct DeploymentMaintenanceService {
         fi
 
         oases_stop_all
+        oases_refuse_if_still_running
         oases_restore_backup "$BACKUP_ROOT" || { printf '%s\\n' '回滚未能完整恢复备份，服务保持停止；请查看 backups 目录。' >&2; exit 19; }
         oases_start_all
         oases_wait_services "$ROLLBACK_TOPOLOGY" "$ROLLBACK_GATEWAY_VERSION" || exit 26
@@ -852,7 +895,14 @@ struct DeploymentMaintenanceService {
         [ -f "$BACKUP_ROOT/compose.yaml" ] || { printf '%s\\n' '升级备份缺少 Compose 文件。' >&2; exit 19; }
         cp -p "$BACKUP_ROOT/compose.yaml" "$ROOT/compose.yaml"
         if [ -f "$BACKUP_ROOT/.env" ]; then cp -p "$BACKUP_ROOT/.env" "$ROOT/.env"; fi
-        if [ -f "$BACKUP_ROOT/versions.json" ]; then cp -p "$BACKUP_ROOT/versions.json" "$ROOT/.oases-cpa-versions"; fi
+        if [ -f "$BACKUP_ROOT/versions.json" ]; then
+          cp -p "$BACKUP_ROOT/versions.json" "$ROOT/.oases-cpa-versions"
+        elif [ -f "$BACKUP_ROOT/versions.absent" ] && [ -f "$ROOT/.oases-cpa-versions" ]; then
+          # Before that upgrade there was no versions file: the one it wrote goes into the backup.
+          VERSIONS_AFTER="$BACKUP_ROOT/versions-after-upgrade.json"
+          if [ -e "$VERSIONS_AFTER" ]; then VERSIONS_AFTER="$VERSIONS_AFTER-$(date -u '+%Y%m%dT%H%M%SZ')-$$"; fi
+          mv "$ROOT/.oases-cpa-versions" "$VERSIONS_AFTER"
+        fi
         cd "$ROOT"
         CPAMP_IMAGE="$CPAMP_DOCKER_IMAGE" CPA_IMAGE="$CLI_DOCKER_IMAGE" docker compose up -d > "$ROOT/logs/docker-rollback-up.log" 2>&1
         for _ in $(seq 1 60); do

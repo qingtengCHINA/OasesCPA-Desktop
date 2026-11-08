@@ -1175,13 +1175,18 @@ final class DeploymentStore: ObservableObject {
 
         let request = currentExecutionRequest
         activeOperationRequest = request
+        // What a refused downgrade restores: it stopped and changed nothing on the target.
+        let stageBefore = stage
+        let healthBefore = healthState
+        let healthErrorBefore = healthError
+        let monitorWasRunning = healthMonitorTask != nil
         stopHealthMonitor()
         isMaintaining = true
         maintenanceError = nil
         maintenanceMessage = nil
         deploymentError = nil
         stage = .installing
-        statusMessage = action == .upgrade ? OasesLocalization.localized("正在下载并切换到最新运行时…") : OasesLocalization.localized("正在恢复上一版运行时…")
+        statusMessage = action == .upgrade ? OasesLocalization.localized("正在下载并切换到本应用固定的运行时版本…") : OasesLocalization.localized("正在恢复上一版运行时…")
 
         Task { [weak self] in
             defer { self?.activeOperationRequest = nil }
@@ -1223,6 +1228,18 @@ final class DeploymentStore: ObservableObject {
                 self.latestMaintenanceBackup = result.backupName
                 self.saveProfile()
                 self.startHealthMonitor()
+            } catch DeploymentExecutionError.downgradeRefused(let component, let installed, let target) {
+                // Exit 22 comes before anything is stopped or written: not a failed run. Stage
+                // and health stay as they were; no degraded state, notification or log fetch.
+                guard let self else { return }
+                let refusal = DeploymentExecutionError.downgradeRefused(component: component, installed: installed, target: target)
+                self.isMaintaining = false
+                self.stage = stageBefore
+                self.healthState = healthBefore
+                self.healthError = healthErrorBefore
+                self.maintenanceError = refusal.localizedDescription
+                self.statusMessage = refusal.localizedDescription
+                if monitorWasRunning { self.startHealthMonitor() }
             } catch {
                 guard let self else { return }
                 self.isMaintaining = false
@@ -1872,16 +1889,18 @@ final class DeploymentStore: ObservableObject {
         if state == .degraded, healthNotificationsEnabled, !healthIssueNotificationSent {
             healthIssueNotificationSent = true
             let detail = error ?? HealthNotificationService.healthCheckFailedDetail(topology: topology)
+            let notify = services.notifyDegraded
             Task {
-                await HealthNotificationService.shared.notifyDegraded(target: target, detail: detail)
+                await notify(target, detail)
             }
         } else if state == .healthy {
             let shouldNotify = healthNotificationsEnabled && healthIssueNotificationSent
             healthIssueNotificationSent = false
             if shouldNotify {
                 let topology = self.topology
+                let notify = services.notifyRecovered
                 Task {
-                    await HealthNotificationService.shared.notifyRecovered(target: target, topology: topology)
+                    await notify(target, topology)
                 }
             }
         }

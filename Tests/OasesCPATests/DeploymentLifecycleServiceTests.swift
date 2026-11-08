@@ -275,14 +275,31 @@ final class DeploymentLifecycleServiceTests: XCTestCase {
         return process
     }
 
+    /// A long-running process whose command line shows `executable` (a script run by bash with
+    /// that exact path). Not a copy of /bin/sleep: macOS kills copied platform binaries at once,
+    /// which would make "the script stopped it" pass without the script doing anything.
     private func startManagedSleep(at executable: URL) throws -> Process {
         try FileManager.default.createDirectory(at: executable.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/sleep"), to: executable)
+        try Data(FakeArtifacts.fakeService(name: "managed").utf8).write(to: executable)
         let process = Process()
-        process.executableURL = executable
-        process.arguments = ["30"]
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = [executable.path]
         try process.run()
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline, !hasChild(process.processIdentifier) { usleep(20_000) }
+        XCTAssertTrue(process.isRunning, "the managed process runs before the script under test")
         return process
+    }
+
+    private func hasChild(_ pid: pid_t) -> Bool {
+        let pgrep = Process()
+        let pipe = Pipe()
+        pgrep.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        pgrep.arguments = ["-P", String(pid)]
+        pgrep.standardOutput = pipe
+        try? pgrep.run()
+        pgrep.waitUntilExit()
+        return !pipe.fileHandleForReading.readDataToEndOfFile().isEmpty
     }
 
     private func stop(_ process: Process) {

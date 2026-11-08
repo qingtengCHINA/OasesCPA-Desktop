@@ -42,7 +42,6 @@
 "Anthropic Claude API 密钥" = "Anthropic Claude API 密钥";
 "App 不把 CPA 管理密钥写入普通偏好设置；部署生成的密钥仍由 Keychain 保存。修改后 CPAMP 会先验证连接再保存。" = "App 不把 CPA 管理密钥写入普通偏好设置；部署生成的密钥仍由 Keychain 保存。修改后 CPAMP 会先验证连接再保存。";
 "App 仅创建 OAuth 会话、打开授权页、轮询状态和按需转交回调地址。授权令牌不会写入 App 偏好设置或日志；插件与当前目标 CLIProxyAPI 决定凭证的实际存储位置。" = "App 仅创建 OAuth 会话、打开授权页、轮询状态和按需转交回调地址。授权令牌不会写入 App 偏好设置或日志；插件与当前目标 CLIProxyAPI 决定凭证的实际存储位置。";
-"App 会使用目标目录中最近的 backups/upgrade-*，恢复上一版启动脚本并重新验证 %@。不会删除认证文件或 CPAMP 数据。" = "App 会使用目标目录中最近的 backups/upgrade-*，恢复上一版启动脚本并重新验证 %@。不会删除认证文件或 CPAMP 数据。";
 "App 会停止当前目标服务并删除本机保存的 CPA / CPAMP 管理密钥，但不会删除目标目录、认证文件或远程部署文件。之后可以选择另一个本机或 VPS 目标。" = "App 会停止当前目标服务并删除本机保存的 CPA / CPAMP 管理密钥，但不会删除目标目录、认证文件或远程部署文件。之后可以选择另一个本机或 VPS 目标。";
 "App 会先停止由本次部署创建的进程或 Compose 服务，再把失败部署文件和日志移动到目标目录的 backups/failed-*，不会直接删除。" = "App 会先停止由本次部署创建的进程或 Compose 服务，再把失败部署文件和日志移动到目标目录的 backups/failed-*，不会直接删除。";
 "App 只显示 CLIProxyAPI 返回的脱敏运行日志；如需完整请求错误文件、下载或按请求查看证据，请打开同一目标的 CPAMP 面板。" = "App 只显示 CLIProxyAPI 返回的脱敏运行日志；如需完整请求错误文件、下载或按请求查看证据，请打开同一目标的 CPAMP 面板。";
@@ -1170,7 +1169,6 @@
 "安全隧道" = "安全隧道";
 "控制面连接本机或 SSH，再管理 CLIProxyAPI 与 CPA Manager Plus" = "控制面连接本机或 SSH，再管理 CLIProxyAPI 与 CPA Manager Plus";
 "控制面连接本机或 SSH，再管理 Oases 网关、CLIProxyAPI 与 CPA Manager Plus" = "控制面连接本机或 SSH，再管理 Oases 网关、CLIProxyAPI 与 CPA Manager Plus";
-"正在下载并切换到最新运行时…" = "正在下载并切换到最新运行时…";
 "正在停止并备份失败部署…" = "正在停止并备份失败部署…";
 "正在停止服务并解除当前目标绑定…" = "正在停止服务并解除当前目标绑定…";
 "正在停止目标环境服务…" = "正在停止目标环境服务…";
@@ -2182,3 +2180,10 @@
 "App 会先把启动脚本、引擎配置和运行时备份到目标目录的 backups/upgrade-*，再安装 Node 与 Oases 网关。端口会迁移：CLIProxyAPI 从 8317 改到 18316，8317 改由 Oases 网关提供 /v1，网关管理口是 18320；SSH 隧道会按新端口重新建立。认证文件、客户端 Key 和 CPAMP 数据会保留，之后可以回滚。" = "App 会先把启动脚本、引擎配置和运行时备份到目标目录的 backups/upgrade-*，再安装 Node 与 Oases 网关。端口会迁移：CLIProxyAPI 从 8317 改到 18316，8317 改由 Oases 网关提供 /v1，网关管理口是 18320；SSH 隧道会按新端口重新建立。认证文件、客户端 Key 和 CPAMP 数据会保留，之后可以回滚。";
 "App 会先把启动脚本、版本记录、运行时和 gateway-data 备份到目标目录的 backups/upgrade-*，再升级到本应用固定的 CLIProxyAPI、CPA Manager Plus、Node 与 Oases 网关版本；目标上已有更新的版本时会拒绝降级。配置、认证文件和 CPAMP 数据会保留。" = "App 会先把启动脚本、版本记录、运行时和 gateway-data 备份到目标目录的 backups/upgrade-*，再升级到本应用固定的 CLIProxyAPI、CPA Manager Plus、Node 与 Oases 网关版本；目标上已有更新的版本时会拒绝降级。配置、认证文件和 CPAMP 数据会保留。";
 "App 会先保存 Compose 文件和版本记录到目标目录的 backups/upgrade-*，再拉取本应用固定的 CLIProxyAPI 与 CPA Manager Plus 镜像。Oases 网关只支持原生部署；Docker 部署只包含上游 CLIProxyAPI 与 CPA Manager Plus。" = "App 会先保存 Compose 文件和版本记录到目标目录的 backups/upgrade-*，再拉取本应用固定的 CLIProxyAPI 与 CPA Manager Plus 镜像。Oases 网关只支持原生部署；Docker 部署只包含上游 CLIProxyAPI 与 CPA Manager Plus。";
+"正在下载并切换到本应用固定的运行时版本…" = "正在下载并切换到本应用固定的运行时版本…";
+"停止 Oases 网关、CLIProxyAPI 与 CPAMP（网关先停，最多等待 30 秒让进行中的请求完成），不删除安装目录、认证文件或 Keychain 凭据。" = "停止 Oases 网关、CLIProxyAPI 与 CPAMP（网关先停，最多等待 30 秒让进行中的请求完成），不删除安装目录、认证文件或 Keychain 凭据。";
+"将先停止 Oases 网关、CLIProxyAPI 与 CPAMP，再删除 %@ 中的全部文件、备份和日志（含网关数据），同时清除该目标的 Keychain 凭据与保存记录。此操作不可撤销。" = "将先停止 Oases 网关、CLIProxyAPI 与 CPAMP，再删除 %@ 中的全部文件、备份和日志（含网关数据），同时清除该目标的 Keychain 凭据与保存记录。此操作不可撤销。";
+"将先停止 CLIProxyAPI 与 CPAMP，再删除 %@ 中的全部文件、备份和日志，同时清除该目标的 Keychain 凭据与保存记录。此操作不可撤销。" = "将先停止 CLIProxyAPI 与 CPAMP，再删除 %@ 中的全部文件、备份和日志，同时清除该目标的 Keychain 凭据与保存记录。此操作不可撤销。";
+"App 会使用目标目录中最近的 backups/upgrade-*：启动脚本、版本记录、引擎配置（config.yaml）和 Oases 网关数据（gateway-data，如有）都回到升级前的状态；升级后较新的这些文件保留在该备份的 *.after-upgrade 与 gateway-data-after-upgrade 中，不会删除。随后重新验证 %@。认证文件和 CPAMP 数据不变。" = "App 会使用目标目录中最近的 backups/upgrade-*：启动脚本、版本记录、引擎配置（config.yaml）和 Oases 网关数据（gateway-data，如有）都回到升级前的状态；升级后较新的这些文件保留在该备份的 *.after-upgrade 与 gateway-data-after-upgrade 中，不会删除。随后重新验证 %@。认证文件和 CPAMP 数据不变。";
+"Oases 网关、CLIProxyAPI、CPAMP 和 SSH 隧道（如适用）均可访问；App 会每 30 秒自动检查" = "Oases 网关、CLIProxyAPI、CPAMP 和 SSH 隧道（如适用）均可访问；App 会每 30 秒自动检查";
+"App 正在确认 Oases 网关、CLIProxyAPI、CPAMP 和 SSH 隧道状态" = "App 正在确认 Oases 网关、CLIProxyAPI、CPAMP 和 SSH 隧道状态";

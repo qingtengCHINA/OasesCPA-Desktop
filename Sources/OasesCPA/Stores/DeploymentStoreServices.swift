@@ -16,6 +16,14 @@ struct DeploymentStoreServices: Sendable {
     var rollback: @Sendable (DeploymentExecutionRequest) async throws -> DeploymentMaintenanceResult
     /// The session of the health checks (`RuntimeLifecycleService(session:endpoints:)`).
     var healthSession: URLSession
+    /// System notifications of the patrol (`HealthNotificationService`): target and detail,
+    /// target and topology.
+    var notifyDegraded: @Sendable (String, String) async -> Void = { target, detail in
+        await HealthNotificationService.shared.notifyDegraded(target: target, detail: detail)
+    }
+    var notifyRecovered: @Sendable (String, DeploymentTopology) async -> Void = { target, topology in
+        await HealthNotificationService.shared.notifyRecovered(target: target, topology: topology)
+    }
 
     static let live = DeploymentStoreServices(
         execute: { request, controlToken in

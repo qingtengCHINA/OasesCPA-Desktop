@@ -291,6 +291,79 @@ final class RuntimeLifecycleGatewayTests: XCTestCase {
         XCTAssertTrue(isAlive(gateway))
     }
 
+    /// The last guard of the removal fails closed: when `ps` fails or lists nothing, nothing
+    /// can be proven, so the root stays.
+    func testRemovalRefusesWhenTheProcessListIsUnavailable() throws {
+        for (index, body) in ["exit 1", "exit 0"].enumerated() {
+            let fake = try FakeArtifacts.make(caseName: "remove-no-ps-\(index)")
+            let root = fake.caseDirectory.appendingPathComponent("root", isDirectory: true)
+            try write("owned-by=oases-cpa\n", to: root.appendingPathComponent(".oases-cpa-managed"))
+            let bin = fake.caseDirectory.appendingPathComponent("no-ps-bin", isDirectory: true)
+            try write("#!/bin/bash\n\(body)\n", to: bin.appendingPathComponent("ps"))
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bin.appendingPathComponent("ps").path)
+            let result = try fake.run(
+                DeploymentRemovalService().scriptForVerification(method: .native, installDirectory: root.path),
+                extraEnvironment: ["PATH": "\(bin.path):\(fake.binDirectory.path):/usr/bin:/bin:/usr/sbin:/sbin"]
+            )
+            XCTAssertNotEqual(result.status, 0, body)
+            XCTAssertTrue(result.stderr.contains("仍有 Oases CPA 进程在运行"), result.stderr)
+            XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(".oases-cpa-managed").path), "\(body): root kept")
+        }
+    }
+
+    /// Ownership needs the directory itself: a process under `$ROOT/gateway-data/` is not the
+    /// gateway (`$ROOT/gateway` without the slash would have matched it).
+    func testOwnershipNeedsTheTrailingSlash() throws {
+        let fake = try FakeArtifacts.make(caseName: "ownership-slash")
+        let root = fake.caseDirectory.appendingPathComponent("root", isDirectory: true)
+        // A script, not a copy of /bin/sleep: macOS kills copied platform binaries at once.
+        let lookalike = root.appendingPathComponent("gateway-data/lookalike")
+        try write(FakeArtifacts.fakeService(name: "lookalike"), to: lookalike)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: lookalike.path)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = [lookalike.path]   // the path string as the scripts see it
+        try process.run()
+        cleanups.append { if process.isRunning { process.terminate(); process.waitUntilExit() } }
+        XCTAssertTrue(waitUntilReady(process.processIdentifier))
+        XCTAssertTrue(commandLine(of: process.processIdentifier).contains("\(root.path)/gateway-data/lookalike"))
+        try write("\(process.processIdentifier)\n", to: root.appendingPathComponent("gateway.pid"))
+        let stop = try fake.run(lifecycle.stopScriptForVerification(method: .native, installDirectory: root.path))
+        XCTAssertEqual(stop.status, 0, stop.stderr)
+        XCTAssertTrue(process.isRunning, "a process under gateway-data/ is not the gateway")
+        XCTAssertTrue(DeploymentScriptFragments.managedProcessStop().contains("*\"$owned_path/\"*) return 0 ;;"))
+    }
+
+    /// Removal through a path with a symlinked parent (created here under $OASES_SCRATCH, not
+    /// relying on /var being a symlink): the processes started through that path are stopped,
+    /// then the physical root is removed.
+    func testRemovalThroughASymlinkedParentStopsTheProcessesFirst() throws {
+        let fake = try FakeArtifacts.make(caseName: "remove-symlinked-parent")
+        let real = fake.caseDirectory.appendingPathComponent("real", isDirectory: true)
+        try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
+        let link = fake.caseDirectory.appendingPathComponent("link")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+        let root = link.appendingPathComponent("root", isDirectory: true)
+        cleanups.append { [fake] in fake.stopProcesses(under: real.appendingPathComponent("root")) }
+        let install = try fake.run(DeploymentExecutor().scriptForVerification(
+            method: .native, installDirectory: root.path, pins: fake.pins, gatewayPayloadBase64: fake.gatewayPayloadBase64
+        ))
+        XCTAssertEqual(install.status, 0, install.stderr)
+        let pids = DeploymentScriptFragments.managedProcesses(topology: .gateway).compactMap { name -> Int32? in
+            guard let text = try? String(contentsOf: root.appendingPathComponent(name.pidFile), encoding: .utf8) else { return nil }
+            return Int32(text.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        XCTAssertEqual(pids.count, 3)
+        for pid in pids { XCTAssertTrue(waitUntilReady(pid)) }
+        XCTAssertTrue(commandLine(of: pids[2]).contains("\(link.path)/root/gateway/"), "started through the symlinked path")
+
+        let removal = try fake.run(DeploymentRemovalService().scriptForVerification(method: .native, installDirectory: root.path))
+        XCTAssertEqual(removal.status, 0, removal.stderr)
+        for pid in pids { XCTAssertTrue(waitForExit(pid), "\(pid) stopped before the removal") }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: real.appendingPathComponent("root").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: real.path), "only the root went")
+    }
+
     // MARK: - Logs, probe, adoption
 
     func testLogListIncludesGatewayLog() throws {
@@ -636,6 +709,48 @@ final class DeploymentStoreTopologyTests: XCTestCase {
         }
     }
 
+    /// A refused downgrade stopped and changed nothing: stage and health stay, the readable
+    /// refusal is shown, and no notification or log fetch happens.
+    func testRefusedDowngradeIsNotAFailedMaintenance() async throws {
+        try await withIsolation {
+            let directory = scratchDirectory
+            let notifications = NotificationRecorder()
+            var services = services(probe: readyProbe(directory: directory, managed: true, gateway: true),
+                                    result: DeploymentExecutionResult(cpaManagementKey: "cpa_m", cpampAdminKey: "cpamp_m"))
+            services.upgrade = { _ in throw DeploymentExecutionError.downgradeRefused(component: "gateway", installed: "9.0.0", target: "0.1.0") }
+            services.notifyDegraded = { target, detail in notifications.record("degraded \(target) \(detail)") }
+            services.notifyRecovered = { target, _ in notifications.record("recovered \(target)") }
+            let store = DeploymentStore(autoProbe: false, services: services)
+            store.installDirectory = directory
+            store.healthNotificationsEnabled = true
+            store.attachForTesting(topology: .gateway, managementKey: "cpa_m", adminKey: "cpamp_m", installed: true)
+            let healthBefore = store.healthState
+            store.upgradeDeployment()
+            try await waitUntil({ !store.isMaintaining }, "maintenance")
+            for _ in 0..<20 { await Task.yield() }
+            XCTAssertEqual(store.stage, .attached)
+            XCTAssertEqual(store.healthState, healthBefore)
+            let message = try XCTUnwrap(store.maintenanceError)
+            XCTAssertTrue(message.contains("9.0.0") && message.contains("0.1.0"), message)
+            XCTAssertEqual(store.statusMessage, message)
+            XCTAssertFalse(store.isLoadingDeploymentLog, "no log fetch")
+            XCTAssertEqual(notifications.entries, [], "no notification was requested")
+
+            // Control: any other failure is a failed run (degraded, with its notification).
+            var failing = services
+            failing.upgrade = { _ in throw DeploymentExecutionError.commandFailed("boom") }
+            let other = DeploymentStore(autoProbe: false, services: failing)
+            other.installDirectory = directory
+            other.healthNotificationsEnabled = true
+            other.attachForTesting(topology: .gateway, managementKey: "cpa_m", adminKey: "cpamp_m", installed: true)
+            other.upgradeDeployment()
+            try await waitUntil({ !other.isMaintaining }, "failing maintenance")
+            XCTAssertEqual(other.stage, .failed)
+            XCTAssertEqual(other.healthState, .degraded)
+            try await waitUntil({ !notifications.entries.isEmpty }, "the failed run notified")
+        }
+    }
+
     func testAdoptionTakesTheProbedTopologyAndFingerprint() async throws {
         for gateway in [true, false] {
             try await withIsolation {
@@ -657,5 +772,19 @@ final class DeploymentStoreTopologyTests: XCTestCase {
                 XCTAssertEqual(URLProtocolStub.recordedRequests.contains { $0.0.url?.port == 18320 }, gateway)
             }
         }
+    }
+}
+
+/// Records the store's notification requests (instead of the system notification center).
+final class NotificationRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: [String] = []
+
+    func record(_ entry: String) {
+        lock.withLock { stored.append(entry) }
+    }
+
+    var entries: [String] {
+        lock.withLock { stored }
     }
 }

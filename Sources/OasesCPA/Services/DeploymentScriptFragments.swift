@@ -119,8 +119,10 @@ enum DeploymentScriptFragments {
           [ "$owned_pid" -gt 1 ] || return 1
           kill -0 "$owned_pid" >/dev/null 2>&1 || return 1
           owned_command="$(ps -p "$owned_pid" -o command= 2>/dev/null || true)"
+          # With the trailing slash: "$ROOT/gateway/" is not a prefix of "$ROOT/gateway-data/…",
+          # "$ROOT/cli-proxy-api/" not of "$ROOT/cli-proxy-api.pid".
           case "$owned_command" in
-            *"$owned_path"*) return 0 ;;
+            *"$owned_path/"*) return 0 ;;
             *) return 1 ;;
           esac
         }
@@ -146,7 +148,10 @@ enum DeploymentScriptFragments {
         }
         oases_managed_process_alive_under() {
           local alive_root="$1" alive_list alive_line alive_owned
-          alive_list="$(ps -axo command= 2>/dev/null || true)"
+          # Fails closed: a failing or empty ps cannot prove that nothing runs (the list always
+          # holds at least this script's own shell).
+          alive_list="$(ps -axo command= 2>/dev/null)" || return 0
+          [ -n "$alive_list" ] || return 0
           while IFS= read -r alive_line; do
             for alive_owned in \(managedProcesses(topology: .gateway).map(\.ownedPath).joined(separator: " ")); do
               case "$alive_line" in
@@ -352,6 +357,35 @@ enum DeploymentScriptFragments {
       return 0
     }
     """
+
+    /// `oases_wait_gateway_healthz <admin port> <version> <pid> <owned path> <attempts>
+    /// <answers>` (needs `managedProcessStop`): polls the unauthenticated `GET /healthz` once a
+    /// second and succeeds after `<answers>` consecutive replies with `"ok":true` and the
+    /// version while the gateway pid is ours; ends early (failure) when that process is gone.
+    /// The install accepts one answer, maintenance requires two; both use this one function.
+    static func gatewayHealthWait() -> String {
+        """
+        oases_wait_gateway_healthz() {
+          local healthz_port="$1" healthz_version="$2" healthz_pid="$3" healthz_path="$4"
+          local healthz_attempts="$5" healthz_needed="$6" healthz_body healthz_confirmed=0
+          for _ in $(seq 1 "$healthz_attempts"); do
+            healthz_body="$(curl -fsS --max-time 2 "http://127.0.0.1:$healthz_port/healthz" 2>/dev/null || true)"
+            case "$healthz_body" in
+              *'"ok":true'*'"version":"'"$healthz_version"'"'*)
+                if oases_pid_owned_by "$healthz_pid" "$healthz_path"; then
+                  healthz_confirmed=$((healthz_confirmed + 1))
+                  [ "$healthz_confirmed" -lt "$healthz_needed" ] || return 0
+                fi
+                ;;
+              *) healthz_confirmed=0 ;;
+            esac
+            oases_pid_owned_by "$healthz_pid" "$healthz_path" || return 1
+            sleep 1
+          done
+          return 1
+        }
+        """
+    }
 
     /// `oases_install_node <root>` (segment J). Needs `NODE_VERSION_TAG`, `NODE_ASSET`,
     /// `NODE_PACKAGE`, `NODE_EXPECTED_SHA256` (`DeploymentPinSet.nativeSelectionScript()`),
