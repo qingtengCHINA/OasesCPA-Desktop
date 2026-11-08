@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 10
     steps:
       # A pull request is checked at its own head: the merge commit GitHub builds for it is
-      # committed by GitHub, not by the contributor. The scan reads the commits since f0f2500,
+      # committed by GitHub, not by the contributor. The scan reads every commit of every ref,
       # so the whole history is fetched.
       - name: Checkout
         # v4.2.2
@@ -50,14 +50,12 @@ jobs:
             export OASES_PRIVATE_TERMS_FILE="$RUNNER_TEMP/no-private-terms"
           fi
           bash script/check-no-private.sh --tree ${require[@]+"${require[@]}"}
-          # Commits since f0f2500 (the last commit before the open edition): added lines,
-          # messages, and author/committer e-mails. Removed lines are never scanned. grep
-          # exits 1 when nothing matches; only that status is tolerated.
-          git log -p -U0 --no-color --no-ext-diff --format= f0f2500..HEAD \
-            | { LC_ALL=C grep -E '^\+' || [ "$?" -eq 1 ]; } \
-            | { LC_ALL=C grep -vE '^\+\+\+ ' || [ "$?" -eq 1 ]; } \
-            | bash script/check-no-private.sh --stdin ${require[@]+"${require[@]}"}
-          git log --format=%B f0f2500..HEAD | bash script/check-no-private.sh --stdin ${require[@]+"${require[@]}"}
+          # The whole history (git log -p --all: commit messages and added lines, plus every
+          # author and committer e-mail). No commit id is named here: the history rewrite before
+          # the repository is public changes every id. Until that rewrite this step is EXPECTED
+          # to fail on the four old commits (docs/open-source-release.md, sections 3 and 4);
+          # afterwards it must be clean.
+          bash script/check-no-private.sh --history ${require[@]+"${require[@]}"}
           # One line per role, so the allowlist can allow GitHub's own address as committer only.
-          git log --format='author: %ae%ncommitter: %ce' f0f2500..HEAD \
+          git log --format='author: %ae%ncommitter: %ce' --all \
             | bash script/check-no-private.sh --stdin ${require[@]+"${require[@]}"}

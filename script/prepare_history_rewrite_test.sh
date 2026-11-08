@@ -129,6 +129,14 @@ fi
 for word in 'git filter-repo --mailmap' '--replace-text' 'check-no-private.sh --history --require-private-terms'; do
   case $out in *"$word"*) ok "stdout names: $word" ;; *) not_ok "stdout lacks: $word" ;; esac
 done
+# After the rewrite every commit id is new: the printed steps scan with --history (CI does the
+# same) and never name a range or look up the new id of an old commit.
+expect_not_contains "stdout names no commit range" "$out" "..HEAD"
+expect_not_contains "stdout does not look up an old commit's new id" "$out" "commit-map"
+case $out in
+  *"CI (.github/workflows/private-scan.yml) runs the same --history scan"*) ok "stdout says CI uses the same --history scan" ;;
+  *) not_ok "stdout does not say CI uses the same --history scan" ;;
+esac
 all_output="$out$(cat "$WORK/stderr.txt")"
 expect_not_contains "the old address is not printed" "$all_output" "$OLD_MAIL"
 expect_not_contains "the stem is not printed" "$all_output" "$STEM"

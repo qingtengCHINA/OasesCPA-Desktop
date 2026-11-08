@@ -35,6 +35,8 @@ PROG=prepare_history_rewrite
 NOREPLY_IDENTITY='QingTeng <qingtengCHINA@users.noreply.github.com>'
 NEUTRAL_STEM='com.example.cpa'
 PUBLIC_REMOTE='https://github.com/qingtengCHINA/OasesCPA-Desktop.git'
+# The last commit before the open edition. Like every commit id, it exists only BEFORE the
+# rewrite; nothing after the rewrite may depend on it.
 BASE_COMMIT='f0f2500'
 
 die() { printf '%s: %s\n' "$PROG" "$2" >&2; exit "$1"; }
@@ -147,9 +149,10 @@ git log --all --format='%ae %ce' | sort -u
 git clone --no-local$branch_option "\$WORK/rewrite.git" "\$WORK/verify"
 (cd "\$WORK/verify" && OASES_PRIVATE_TERMS_FILE=$q_terms bash script/check-no-private.sh --history --require-private-terms)
 
-# 5. Commit ids change. The new id of $BASE_COMMIT (CI scans $BASE_COMMIT..HEAD in
-#    .github/workflows/private-scan.yml; change that base in the first commit after the rewrite):
-awk '\$1 ~ /^$BASE_COMMIT/ { print \$2 }' "\$WORK/rewrite.git/filter-repo/commit-map"
+# 5. Commit ids change: $BASE_COMMIT and every other id from before the rewrite no longer exist.
+#    CI (.github/workflows/private-scan.yml) runs the same --history scan as step 4 and names no
+#    commit id, so nothing has to change there; from now on it must be clean. Scan the history
+#    with --history only, never with a range that starts at an old id.
 
 # 6. Only the owner, only before the repository is public, and only after step 4 was clean:
 # cd "\$WORK/rewrite.git" && git remote add origin $PUBLIC_REMOTE

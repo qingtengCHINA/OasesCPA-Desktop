@@ -40,7 +40,10 @@ signed release (see `README.md`, "生成 DMG").
   `OASES_PRIVATE_TERMS` (the same lines as the local file) into a 0600 file under
   `$RUNNER_TEMP`, sets `OASES_PRIVATE_TERMS_FILE` to it and scans with
   `--require-private-terms`. Pull requests from forks do not get the secret and run the generic
-  rules only.
+  rules only. It runs `--tree`, then `--history` (every commit of every ref) and the
+  `author: %ae` / `committer: %ce` lines of `git log --all`; it names no commit id, because the
+  history rewrite (section 4) changes every id. Until that rewrite the `--history` step is
+  expected to fail (section 3), so CI is red until then.
 - **Allowlist.** `script/private-allowlist.txt` has three tab-separated columns:
   `<path glob>`, `<ERE>` and a reason. Every row needs a real reason (an empty one exits 2); a
   row only silences the text its ERE matches on the offending line; text on standard input is
@@ -53,11 +56,15 @@ signed release (see `README.md`, "生成 DMG").
 
 ## 3. Release scans
 
-Run from the top of the work tree; each must exit 0:
+The commit ids in this section (`f0f2500` and the other old commits named below) exist only
+BEFORE the history rewrite (section 4); afterwards none of them exists, and only the scans at
+the end of this section are used.
+
+Before the rewrite, run from the top of the work tree; each must exit 0:
 
 ```bash
 bash script/check-no-private.sh --tree --require-private-terms
-# The commits since f0f2500 (the last commit before the open edition), the same form CI uses:
+# The commits since f0f2500 (the last commit before the open edition; pre-rewrite id):
 git log -p -U0 --no-color --no-ext-diff --format= f0f2500..HEAD \
   | grep -E '^\+' | grep -vE '^\+\+\+ ' | bash script/check-no-private.sh --stdin --require-private-terms
 git log --format=%B f0f2500..HEAD | bash script/check-no-private.sh --stdin --require-private-terms
@@ -71,6 +78,15 @@ exactly the old commits `7a8183c` → `a99cebc` → `9ca68cb` → `f0f2500` (one
 whole history before the open edition): their author and committer address is a private
 address, and the first commit holds the old bundle identifier stem and one more private term.
 The measured result is in `docs/acceptance/history-scan.md`.
+
+After the rewrite the range scans above no longer work (`f0f2500` is gone). The release scans
+are then the ones CI runs, and each must exit 0:
+
+```bash
+bash script/check-no-private.sh --tree --require-private-terms
+bash script/check-no-private.sh --history --require-private-terms
+git log --format='author: %ae%ncommitter: %ce' --all | bash script/check-no-private.sh --stdin --require-private-terms
+```
 
 ## 4. History rewrite (prepared here, run by the owner)
 
@@ -101,9 +117,10 @@ The printed steps, in this order (the owner runs them before the repository is p
    checkout of the rewritten copy
    `OASES_PRIVATE_TERMS_FILE=<terms file> bash script/check-no-private.sh --history --require-private-terms`
    exits 0.
-5. Commit ids change, so `f0f2500` no longer exists: the printed `awk` reads its new id from
-   `filter-repo/commit-map`. The first commit after the rewrite has to change the base in
-   `.github/workflows/private-scan.yml` (or switch CI to `--history`, which is clean then).
+5. Commit ids change, so `f0f2500` and the other pre-rewrite ids no longer exist. Nothing has
+   to change in `.github/workflows/private-scan.yml`: it already scans with `--history` and
+   names no commit id, and from now on that scan must be clean. Do not scan a range that starts
+   at an old id afterwards; use the post-rewrite scans of section 3.
 6. Only then, and only by the owner: `git remote add origin …` and
    `git push --force --mirror origin` (printed as comments, never run by a script). Afterwards
    work from a fresh clone; the old work tree keeps the old history and must never be pushed
