@@ -232,6 +232,409 @@ final class NativeInstallRealArtifactsTests: XCTestCase {
         }
     }
 
+    /// The 0.1.x → full edition migration with the REAL pinned engine, CPA Manager Plus, Node and
+    /// the bundled gateway, on a realistic 0.1.x fixture (`docs/acceptance/legacy-migration-drill.md`):
+    /// the legacy marker only, engine v7.2.113 and CPA Manager Plus v1.11.11 as small stubs (no
+    /// old packages exist here) that answer the health checks, a legacy `config.yaml` with the
+    /// owner's top-level keys (bcrypt `secret-key`, two client keys, one openai-compatibility
+    /// provider pointing at a loopback mock upstream), two auth files, and CPA Manager Plus data
+    /// with an older `usage_events` schema, rows in the WAL, data.key and an import. Every port is
+    /// a random free loopback port, the legacy engine port included; the fixed ports' listeners
+    /// must be the same before and after. Upgrade, the checks through the gateway, then rollback
+    /// and a byte-for-byte comparison. A masked summary goes to `legacy-drill-summary.md` in the
+    /// case directory.
+    func testRealLegacyMigrationAndRollback() async throws {
+        guard let artifacts = ProcessInfo.processInfo.environment["OASES_E2E_REAL_ARTIFACTS"], !artifacts.isEmpty else {
+            throw XCTSkip("set OASES_E2E_REAL_ARTIFACTS to a directory with the pinned packages")
+        }
+        let fileManager = FileManager.default
+        let drill = try RealDrill(artifacts: artifacts)
+        let root = drill.root
+        var notes: [String] = []
+        func note(_ line: String) {
+            notes.append(line
+                .replacingOccurrences(of: root.path, with: "<install>")
+                .replacingOccurrences(of: drill.caseDirectory.path, with: "<scratch>"))
+        }
+        let fixedBefore = try fixedPortListeners()
+        let free = try freePorts(6)
+        let ports = DeploymentScriptPorts(gatewayAPI: free[0], gatewayAdmin: free[1], engine: free[2], cpamp: free[3], legacyEngine: free[4])
+        let upstreamPort = free[5]
+        let pins = try DeploymentPinSet.current.deployable()
+        var helpers: [Process] = []
+        defer {
+            stopAll(under: root)
+            for helper in helpers where helper.isRunning { helper.terminate() }
+        }
+
+        // Node for the stubs and the mock upstream: the pinned package, unpacked next to the root.
+        let stubNodeDirectory = drill.caseDirectory.appendingPathComponent("stub-node", isDirectory: true)
+        try fileManager.createDirectory(at: stubNodeDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let nodeAsset = try XCTUnwrap(pins.node.assets[.darwinARM64]?.fileName)
+        XCTAssertEqual(try run("/usr/bin/tar", ["-xzf", "\(artifacts)/\(nodeAsset)", "--strip-components", "1", "-C", stubNodeDirectory.path]), "")
+        let stubNode = stubNodeDirectory.appendingPathComponent("bin/node").path
+        let stubScript = drill.caseDirectory.appendingPathComponent("legacy-stub.cjs")
+        try Data(Self.legacyStubScript.utf8).write(to: stubScript)
+
+        // --- The 0.1.x fixture. ---
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        func put(_ text: String, _ relative: String, mode: Int = 0o600) throws {
+            let url = root.appendingPathComponent(relative)
+            try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            try Data(text.utf8).write(to: url)
+            try fileManager.setAttributes([.posixPermissions: mode], ofItemAtPath: url.path)
+        }
+        func hex(_ count: Int) -> String {
+            (0..<count).map { _ in String(format: "%02x", UInt8.random(in: 0...255)) }.joined()
+        }
+        let managementKey = "cpa_\(hex(32))"
+        let userKeys = ["sk-drill-\(hex(12))", "sk-drill-\(hex(12))"]
+        try put("", ".oases-cpa-installed", mode: 0o644)
+        try put(managementKey + "\n", "secrets/cpa-management-key")
+        try put("cpamp_\(hex(32))\n", "secrets/cpamp-admin-key")
+        let enginePackage = "cli-proxy-api/runtime/CLIProxyAPI_7.2.113_darwin_aarch64"
+        let stubWrapper = { (mode: String) in """
+            #!/bin/bash
+            # Stub of the 0.1.x \(mode) for the migration drill (no old packages here).
+            child=""
+            trap 'kill "$child" 2>/dev/null; wait "$child" 2>/dev/null; exit 0' TERM INT
+            config=""; previous=""
+            for argument in "$@"; do [ "$previous" = "-config" ] && config="$argument"; previous="$argument"; done
+            '\(stubNode)' '\(stubScript.path)' \(mode) "${config:-$PWD/config.json}" &
+            child=$!
+            wait "$child"
+
+            """ }
+        try put(stubWrapper("engine"), "\(enginePackage)/cli-proxy-api", mode: 0o755)
+        try put("#!/bin/bash\nset -euo pipefail\ncd \"\(root.path)/cli-proxy-api\"\nexec \"\(root.path)/\(enginePackage)/cli-proxy-api\" -config \"\(root.path)/cli-proxy-api/config.yaml\"\n",
+                "cli-proxy-api/run.sh", mode: 0o755)
+        let bcrypt = try bcryptHash(managementKey)
+        note("- `secret-key` in the legacy config: \(bcrypt.hasPrefix("$2") ? "a bcrypt hash (htpasswd -B, as a running 0.1.x engine leaves it)" : "plaintext (htpasswd unavailable)")")
+        let legacyConfig = """
+        host: "127.0.0.1"
+        port: \(ports.legacyEngine)
+        remote-management:
+          allow-remote: false
+          secret-key: "\(bcrypt)"
+        auth-dir: "\(root.path)/cli-proxy-api/auths"
+        api-keys:
+          - "\(userKeys[0])"
+          - "\(userKeys[1])"
+        usage-statistics-enabled: true
+        credential-concurrency: {}
+        credential-in-flight: {}
+        redis-usage-queue-retention-seconds: 3600
+        ws-auth: false
+        openai-compatibility:
+          - name: "drill-mock"
+            base-url: "http://127.0.0.1:\(upstreamPort)/v1"
+            api-key-entries:
+              - api-key: "sk-upstream-\(hex(8))"
+            models:
+              - name: "drill-upstream-model"
+                alias: "drill-model"
+
+        """
+        try put(legacyConfig, "cli-proxy-api/config.yaml")
+        let farFuture = "2099-01-01T00:00:00Z"
+        try put("{\"type\":\"codex\",\"label\":\"drill-codex\",\"access_token\":\"drill-\(hex(16))\",\"refresh_token\":\"drill-\(hex(16))\",\"expired\":\"\(farFuture)\",\"disabled\":false}\n",
+                "cli-proxy-api/auths/codex-drill.json")
+        try put("{\"type\":\"claude\",\"label\":\"drill-claude\",\"access_token\":\"drill-\(hex(16))\",\"refresh_token\":\"drill-\(hex(16))\",\"expired\":\"\(farFuture)\",\"disabled\":false}\n",
+                "cli-proxy-api/auths/claude-drill.json")
+        try put("synthetic stand-in for the 0.1.x engine download\n", "cli-proxy-api/downloads/CLIProxyAPI_7.2.113_darwin_aarch64.tar.gz")
+        try fileManager.createDirectory(at: root.appendingPathComponent("cli-proxy-api/logs"), withIntermediateDirectories: true)
+        let panelPackage = "cpamp/runtime/cpa-manager-plus_v1.11.11_darwin_arm64"
+        try put(stubWrapper("panel"), "\(panelPackage)/cpa-manager-plus", mode: 0o755)
+        try put("{\"httpAddr\":\"127.0.0.1:\(ports.cpamp)\",\"cpaUpstreamUrl\":\"http://127.0.0.1:\(ports.legacyEngine)\",\"dataDir\":\"../../data\"}\n",
+                "\(panelPackage)/config.json")
+        try put("#!/bin/bash\nset -euo pipefail\ncd \"\(root.path)/\(panelPackage)\"\nexec \"\(root.path)/\(panelPackage)/cpa-manager-plus\"\n", "cpamp/run.sh", mode: 0o755)
+        try put("synthetic stand-in for the 0.1.x panel download\n", "cpamp/downloads/cpa-manager-plus_v1.11.11_darwin_arm64.tar.gz")
+        var keyBytes = [UInt8](repeating: 0, count: 32)
+        for index in keyBytes.indices { keyBytes[index] = UInt8.random(in: 0...255) }
+        try put(Data(keyBytes).base64EncodedString().replacingOccurrences(of: "=", with: "") + "\n", "cpamp/data/data.key")
+        try put("{\"source\":\"drill\",\"rows\":3}\n", "cpamp/data/usage-imports/import-drill.json")
+        try makeLegacyUsageDatabase(in: root.appendingPathComponent("cpamp/data"), scratch: drill.caseDirectory)
+        for log in ["logs/cli-proxy-api.log", "logs/cpa-manager-plus.log"] { try put("", log, mode: 0o644) }
+
+        // The mock upstream for the openai-compatibility provider.
+        let upstream = Process()
+        upstream.executableURL = URL(fileURLWithPath: stubNode)
+        upstream.arguments = [stubScript.path, "upstream", String(upstreamPort)]
+        upstream.environment = drill.environment
+        upstream.standardOutput = FileHandle.nullDevice
+        upstream.standardError = FileHandle.nullDevice
+        try upstream.run()
+        helpers.append(upstream)
+
+        // Start the 0.1.x deployment with the app's own start script.
+        let start = try drill.run(RuntimeLifecycleService().startScriptForVerification(method: .native, installDirectory: root.path), name: "legacy-start")
+        XCTAssertEqual(start.status, 0, start.stderr)
+        let legacyModels = try await waitFor("http://127.0.0.1:\(ports.legacyEngine)/v1/models", bearer: userKeys[0])
+        XCTAssertEqual(legacyModels.status, 200, "the stub 0.1.x engine answers")
+
+        let configBefore = try Data(contentsOf: root.appendingPathComponent("cli-proxy-api/config.yaml"))
+        let authsBefore = try snapshot(root.appendingPathComponent("cli-proxy-api/auths"))
+        let panelDataBefore = try snapshot(root.appendingPathComponent("cpamp/data"))
+        let secretsBefore = try snapshot(root.appendingPathComponent("secrets"))
+        XCTAssertEqual(Set(panelDataBefore.keys), ["data.key", "usage.sqlite", "usage.sqlite-wal", "usage.sqlite-shm", "usage-imports/import-drill.json"])
+        note("- fixture: legacy marker only, stubs running (pid files written by the app's start script), `cpamp/data` = \(panelDataBefore.keys.sorted().joined(separator: ", "))")
+
+        // --- Upgrade (the app's native upgrade script, legacy branch). ---
+        let maintenance = DeploymentMaintenanceService()
+        let started = Date()
+        let upgrade = try drill.run(maintenance.upgradeScriptForVerification(
+            method: .native, installDirectory: root.path, pins: pins, ports: ports
+        ), name: "upgrade")
+        note("- upgrade: exit \(upgrade.status) in \(Int(Date().timeIntervalSince(started))) s; result lines: \(upgrade.stdout.split(separator: "\n").filter { $0.hasPrefix("OASES_") }.compactMap { $0.split(separator: "=").first.map(String.init) }.joined(separator: ", "))")
+        XCTAssertEqual(upgrade.status, 0, upgrade.stderr)
+        guard upgrade.status == 0 else {
+            try writeSummary(notes, drill)
+            return
+        }
+        let result = maintenance.parseResultForVerification(upgrade.stdout)
+        XCTAssertEqual(result.topology, .gateway)
+        let backup = root.appendingPathComponent("backups/\(result.backupName)")
+        XCTAssertEqual(try snapshot(backup.appendingPathComponent("cpamp-data")), panelDataBefore, "backup: cpamp/data byte for byte")
+        XCTAssertEqual(try snapshot(backup.appendingPathComponent("secrets")), secretsBefore, "backup: secrets")
+        XCTAssertEqual(try Data(contentsOf: backup.appendingPathComponent("cli-proxy-api-config.yaml")), configBefore, "backup: config.yaml")
+        XCTAssertEqual(mode(backup), 0o700)
+        let backupItems = try fileManager.contentsOfDirectory(atPath: backup.path).sorted()
+        note("- backup `backups/upgrade-<time>/` (mode \(String(mode(backup), radix: 8))): \(backupItems.joined(separator: ", ")); root-files: \(((try? fileManager.contentsOfDirectory(atPath: backup.appendingPathComponent("root-files").path)) ?? []).sorted().joined(separator: ", "))")
+
+        // The config stays in the legacy layout (R14) with the users' keys plus the internal one.
+        let config = try String(contentsOf: root.appendingPathComponent("cli-proxy-api/config.yaml"), encoding: .utf8)
+        let packKey = try String(contentsOf: root.appendingPathComponent("secrets/pack-engine-key"), encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertTrue(config.contains("\napi-keys:\n"), "top-level api-keys")
+        XCTAssertTrue(config.contains("\nopenai-compatibility:\n"), "top-level openai-compatibility")
+        XCTAssertTrue(config.contains("port: \(ports.engine)\n"))
+        XCTAssertFalse(config.contains("config-version"))
+        for key in userKeys { XCTAssertTrue(config.contains(key), "a user key survived") }
+        XCTAssertTrue(config.contains(packKey), "the gateway's internal key was added")
+        XCTAssertTrue(config.contains("drill-mock"), "the provider survived")
+        let topLevel = config.split(separator: "\n").filter { $0.first.map { $0.isLetter } == true }.compactMap { $0.split(separator: ":").first.map(String.init) }
+        note("- config.yaml after the upgrade: top-level keys \(topLevel.joined(separator: " ")); both client keys and the internal key under `api-keys`, provider `drill-mock` kept")
+        XCTAssertEqual(try snapshot(root.appendingPathComponent("cli-proxy-api/auths")), authsBefore, "auth files byte for byte")
+        XCTAssertEqual(try String(contentsOf: root.appendingPathComponent(".oases-cpa-managed"), encoding: .utf8), "owned-by=oases-cpa\n")
+        note("- `.oases-cpa-managed` written (mode \(String(mode(root.appendingPathComponent(".oases-cpa-managed")), radix: 8))); auth files byte for byte equal")
+
+        // Order of the processes (start times) and their command lines.
+        let startTimes = try ["cli-proxy-api.pid", "cpa-manager-plus.pid", "gateway.pid"].map { name -> String in
+            let pid = try String(contentsOf: root.appendingPathComponent(name), encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+            return try run("/bin/ps", ["-o", "lstart=", "-p", pid]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        note("- start times engine / CPA Manager Plus / gateway: \(startTimes.joined(separator: " | "))")
+        let health = try await get("http://127.0.0.1:\(ports.gatewayAdmin)/healthz")
+        XCTAssertEqual(health.status, 200)
+        note("- `GET /healthz` (admin port): \(health.status) `\(String(decoding: health.body, as: UTF8.self))`")
+        let models = try await get("http://127.0.0.1:\(ports.gatewayAPI)/v1/models", bearer: userKeys[0])
+        let modelsText = String(decoding: models.body, as: UTF8.self)
+        XCTAssertEqual(models.status, 200, modelsText.prefix(300).description)
+        XCTAssertTrue(modelsText.contains("drill-model"), modelsText.prefix(300).description)
+        note("- `GET /v1/models` through the gateway with an existing client key: \(models.status), lists `drill-model`: \(modelsText.contains("drill-model"))")
+        let chat = try await post("http://127.0.0.1:\(ports.gatewayAPI)/v1/chat/completions", bearer: userKeys[1],
+                                  json: #"{"model":"drill-model","messages":[{"role":"user","content":"ping"}]}"#)
+        let chatText = String(decoding: chat.body, as: UTF8.self)
+        note("- `POST /v1/chat/completions` (model `drill-model`) through the gateway with the second client key: \(chat.status), mock answer present: \(chatText.contains("drill-ok"))")
+        let panel = try await get("http://127.0.0.1:\(ports.cpamp)/health")
+        XCTAssertEqual(panel.status, 200)
+        // CPA Manager Plus v1.14.10 migrated the older usage_events schema and kept the rows.
+        let database = root.appendingPathComponent("cpamp/data/usage.sqlite").path
+        let rows = try run("/usr/bin/sqlite3", ["-readonly", database, "select count(*) from usage_events where event_hash like 'drill-%';"]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let columns = try run("/usr/bin/sqlite3", ["-readonly", database, "select name from pragma_table_info('usage_events');"])
+        let tables = try run("/usr/bin/sqlite3", ["-readonly", database, "select count(*) from sqlite_master where type='table';"]).trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertEqual(rows, "3")
+        note("- CPA Manager Plus `/health` \(panel.status); `usage.sqlite` after its start: \(rows) drill rows, `account_snapshot` column added: \(columns.contains("account_snapshot")), tables: \(tables)")
+
+        // --- Rollback. ---
+        let rollback = try drill.run(maintenance.rollbackScriptForVerification(method: .native, installDirectory: root.path, ports: ports), name: "rollback")
+        note("- rollback: exit \(rollback.status); `OASES_CPA_TOPOLOGY=legacy`: \(rollback.stdout.contains("OASES_CPA_TOPOLOGY=legacy"))")
+        XCTAssertEqual(rollback.status, 0, rollback.stderr)
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("cli-proxy-api/config.yaml")), configBefore, "config.yaml byte for byte")
+        XCTAssertEqual(try snapshot(root.appendingPathComponent("cli-proxy-api/auths")), authsBefore)
+        XCTAssertEqual(try snapshot(root.appendingPathComponent("cpamp/data")), panelDataBefore, "cpamp/data byte for byte")
+        XCTAssertEqual(try snapshot(root.appendingPathComponent("secrets")), secretsBefore)
+        XCTAssertFalse(fileManager.fileExists(atPath: root.appendingPathComponent(".oases-cpa-managed").path))
+        XCTAssertFalse(fileManager.fileExists(atPath: root.appendingPathComponent("gateway.pid").path))
+        let legacyAgain = try await waitFor("http://127.0.0.1:\(ports.legacyEngine)/v1/models", bearer: userKeys[1])
+        XCTAssertEqual(legacyAgain.status, 200)
+        let after = try snapshot(backup.appendingPathComponent("cpamp-data-after-upgrade"))
+        note("- after the rollback: config.yaml, auths/, cpamp/data/ (\(panelDataBefore.count) files) and secrets/ equal the pre-upgrade bytes; the migrated database is kept in the backup (`cpamp-data-after-upgrade/`, \(after.count) files); no `.oases-cpa-managed`, no gateway.pid; the stub 0.1.x engine answers `/v1/models` \(legacyAgain.status)")
+
+        stopAll(under: root)
+        upstream.terminate()
+        upstream.waitUntilExit()
+        let leftovers = try run("/bin/ps", ["-axww", "-o", "command="]).split(separator: "\n").filter { $0.contains(drill.caseDirectory.path) }
+        XCTAssertEqual(leftovers, [], "nothing of the drill runs any more")
+        let fixedAfter = try fixedPortListeners()
+        XCTAssertEqual(fixedAfter, fixedBefore, "the fixed ports' listeners are unchanged")
+        note("- fixed ports 8317/18316/18317/18320: the same listeners before and after (\(fixedBefore.isEmpty ? "none" : "\(fixedBefore.count) other process(es), never touched")); nothing of the drill runs afterwards")
+        try writeSummary(notes, drill)
+    }
+
+    /// The stubs of the 0.1.x engine and CPA Manager Plus and the mock upstream (Node, no deps).
+    private static let legacyStubScript = #"""
+    const http = require("http");
+    const fs = require("fs");
+    const path = require("path");
+    const [mode, target] = process.argv.slice(2);
+    function send(res, status, body) {
+      res.writeHead(status, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(body));
+    }
+    function bearer(req) {
+      const value = req.headers["authorization"] || "";
+      return value.startsWith("Bearer ") ? value.slice(7) : "";
+    }
+    if (mode === "upstream") {
+      http.createServer((req, res) => {
+        let body = "";
+        req.on("data", (chunk) => { body += chunk; });
+        req.on("end", () => {
+          if (req.url.endsWith("/models")) return send(res, 200, { object: "list", data: [{ id: "drill-upstream-model", object: "model" }] });
+          if (req.url.endsWith("/chat/completions")) {
+            return send(res, 200, { id: "chatcmpl-drill", object: "chat.completion", created: Math.floor(Date.now() / 1000), model: "drill-upstream-model",
+              choices: [{ index: 0, message: { role: "assistant", content: "drill-ok" }, finish_reason: "stop" }],
+              usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } });
+          }
+          send(res, 404, { error: "not found" });
+        });
+      }).listen(Number(target), "127.0.0.1");
+    } else if (mode === "engine") {
+      const text = fs.readFileSync(target, "utf8");
+      const port = Number((text.match(/^port:\s*(\d+)\s*$/m) || [])[1]);
+      const root = path.dirname(path.dirname(target));
+      const managementKey = fs.readFileSync(path.join(root, "secrets", "cpa-management-key"), "utf8").trim();
+      const keys = [];
+      let inKeys = false;
+      for (const line of text.split("\n")) {
+        if (/^api-keys:/.test(line)) { inKeys = true; continue; }
+        if (inKeys && /^\s+-\s/.test(line)) { keys.push(line.replace(/^\s+-\s*/, "").replace(/^"|"$/g, "")); continue; }
+        if (inKeys && /^\S/.test(line)) inKeys = false;
+      }
+      http.createServer((req, res) => {
+        if (req.url.startsWith("/v0/management/")) return bearer(req) === managementKey ? send(res, 200, { stub: "0.1.x" }) : send(res, 401, { error: "unauthorized" });
+        if (req.url.startsWith("/v1/models")) return keys.includes(bearer(req)) ? send(res, 200, { object: "list", data: [{ id: "drill-model" }] }) : send(res, 401, { error: "unauthorized" });
+        send(res, 404, { error: "not found" });
+      }).listen(port, "127.0.0.1");
+    } else if (mode === "panel") {
+      const config = JSON.parse(fs.readFileSync(target, "utf8"));
+      const port = Number(String(config.httpAddr).split(":").pop());
+      http.createServer((req, res) => (req.url === "/health" ? send(res, 200, { status: "ok", stub: "0.1.x" }) : send(res, 404, {}))).listen(port, "127.0.0.1");
+    }
+    process.on("SIGTERM", () => process.exit(0));
+    """#
+
+    /// `usage.sqlite` as an older CPA Manager Plus leaves it: `usage_events` without the
+    /// account-snapshot columns that v1.14 adds, three rows still in the WAL (copied, with
+    /// -wal and -shm, while the writing connection is open).
+    private func makeLegacyUsageDatabase(in directory: URL, scratch: URL) throws {
+        let work = scratch.appendingPathComponent("sqlite-work", isDirectory: true)
+        try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let database = work.appendingPathComponent("usage.sqlite").path
+        var rows = ""
+        for index in 1...3 {
+            let ms = 1_794_000_000_000 + index * 60_000
+            rows += "insert into usage_events (request_id, event_hash, timestamp_ms, timestamp, provider, executor_type, model, endpoint, method, path, auth_type, auth_index, source, requested_model, resolved_model, input_tokens, output_tokens, total_tokens, failed, created_at_ms) values ('req-drill-\(index)', 'drill-\(index)', \(ms), '2026-11-08T00:0\(index):00Z', 'openai-compatible-drill-mock', 'OpenAICompatExecutor', 'drill-model', '/v1/chat/completions', 'POST', '/v1/chat/completions', 'api_key', 'drill-\(index)', 'drill-mock', 'drill-model', 'drill-upstream-model', \(10 * index), \(5 * index), \(15 * index), 0, \(ms));\n"
+        }
+        let sql = """
+        pragma journal_mode = WAL;
+        pragma wal_autocheckpoint = 0;
+        create table usage_events (id integer primary key autoincrement, request_id text, event_hash text not null unique, timestamp_ms integer not null, timestamp text not null, provider text, executor_type text, model text not null, endpoint text, method text, path text, auth_type text, auth_index text, source text, source_hash text, api_key_hash text, requested_model text, resolved_model text, reasoning_effort text, service_tier text, request_service_tier text, response_service_tier text, cache_input_mode text, input_tokens integer not null default 0, output_tokens integer not null default 0, reasoning_tokens integer not null default 0, cached_tokens integer not null default 0, cache_tokens integer not null default 0, cache_read_tokens integer not null default 0, cache_creation_tokens integer not null default 0, normalized_uncached_input_tokens integer, normalized_total_input_tokens integer, normalized_cache_read_tokens integer, normalized_cache_creation_tokens integer, total_tokens integer not null default 0, latency_ms integer, ttft_ms integer, failed integer not null default 0, fail_status_code integer, fail_summary text, response_metadata_json text, header_quota_recover_at_ms integer, header_quota_used_percent real, header_quota_plan_type text, header_error_kind text, header_error_code text, header_trace_id text, fail_body text, raw_json text, created_at_ms integer not null);
+        \(rows)
+        .system cp '\(database)' '\(database)-wal' '\(database)-shm' '\(directory.path)/'
+        """
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
+        process.arguments = [database]
+        let input = Pipe()
+        process.standardInput = input
+        process.standardOutput = FileHandle.nullDevice
+        try process.run()
+        input.fileHandleForWriting.write(Data(sql.utf8))
+        try input.fileHandleForWriting.close()
+        process.waitUntilExit()
+        XCTAssertEqual(process.terminationStatus, 0)
+        for name in ["usage.sqlite", "usage.sqlite-wal", "usage.sqlite-shm"] {
+            let url = directory.appendingPathComponent(name)
+            XCTAssertTrue(FileManager.default.fileExists(atPath: url.path), name)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        }
+    }
+
+    /// A bcrypt hash of `secret` from `htpasswd -B` (password on stdin), `$2y$` written as the
+    /// equivalent `$2a$`; plaintext when htpasswd is missing.
+    private func bcryptHash(_ secret: String) throws -> String {
+        guard FileManager.default.isExecutableFile(atPath: "/usr/sbin/htpasswd") else { return secret }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/htpasswd")
+        process.arguments = ["-niBC", "10", "drill"]
+        let input = Pipe()
+        let output = Pipe()
+        process.standardInput = input
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        input.fileHandleForWriting.write(Data((secret + "\n").utf8))
+        try input.fileHandleForWriting.close()
+        let text = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        process.waitUntilExit()
+        guard let hash = text.split(separator: ":", maxSplits: 1).last?.trimmingCharacters(in: .whitespacesAndNewlines), hash.hasPrefix("$2") else { return secret }
+        return hash.replacingOccurrences(of: "$2y$", with: "$2a$")
+    }
+
+    private func snapshot(_ directory: URL) throws -> [String: Data] {
+        var files: [String: Data] = [:]
+        for path in try FileManager.default.subpathsOfDirectory(atPath: directory.path) {
+            var isDirectory: ObjCBool = false
+            let url = directory.appendingPathComponent(path)
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), !isDirectory.boolValue else { continue }
+            files[path] = try Data(contentsOf: url)
+        }
+        return files
+    }
+
+    private func mode(_ url: URL) -> Int {
+        ((try? FileManager.default.attributesOfItem(atPath: url.path))?[.posixPermissions] as? NSNumber)?.intValue ?? -1
+    }
+
+    /// `pid port` lines of whatever listens on the fixed deployment ports (read-only lsof).
+    private func fixedPortListeners() throws -> [String] {
+        let output = try run("/usr/sbin/lsof", ["-nP", "-iTCP:8317,18316,18317,18320", "-sTCP:LISTEN", "-Fpn"])
+        var pid = ""
+        var lines: [String] = []
+        for line in output.split(separator: "\n") {
+            if line.hasPrefix("p") { pid = String(line.dropFirst()) }
+            if line.hasPrefix("n") { lines.append("\(pid) \(line.dropFirst())") }
+        }
+        return lines.sorted()
+    }
+
+    private func waitFor(_ url: String, bearer: String) async throws -> (status: Int, body: Data) {
+        var last: (status: Int, body: Data) = (-1, Data())
+        for _ in 0..<30 {
+            if let answer = try? await get(url, bearer: bearer) {
+                last = answer
+                if answer.status == 200 { return answer }
+            }
+            try await Task.sleep(nanoseconds: 500_000_000)
+        }
+        return last
+    }
+
+    private func post(_ url: String, bearer: String, json: String) async throws -> (status: Int, body: Data) {
+        var request = URLRequest(url: URL(string: url)!, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = Data(json.utf8)
+        let (data, response) = try await SecretBearingURLSession.shared.data(for: request)
+        return ((response as? HTTPURLResponse)?.statusCode ?? -1, data)
+    }
+
+    private func writeSummary(_ notes: [String], _ drill: RealDrill) throws {
+        try Data((notes.joined(separator: "\n") + "\n").utf8).write(to: drill.caseDirectory.appendingPathComponent("legacy-drill-summary.md"))
+    }
+
     /// A scratch case for the real drills: install root, HOME, the curl shim, no egress.
     private struct RealDrill {
         let caseDirectory: URL
