@@ -64,15 +64,14 @@ struct SearchProvidersView: View {
         "\(deploymentStore.stage.rawValue)|\(deploymentStore.gatewayAvailability)"
     }
 
+    /// Only the activity of a save or test; reading again is the window's refresh (⌘R).
+    @ViewBuilder
     private var header: some View {
-        HStack(alignment: .bottom) {
-            Spacer()
-            if store.phase == .loading || store.isMutating {
+        if store.isMutating {
+            HStack(spacing: Oases.Space.sm) {
                 ProgressView().controlSize(.small)
+                Text("正在保存…").foregroundStyle(Oases.Color.textSecondary)
             }
-            Button("刷新", systemImage: "arrow.clockwise") { store.refreshNow() }
-                .buttonStyle(.bordered)
-                .disabled(store.phase == .loading)
         }
     }
 

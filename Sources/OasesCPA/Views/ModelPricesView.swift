@@ -83,43 +83,6 @@ struct ModelPricesView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                HStack(alignment: .bottom) {
-                    Spacer()
-                    if runtimeDataStore.isLoadingModelPrices {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-                    Button("刷新", systemImage: "arrow.clockwise") {
-                        runtimeDataStore.refreshModelPrices(using: deploymentStore)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(
-                        deploymentStore.stage != .attached ||
-                        runtimeDataStore.isLoadingModelPrices ||
-                        runtimeDataStore.isSavingModelPrices ||
-                        runtimeDataStore.isSyncingModelPrices
-                    )
-                    Button("立即同步", systemImage: "arrow.triangle.2.circlepath") {
-                        syncConfirmationPresented = true
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(
-                        deploymentStore.stage != .attached ||
-                        modelsForSync.isEmpty ||
-                        runtimeDataStore.isSavingModelPrices ||
-                        runtimeDataStore.isSyncingModelPrices
-                    )
-                    Button("添加手动价格", systemImage: "plus") {
-                        editorTarget = ModelPriceEditorTarget(modelID: "", payload: nil, locksModelID: false)
-                    }
-                    .buttonStyle(.oasesPrimary)
-                    .disabled(
-                        deploymentStore.stage != .attached ||
-                        runtimeDataStore.isSavingModelPrices ||
-                        runtimeDataStore.isSyncingModelPrices
-                    )
-                }
-
                 HStack(spacing: 12) {
                     StatusPill(
                         title: OasesLocalization.localizedFormat("%lld 个已计价", configuredCount),
@@ -149,6 +112,11 @@ struct ModelPricesView: View {
                             tint: .oasesOrange,
                             systemImage: "line.3.horizontal.decrease.circle"
                         )
+                    }
+                    if runtimeDataStore.isLoadingModelPrices {
+                        ProgressView()
+                            .controlSize(.small)
+                            .accessibilityLabel(Text("正在读取模型价格"))
                     }
                 }
 
@@ -217,7 +185,27 @@ struct ModelPricesView: View {
                     tint: .oasesBlue
                 )
             }
-            .padding(28)
+            .padding(Oases.Space.page)
+        }
+        // The page's actions live in the toolbar (refresh is the window's ⌘R): one primary
+        // action, 添加手动价格, and 立即同步 beside it (it asks first).
+        .toolbar {
+            ToolbarItem {
+                Button { syncConfirmationPresented = true } label: {
+                    Label("立即同步", systemImage: "arrow.triangle.2.circlepath")
+                }
+                .disabled(syncDisabledReason != nil)
+                .help(syncDisabledReason ?? OasesLocalization.localized("从公开目录同步模型价格"))
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    editorTarget = ModelPriceEditorTarget(modelID: "", payload: nil, locksModelID: false)
+                } label: {
+                    Label("添加手动价格", systemImage: "plus")
+                }
+                .disabled(addDisabledReason != nil)
+                .help(addDisabledReason ?? OasesLocalization.localized("添加手动价格"))
+            }
         }
         .task(id: deploymentStore.stage) {
             runtimeDataStore.refreshModelPrices(using: deploymentStore)
@@ -253,6 +241,20 @@ struct ModelPricesView: View {
         } message: {
             Text("这只删除 CPAMP 本地成本估算条目，不会停用认证文件、修改 Provider、删除请求历史或改变实际账单。")
         }
+    }
+
+    private var addDisabledReason: String? {
+        if deploymentStore.stage != .attached { return OasesLocalization.localized("请先连接一个目标环境。") }
+        if runtimeDataStore.isSavingModelPrices || runtimeDataStore.isSyncingModelPrices {
+            return OasesLocalization.localized("正在保存或同步价格，完成后再试。")
+        }
+        return nil
+    }
+
+    private var syncDisabledReason: String? {
+        if let reason = addDisabledReason { return reason }
+        if modelsForSync.isEmpty { return OasesLocalization.localized("还没有已配置或已调用的模型。") }
+        return nil
     }
 
     private var priceListCard: some View {

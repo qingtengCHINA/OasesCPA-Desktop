@@ -55,6 +55,15 @@ struct ModelPacksView: View {
             if store.isActive { store.refreshNow() } else { store.activate() }
         }
         .onDisappear { store.deactivate() }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { packEditor = PackEditorRoute(pack: nil) } label: {
+                    Label("新建模型包", systemImage: "plus")
+                }
+                .disabled(createPackDisabledReason != nil)
+                .help(createPackDisabledReason ?? OasesLocalization.localized("新建模型包"))
+            }
+        }
         .onChange(of: store.packs) { _, packs in
             if selectedPackID == nil || !packs.contains(where: { $0.id == selectedPackID }) {
                 selectedPackID = packs.first?.id
@@ -94,26 +103,24 @@ struct ModelPacksView: View {
         "\(deploymentStore.stage.rawValue)|\(deploymentStore.gatewayAvailability)"
     }
 
-    private var isReady: Bool {
-        if case .unavailable = store.phase { return false }
-        return true
-    }
-
     // MARK: - Header and states
 
+    /// Only the activity of a save; reading again is the window's refresh (⌘R) and 新建模型包
+    /// is the toolbar's primary action.
+    @ViewBuilder
     private var header: some View {
-        HStack(alignment: .bottom) {
-            Spacer()
-            if store.phase == .loading || store.isMutating {
+        if store.isMutating {
+            HStack(spacing: Oases.Space.sm) {
                 ProgressView().controlSize(.small)
+                Text("正在保存…").foregroundStyle(Oases.Color.textSecondary)
             }
-            Button("刷新", systemImage: "arrow.clockwise") { store.refreshNow() }
-                .buttonStyle(.bordered)
-                .disabled(store.phase == .loading || !isReady)
-            Button("新建模型包", systemImage: "plus") { packEditor = PackEditorRoute(pack: nil) }
-                .buttonStyle(.oasesPrimary)
-                .disabled(store.phase != .loaded || !store.storeAvailable)
         }
+    }
+
+    private var createPackDisabledReason: String? {
+        guard store.phase == .loaded else { return OasesLocalization.localized("模型包读取完成后才能新建。") }
+        guard store.storeAvailable else { return OasesLocalization.localized("网关的模型包存储暂时不可用。") }
+        return nil
     }
 
     @ViewBuilder

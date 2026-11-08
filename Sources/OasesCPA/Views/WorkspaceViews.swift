@@ -247,37 +247,9 @@ struct MonitoringView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                HStack(alignment: .bottom) {
-                    Spacer()
-                    Button("账号待办", systemImage: "person.crop.circle.badge.exclamationmark") {
-                        store.selectSection(.accountActions)
-                    }
-                    .buttonStyle(.bordered)
-                    Button("成本与价格", systemImage: "dollarsign.arrow.circlepath") {
-                        store.selectSection(.modelPrices)
-                    }
-                    .buttonStyle(.bordered)
-                    StatusPill(
-                        title: isRangeLive ? "实时数据" : (runtimeDataStore.isLoadingMonitoring ? OasesLocalization.localized("读取中") : OasesLocalization.localized("连接后显示")),
-                        tint: isRangeLive ? .oasesGreen : .oasesOrange,
-                        systemImage: isRangeLive ? "waveform.path.ecg" : "link.badge.plus"
-                    )
-                }
-
-                HStack(spacing: 10) {
-                    TextField("搜索账号、模型、API Key 或路径", text: $search)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit(applyMonitoringFilters)
-
-                    Toggle("仅失败", isOn: $failedOnly)
-                        .toggleStyle(.switch)
-                        .fixedSize()
-
-                    Button("应用筛选", systemImage: "line.3.horizontal.decrease.circle") {
-                        applyMonitoringFilters()
-                    }
-                    .buttonStyle(.bordered)
-
+                // Search is the toolbar's; refresh is the window's (⌘R). The range and the
+                // failed-only switch apply at once.
+                HStack(spacing: Oases.Space.l) {
                     Picker("范围", selection: $range) {
                         ForEach(RuntimeDashboardRange.allCases) { item in
                             Text(item.title).tag(item)
@@ -285,25 +257,11 @@ struct MonitoringView: View {
                     }
                     .fixedSize() // the label keeps its width in every language
 
-                    Button {
-                        store.refresh()
-                        runtimeDataStore.refresh(using: deploymentStore)
-                        runtimeDataStore.refreshMonitoring(using: deploymentStore, range: range)
-                        runtimeDataStore.refreshMonitoringEvents(
-                            using: deploymentStore,
-                            range: range,
-                            searchQuery: appliedSearch,
-                            failedOnly: appliedFailedOnly,
-                            filters: appliedFilters
-                        )
-                        runtimeDataStore.refreshMonitoringHeaderSnapshots(using: deploymentStore)
-                    } label: {
-                        Label("刷新", systemImage: "arrow.clockwise")
-                    }
-                    .buttonStyle(.bordered)
+                    Toggle("仅失败", isOn: $failedOnly)
+                        .toggleStyle(.switch)
+                        .fixedSize()
+                    Spacer()
                 }
-                .padding(14)
-                .oasesCard()
 
                 advancedFilterBar
 
@@ -444,6 +402,25 @@ struct MonitoringView: View {
                 .oasesCard()
             }
             .padding(28)
+        }
+        .searchable(text: $search, placement: .toolbar, prompt: Text("搜索账号、模型、API Key 或路径"))
+        .onSubmit(of: .search) { applyMonitoringFilters() }
+        .onChange(of: search) { _, value in
+            // Clearing the search field shows every event again.
+            if value.isEmpty, !appliedSearch.isEmpty { applyMonitoringFilters() }
+        }
+        .onChange(of: failedOnly) { _, _ in applyMonitoringFilters() }
+        .onReceive(NotificationCenter.default.publisher(for: .oasesRefreshCurrentSection)) { notification in
+            guard notification.userInfo?["section"] as? String == AppSection.monitoring.rawValue else { return }
+            runtimeDataStore.refreshMonitoring(using: deploymentStore, range: range)
+            runtimeDataStore.refreshMonitoringEvents(
+                using: deploymentStore,
+                range: range,
+                searchQuery: appliedSearch,
+                failedOnly: appliedFailedOnly,
+                filters: appliedFilters
+            )
+            runtimeDataStore.refreshMonitoringHeaderSnapshots(using: deploymentStore)
         }
         .task(id: monitoringRefreshTaskID) {
             guard scenePhase == .active, deploymentStore.stage == .attached else { return }
@@ -590,8 +567,6 @@ struct MonitoringView: View {
             }
             .font(.callout.weight(.medium))
         }
-        .padding(Oases.Space.m)
-        .oasesCard()
     }
 
     private func filterField(_ title: String, text: Binding<String>, suggestions: [String]) -> some View {
@@ -968,10 +943,10 @@ struct MonitoringAccountHistoryCard: View {
                         ProgressView()
                             .controlSize(.small)
                     } else {
-                        Label("补齐历史汇总", systemImage: "arrow.triangle.2.circlepath")
+                        Text("补齐历史汇总…")
                     }
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.link)
                 .disabled(!canCatchUp || isLoading)
                 .help("仅在确认后补齐当前 CPAMP 本地监控数据库中的聚合。")
             }
@@ -1400,15 +1375,7 @@ struct QuotaView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                HStack(alignment: .bottom) {
-                    Spacer()
-                    Button("刷新证据", systemImage: "arrow.clockwise") {
-                        runtimeDataStore.refreshQuota(using: deploymentStore)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(runtimeDataStore.isLoadingQuota || deploymentStore.stage != .attached)
-                }
-
+                // Reading the evidence again is the window's refresh (⌘R).
                 QuotaStatusStrip(
                     authFileCount: runtimeDataStore.authFiles.count,
                     cooldownCount: runtimeDataStore.quotaCooldowns.count,
@@ -1580,17 +1547,21 @@ struct QuotaStatusStrip: View {
     let evidenceCount: Int
     let stage: DeploymentStage
 
+    /// One plain summary line (the connection state is the toolbar subtitle's); a dot only
+    /// when something is cooling down.
     var body: some View {
-        HStack(spacing: 12) {
-            StatusPill(title: OasesLocalization.localizedFormat("%lld 个认证文件", authFileCount), tint: .oasesBlue, systemImage: "folder")
-            StatusPill(title: OasesLocalization.localizedFormat("%lld 个冷却中", cooldownCount), tint: .oasesOrange, systemImage: "hourglass")
-            StatusPill(title: OasesLocalization.localizedFormat("%lld 个额度证据", evidenceCount), tint: .oasesPurple, systemImage: "chart.bar.xaxis")
-            StatusPill(
-                title: stage == .attached ? OasesLocalization.localized("已连接目标") : OasesLocalization.localized("未连接目标"),
-                tint: stage == .attached ? .oasesGreen : .oasesOrange,
-                systemImage: stage == .attached ? "checkmark.circle" : "link.badge.plus"
-            )
+        HStack(spacing: Oases.Space.sm) {
+            if cooldownCount > 0 {
+                StatusDot(tone: .warning)
+            }
+            Text(OasesLocalization.localizedFormat(
+                "%lld 个认证文件 · %lld 个冷却中 · %lld 个额度证据",
+                authFileCount, cooldownCount, evidenceCount
+            ))
+            .font(.callout.monospacedDigit())
+            .foregroundStyle(Oases.Color.textSecondary)
         }
+        .accessibilityElement(children: .combine)
     }
 }
 

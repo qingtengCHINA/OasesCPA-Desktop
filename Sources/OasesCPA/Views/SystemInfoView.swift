@@ -58,6 +58,7 @@ struct SystemInfoView: View {
             }
             .padding(Oases.Space.page)
         }
+        .searchable(text: $modelSearch, placement: .toolbar, prompt: Text("搜索模型 ID、名称或提供商"))
     }
 
     /// Project and documentation links: plain rows, no boxes.
@@ -78,31 +79,11 @@ struct SystemInfoView: View {
             query: modelSearch
         )
 
+        // Searching is the toolbar's field and reading again the window's refresh (⌘R): the
+        // section is a header, one status line and the groups.
         return VStack(alignment: .leading, spacing: 15) {
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top) {
-                    modelDirectoryTitle
-                    Spacer(minLength: 12)
-                    modelDirectoryRefresh
-                }
-                VStack(alignment: .leading, spacing: 10) {
-                    modelDirectoryTitle
-                    modelDirectoryRefresh
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
-            }
-
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) {
-                    modelDirectoryStatus(groups: groups)
-                    Spacer()
-                    modelSearchField
-                }
-                VStack(alignment: .leading, spacing: 10) {
-                    modelDirectoryStatus(groups: groups)
-                    modelSearchField
-                }
-            }
+            modelDirectoryTitle
+            modelDirectoryStatus(groups: groups)
 
             if deploymentStore.stage != .attached {
                 ContentUnavailableView {
@@ -159,31 +140,20 @@ struct SystemInfoView: View {
         )
     }
 
-    private var modelDirectoryRefresh: some View {
-        HStack(spacing: 8) {
+    private func modelDirectoryStatus(groups: [SystemModelDirectoryGroup]) -> some View {
+        HStack(spacing: 12) {
+            Text(OasesLocalization.localizedFormat("%lld 个模型", runtimeDataStore.gatewayModels.count))
+                .font(.callout.monospacedDigit())
+                .foregroundStyle(Oases.Color.textSecondary)
+            if !groups.isEmpty {
+                Text(OasesLocalization.localizedFormat("%lld 个提供商 / 家族分组", groups.count))
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
             if runtimeDataStore.isLoadingGatewayModels {
                 ProgressView()
                     .controlSize(.small)
-            }
-            Button("刷新", systemImage: "arrow.clockwise") {
-                runtimeDataStore.refreshGatewayModels(using: deploymentStore)
-            }
-            .buttonStyle(.bordered)
-            .disabled(deploymentStore.stage != .attached || runtimeDataStore.isLoadingGatewayModels)
-        }
-    }
-
-    private func modelDirectoryStatus(groups: [SystemModelDirectoryGroup]) -> some View {
-        HStack(spacing: 12) {
-            StatusPill(
-                title: OasesLocalization.localizedFormat("%lld 个模型", runtimeDataStore.gatewayModels.count),
-                tint: runtimeDataStore.gatewayModels.isEmpty ? .oasesOrange : .oasesGreen,
-                systemImage: "cpu"
-            )
-            if !groups.isEmpty {
-                Text(OasesLocalization.localizedFormat("%lld 个提供商 / 家族分组", groups.count))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .accessibilityLabel(Text("正在读取当前网关模型…"))
             }
             if let copiedModelID {
                 Label(OasesLocalization.localizedFormat("已复制 %@", copiedModelID), systemImage: "checkmark")
@@ -192,12 +162,6 @@ struct SystemInfoView: View {
                     .lineLimit(1)
             }
         }
-    }
-
-    private var modelSearchField: some View {
-        TextField("搜索模型 ID、名称或提供商", text: $modelSearch)
-            .textFieldStyle(.roundedBorder)
-            .frame(minWidth: 220, maxWidth: .infinity)
     }
 
     private func modelGroup(_ group: SystemModelDirectoryGroup) -> some View {

@@ -17,7 +17,6 @@ struct UsageAnalyticsWorkbenchView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                titleBar
                 tabBar
                 filterBar
 
@@ -51,10 +50,15 @@ struct UsageAnalyticsWorkbenchView: View {
                         .oasesCard()
                 }
             }
-            .padding(28)
+            .padding(Oases.Space.page)
         }
         .task {
             store.activate()
+        }
+        // The title is the window's and reading again is its refresh (toolbar, ⌘R).
+        .onReceive(NotificationCenter.default.publisher(for: .oasesRefreshCurrentSection)) { notification in
+            guard notification.userInfo?["section"] as? String == AppSection.usageAnalytics.rawValue else { return }
+            store.refreshNow()
         }
         .onDisappear {
             store.deactivate()
@@ -71,45 +75,18 @@ struct UsageAnalyticsWorkbenchView: View {
         .onChange(of: store.searchQuery) { _, _ in store.refreshNow() }
     }
 
-    private var titleBar: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .bottom, spacing: 12) {
-                analyticsTitle
-                Spacer()
-                titleActions
+    /// When the data was last read (the page refreshes itself while it is open).
+    @ViewBuilder
+    private var lastUpdatedLine: some View {
+        if let updated = store.lastUpdated {
+            HStack(spacing: Oases.Space.xs) {
+                Text("实时更新")
+                Text(updated, style: .time)
+                    .monospacedDigit()
             }
-            VStack(alignment: .leading, spacing: 12) {
-                analyticsTitle
-                titleActions
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-            }
-        }
-    }
-
-    private var analyticsTitle: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text("用量分析")
-                .font(.title2.weight(.semibold).monospacedDigit())
-            Text("请求、Token、成本与成功率在同一时间范围内联动展示")
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private var titleActions: some View {
-        HStack(alignment: .bottom, spacing: 12) {
-            if let updated = store.lastUpdated {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("实时更新")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.oasesGreen)
-                    Text(updated, style: .time)
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Button("刷新", systemImage: "arrow.clockwise") { store.refreshNow() }
-                .buttonStyle(.bordered)
-                .disabled(store.isLoading || !store.isAttached)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .accessibilityElement(children: .combine)
         }
     }
 
@@ -154,11 +131,14 @@ struct UsageAnalyticsWorkbenchView: View {
                     rangePicker
                     granularityPicker
                     analyticsSearchField
+                    lastUpdatedLine
                 }
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 10) {
                         rangePicker
                         granularityPicker
+                        Spacer()
+                        lastUpdatedLine
                     }
                     analyticsSearchField
                 }

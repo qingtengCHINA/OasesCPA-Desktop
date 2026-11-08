@@ -55,6 +55,16 @@ struct DashboardView: View {
             }
             .padding(Oases.Space.page)
         }
+        .toolbar {
+            if deploymentStore.stage != .attached {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { store.selectSection(.environments) } label: {
+                        Label("前往连接与部署", systemImage: "arrow.right.circle")
+                    }
+                    .help("前往连接与部署")
+                }
+            }
+        }
         .task(id: liveRefreshTaskID) {
             guard scenePhase == .active, deploymentStore.stage == .attached else { return }
 
@@ -86,7 +96,8 @@ struct DashboardView: View {
         return deploymentStore.stage == .attached ? OasesLocalization.localized("已接入，正在读取数据") : OasesLocalization.localized("尚未连接目标环境")
     }
 
-    /// One-line status bar: state, target and Base URL, last refresh, primary action.
+    /// One-line state: dot and phrase, target and Base URL, last refresh. The page's one action
+    /// (going to 连接与部署 while nothing is connected) is the toolbar's.
     private var hero: some View {
         HStack(alignment: .center, spacing: Oases.Space.md) {
             StatusDot(tone: heroTone, size: 9)
@@ -117,25 +128,9 @@ struct DashboardView: View {
                     .foregroundStyle(Oases.Color.textSecondary)
             }
 
-            if deploymentStore.stage == .attached {
-                Button {
-                    store.selectSection(.monitoring)
-                } label: {
-                    Label("查看请求监控", systemImage: "arrow.right")
-                }
-                .buttonStyle(.oasesPrimary)
-            } else {
-                Button {
-                    store.selectSection(.environments)
-                } label: {
-                    Label("连接与部署", systemImage: "arrow.right")
-                }
-                .buttonStyle(.oasesPrimary)
-            }
         }
-        .padding(.horizontal, Oases.Space.l)
-        .padding(.vertical, Oases.Space.md)
-        .oasesCard()
+        .padding(.bottom, Oases.Space.sm)
+        .overlay(alignment: .bottom) { Divider() }
     }
 
     private var runtimeMetrics: [MetricSummary] {
@@ -251,7 +246,7 @@ struct TrafficChartCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            CardTitle(title: "流量趋势（今日）", subtitle: "调用与 Token 的小时级变化", icon: "chart.xyaxis.line", destination: .usageAnalytics)
+            CardTitle(title: "流量趋势（今日）", subtitle: "调用与 Token 的小时级变化", icon: "chart.xyaxis.line")
 
             if points.isEmpty {
                 Text("连接成功后显示真实流量趋势")
@@ -293,11 +288,11 @@ struct HealthTimelineCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                CardTitle(title: "请求健康时间线", subtitle: "今日请求健康状态，按 10 分钟聚合", icon: "square.grid.3x3", destination: .monitoring)
+                CardTitle(title: "请求健康时间线", subtitle: "今日请求健康状态，按 10 分钟聚合", icon: "square.grid.3x3")
                 Spacer()
                 Text(successRate)
                     .font(.title3.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(Oases.Color.successText)
+                    .foregroundStyle(dashboard == nil ? Oases.Color.textSecondary : Oases.Color.successText)
             }
 
             Group {
@@ -468,7 +463,7 @@ struct ModelCostCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 17) {
-            CardTitle(title: "模型成本排行", subtitle: "今日估算成本", icon: "arrow.up.right", destination: .modelPrices)
+            CardTitle(title: "模型成本排行", subtitle: "今日估算成本", icon: "arrow.up.right")
 
             if models.isEmpty {
                 Text(dashboard == nil ? "连接目标环境后显示真实排行" : "当前摘要未返回模型成本数据")
@@ -543,7 +538,7 @@ struct ChannelHealthCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            CardTitle(title: "渠道健康状态", subtitle: "当前 Provider 路由", icon: "point.3.connected.trianglepath.dotted", destination: .authFiles)
+            CardTitle(title: "渠道健康状态", subtitle: "当前 Provider 路由", icon: "point.3.connected.trianglepath.dotted")
 
             if channels.isEmpty {
                 Text(dashboard == nil ? "连接目标环境后显示真实渠道" : "当前摘要未返回渠道健康数据")
@@ -609,7 +604,7 @@ struct RecentFailuresCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                CardTitle(title: "最近请求", subtitle: "脱敏后的最近活动", icon: "clock.arrow.circlepath", destination: .monitoring)
+                CardTitle(title: "最近请求", subtitle: "脱敏后的最近活动", icon: "clock.arrow.circlepath")
                 Spacer()
                 Button("查看全部") {
                     store.selectSection(.monitoring)

@@ -117,7 +117,7 @@ struct GatewayAccessSummaryCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Oases.Space.m) {
-            OasesSectionHeader(title: "调用接入", onOpen: { store.selectSection(.accessKeys) })
+            OasesSectionHeader(title: "调用接入")
 
             if deploymentStore.stage != .attached {
                 Text("连接目标环境后显示调用地址、已创建 API Key 和可用模型 ID。")

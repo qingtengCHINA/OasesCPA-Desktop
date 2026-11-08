@@ -16,8 +16,6 @@ struct PluginsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                header
-
                 if deploymentStore.stage != .attached {
                     disconnectedCard
                 } else if selectedTab == .store {
@@ -26,7 +24,30 @@ struct PluginsView: View {
                     content
                 }
             }
-            .padding(28)
+            .padding(Oases.Space.page)
+        }
+        // The installed / store switch is the toolbar's (it changes the whole page); reading
+        // again is the window's refresh (⌘R), which also clears the last operation error.
+        .toolbar {
+            // Shown only while connected: without a target both workspaces are the same
+            // "connect first" line.
+            if deploymentStore.stage == .attached {
+                ToolbarItem(placement: .principal) {
+                    Picker("插件工作区", selection: $selectedTab) {
+                        ForEach(PluginWorkspaceTab.allCases) { tab in
+                            Text(tab.title).tag(tab)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize() // the label keeps its width in every language
+                    .help("插件工作区")
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .oasesRefreshCurrentSection)) { notification in
+            guard notification.userInfo?["section"] as? String == AppSection.plugins.rawValue else { return }
+            operationErrorMessage = nil
         }
         .task(id: deploymentStore.stage) {
             runtimeDataStore.refreshPlugins(using: deploymentStore)
@@ -54,28 +75,6 @@ struct PluginsView: View {
             Button("取消", role: .cancel) { deletingPlugin = nil }
         } message: {
             Text("这会从当前目标的插件目录移除插件文件，并删除对应的 plugins.configs 配置。若插件正在运行，CLIProxyAPI 可能要求先重启服务。")
-        }
-    }
-
-    private var header: some View {
-        HStack(alignment: .bottom, spacing: 16) {
-            Picker("插件工作区", selection: $selectedTab) {
-                ForEach(PluginWorkspaceTab.allCases) { tab in
-                    Text(tab.title).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-            .fixedSize() // the label keeps its width in every language
-            Spacer()
-
-            if deploymentStore.stage == .attached {
-                Button("刷新", systemImage: "arrow.clockwise") {
-                    operationErrorMessage = nil
-                    runtimeDataStore.refreshPlugins(using: deploymentStore)
-                }
-                .buttonStyle(.oasesPrimary)
-                .disabled(runtimeDataStore.isLoadingPlugins || runtimeDataStore.isSavingPlugins)
-            }
         }
     }
 
@@ -130,21 +129,12 @@ struct PluginsView: View {
     }
 
     private var disconnectedCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            CardTitle(
-                title: "连接后管理插件",
-                subtitle: "插件列表和配置直接读取当前目标的 CLIProxyAPI Management API",
-                icon: "puzzlepiece.extension"
-            )
-            Text("先在“连接与部署”中选择本机终端或 SSH / VPS，并完成 CLIProxyAPI 部署或接入。App 不会绑定当前项目中的 Oases dev。")
-                .foregroundStyle(.secondary)
-            Button("前往连接与部署", systemImage: "arrow.triangle.branch") {
-                store.selectSection(.environments)
-            }
-            .buttonStyle(.oasesPrimary)
-        }
-        .padding(22)
-        .oasesCard()
+        GatewayStateLine(
+            systemImage: "link",
+            message: "先在“连接与部署”接入本机或 SSH / VPS 目标，这一页才有数据。",
+            actionTitle: "打开连接与部署",
+            action: { store.selectSection(.environments) }
+        )
     }
 
     private var loadingCard: some View {

@@ -160,6 +160,10 @@ enum WorkspaceRefresh {
             runtimeDataStore.refreshOAuthModelPolicies(using: deploymentStore)
         case .modelPrices:
             runtimeDataStore.refreshModelPrices(using: deploymentStore)
+        case .logs:
+            runtimeDataStore.refreshLogs(using: deploymentStore)
+        case .quota:
+            runtimeDataStore.refreshQuota(using: deploymentStore)
         case .accountActions:
             runtimeDataStore.refreshAccountActionCandidates(
                 using: deploymentStore,

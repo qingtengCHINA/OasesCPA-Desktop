@@ -10,8 +10,6 @@ struct LogsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                header
-
                 if deploymentStore.stage != .attached {
                     InfoBanner(
                         title: "连接目标后读取日志",
@@ -56,11 +54,28 @@ struct LogsView: View {
                     tint: .oasesBlue
                 )
             }
-            .padding(28)
+            .padding(Oases.Space.page)
+        }
+        // Refresh is the window's (toolbar, ⌘R); clearing the log is destructive, so it sits in
+        // the toolbar's 更多 menu and always asks first (design principle 7).
+        .toolbar {
+            ToolbarItem {
+                Menu {
+                    Button("清空日志…", role: .destructive) { confirmClear = true }
+                        .disabled(clearDisabled)
+                } label: {
+                    Label("更多", systemImage: "ellipsis.circle")
+                }
+                .help(clearDisabled ? OasesLocalization.localized("请先连接一个目标环境。") : OasesLocalization.localized("更多操作"))
+            }
         }
         .task {
             runtimeDataStore.refreshLogs(using: deploymentStore)
             await loadErrorFiles()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .oasesRefreshCurrentSection)) { notification in
+            guard notification.userInfo?["section"] as? String == AppSection.logs.rawValue else { return }
+            Task { await loadErrorFiles() }
         }
         .onChange(of: deploymentStore.stage) { _, _ in
             runtimeDataStore.refreshLogs(using: deploymentStore)
@@ -80,23 +95,8 @@ struct LogsView: View {
         }
     }
 
-    private var header: some View {
-        HStack(alignment: .bottom, spacing: 12) {
-            Spacer()
-            Button("刷新", systemImage: "arrow.clockwise") {
-                runtimeDataStore.refreshLogs(using: deploymentStore)
-                Task { await loadErrorFiles() }
-            }
-            .buttonStyle(.bordered)
-            .disabled(runtimeDataStore.isLoadingLogs || deploymentStore.stage != .attached)
-
-            Button("清空", systemImage: "trash") {
-                confirmClear = true
-            }
-            .buttonStyle(.bordered)
-            .tint(.oasesRed)
-            .disabled(runtimeDataStore.isLoadingLogs || deploymentStore.stage != .attached)
-        }
+    private var clearDisabled: Bool {
+        runtimeDataStore.isLoadingLogs || deploymentStore.stage != .attached
     }
 
     private var requestErrorFilesCard: some View {
