@@ -1291,14 +1291,12 @@ final class RuntimeDataStore: ObservableObject {
                 self.modelPrices = currentPrices.prices
                 self.modelPriceUsageSummary = usageSummary
 
-                var candidates = Set(usageSummary.models.map(\.model))
-                candidates.formUnion(self.gatewayModels.map(\.id))
-                candidates.formUnion(self.dashboard?.topModelsToday?.map(\.model) ?? [])
-                candidates.formUnion(self.dashboard?.modelCostRank?.map(\.model) ?? [])
-                candidates = Set(candidates.compactMap { raw in
-                    let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-                    return value.isEmpty || value.contains(where: { $0.isNewline }) ? nil : value
-                })
+                let candidates = Self.priceCandidates(
+                    usage: usageSummary.models.map(\.model),
+                    gateway: self.gatewayModels.map(\.id),
+                    topModels: self.dashboard?.topModelsToday?.map(\.model) ?? [],
+                    costRank: self.dashboard?.modelCostRank?.map(\.model) ?? []
+                )
 
                 guard !candidates.isEmpty else {
                     self.automaticModelPriceSyncError = nil
@@ -1339,6 +1337,20 @@ final class RuntimeDataStore: ObservableObject {
                 self.automaticModelPriceSyncError = error.localizedDescription
             }
         }
+    }
+
+    /// The models whose prices are synced: public names only (internal `pin-x/…` ids fold into
+    /// the model they stand for), trimmed, without empty names or names with line breaks.
+    nonisolated static func priceCandidates(
+        usage: [String],
+        gateway: [String],
+        topModels: [String],
+        costRank: [String]
+    ) -> Set<String> {
+        Set((usage + gateway + topModels + costRank).compactMap { raw in
+            let value = InternalModelID.publicName(raw.trimmingCharacters(in: .whitespacesAndNewlines))
+            return value.isEmpty || value.contains(where: { $0.isNewline }) ? nil : value
+        })
     }
 
     func refreshAccountActionCandidates(

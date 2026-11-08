@@ -25,23 +25,27 @@ struct RuntimeMonitoringEventsRequest: Encodable, Sendable {
     let filters: Filters
     let include: Include
 
+    /// `filters` narrows the stream; its `failedOnly` is replaced by `failedOnly`.
     init(
         range: RuntimeDashboardRange,
         now: Date = Date(),
         searchQuery: String,
         failedOnly: Bool,
+        filters: Filters = Filters(),
         cursor: RuntimeMonitoringEventsCursor? = nil
     ) {
         let calendar = Calendar(identifier: .gregorian)
         let start = range.startDate(relativeTo: now, calendar: calendar)
         let rangeStartMs = Int64(start.timeIntervalSince1970 * 1_000)
         let nowMs = Int64(now.timeIntervalSince1970 * 1_000)
+        var filters = filters
+        filters.failedOnly = failedOnly
 
         self.init(
             fromMs: rangeStartMs,
             toMs: max(rangeStartMs + 1, nowMs),
             searchQuery: Self.normalizedSearchQuery(searchQuery),
-            failedOnly: failedOnly,
+            filters: filters,
             cursor: cursor
         )
     }
@@ -51,7 +55,7 @@ struct RuntimeMonitoringEventsRequest: Encodable, Sendable {
             fromMs: fromMs,
             toMs: toMs,
             searchQuery: searchQuery,
-            failedOnly: filters.failedOnly,
+            filters: filters,
             cursor: cursor
         )
     }
@@ -64,11 +68,45 @@ struct RuntimeMonitoringEventsRequest: Encodable, Sendable {
         case include
     }
 
-    struct Filters: Encodable, Sendable {
-        let failedOnly: Bool
+    /// The filters of CPA Manager Plus's analytics request (`monitoring/service.go`, `Filters`).
+    /// Empty lists, a zero latency and an empty cache status are not encoded; `failed_only` always is.
+    struct Filters: Encodable, Equatable, Sendable {
+        var models: [String] = []
+        var providers: [String] = []
+        var accounts: [String] = []
+        var apiKeyHashes: [String] = []
+        var requestTypes: [String] = []
+        var headerErrorKinds: [String] = []
+        var failedOnly = false
+        var minLatencyMS: Int64 = 0
+        var cacheStatus: String?
 
         private enum CodingKeys: String, CodingKey {
+            case models
+            case providers
+            case accounts
+            case apiKeyHashes = "api_key_hashes"
+            case requestTypes = "request_types"
+            case headerErrorKinds = "header_error_kinds"
             case failedOnly = "failed_only"
+            case minLatencyMS = "min_latency_ms"
+            case cacheStatus = "cache_status"
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            for (key, values) in [(CodingKeys.models, models), (.providers, providers), (.accounts, accounts),
+                                  (.apiKeyHashes, apiKeyHashes), (.requestTypes, requestTypes),
+                                  (.headerErrorKinds, headerErrorKinds)] where !values.isEmpty {
+                try container.encode(values, forKey: key)
+            }
+            try container.encode(failedOnly, forKey: .failedOnly)
+            if minLatencyMS > 0 {
+                try container.encode(minLatencyMS, forKey: .minLatencyMS)
+            }
+            if let cacheStatus, !cacheStatus.isEmpty {
+                try container.encode(cacheStatus, forKey: .cacheStatus)
+            }
         }
     }
 
@@ -105,13 +143,13 @@ struct RuntimeMonitoringEventsRequest: Encodable, Sendable {
         fromMs: Int64,
         toMs: Int64,
         searchQuery: String?,
-        failedOnly: Bool,
+        filters: Filters,
         cursor: RuntimeMonitoringEventsCursor?
     ) {
         self.fromMs = fromMs
         self.toMs = toMs
         self.searchQuery = searchQuery
-        filters = Filters(failedOnly: failedOnly)
+        self.filters = filters
         include = Include(
             eventsPage: EventsPage(
                 limit: Self.pageSize,
@@ -256,6 +294,12 @@ struct RuntimeMonitoringEvent: Identifiable, Equatable, Sendable {
 
     var id: String { eventHash }
 
+    /// The requested model as shown: internal `pin-x/…` heads removed.
+    var displayModel: String { InternalModelID.publicName(model) }
+    /// The model the engine resolved, as shown.
+    var displayResolvedModel: String { InternalModelID.publicName(resolvedModel) }
+    var displayFailSummary: String { InternalModelID.publicText(failSummary) }
+
     init?(value: RuntimeJSONValue) {
         guard case .object(let values) = value else { return nil }
         let eventHash = Self.string(
@@ -362,7 +406,7 @@ struct RuntimeMonitoringEvent: Identifiable, Equatable, Sendable {
     }
 
     var safeFailureSummary: String? {
-        let normalized = failSummary
+        let normalized = InternalModelID.publicText(failSummary)
             .components(separatedBy: .newlines)
             .joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)

@@ -126,7 +126,7 @@ final class UsageAnalyticsWorkbenchStore: ObservableObject {
             timeZone: timeZone,
             granularity: granularity,
             searchQuery: searchQuery,
-            models: selectedModels.sorted(),
+            models: requestedModels,
             providers: selectedProviders.sorted(),
             credentialIDs: selectedCredentials.sorted(),
             apiKeyHashes: selectedAPIKeys.sorted(),
@@ -135,6 +135,25 @@ final class UsageAnalyticsWorkbenchStore: ObservableObject {
             cacheStatus: cacheStatus
         )
     }
+
+    /// `selectedModels` holds public names; the request asks for every raw name each one stands
+    /// for (the bare id and its internal `pin-x/…` variants among the filter options).
+    private var requestedModels: [String] {
+        let options = filterOptions?.models ?? []
+        var result: [String] = []
+        for model in selectedModels.sorted() {
+            for raw in InternalModelID.rawNames(matching: model, in: options) where !result.contains(raw) {
+                result.append(raw)
+            }
+        }
+        return result
+    }
+
+    #if DEBUG
+    func applyResponseForTesting(_ response: RuntimeUsageAnalyticsResponse) {
+        self.response = response
+    }
+    #endif
 
     func resetFilters() {
         searchQuery = ""

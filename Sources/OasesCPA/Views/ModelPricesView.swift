@@ -14,10 +14,12 @@ struct ModelPricesView: View {
 
     private var usageByModel: [String: RuntimeModelPriceUsageStat] {
         var output: [String: RuntimeModelPriceUsageStat] = [:]
+        // Usage of internal `pin-x/…` ids counts for the public model it stands for.
         for statistic in runtimeDataStore.modelPriceUsageSummary?.models ?? [] {
-            let existing = output[statistic.model]
-            output[statistic.model] = RuntimeModelPriceUsageStat(
-                model: statistic.model,
+            let model = InternalModelID.publicName(statistic.model)
+            let existing = output[model]
+            output[model] = RuntimeModelPriceUsageStat(
+                model: model,
                 calls: (existing?.calls ?? 0) + statistic.calls,
                 requestedCalls: (existing?.requestedCalls ?? 0) + statistic.requestedCalls,
                 resolvedCalls: (existing?.resolvedCalls ?? 0) + statistic.resolvedCalls
@@ -26,13 +28,28 @@ struct ModelPricesView: View {
         return output
     }
 
+    /// The stored price key shown for each public model name: the public name itself when it has
+    /// a price, otherwise an older entry stored under one of its internal ids.
+    private var priceKeysByModel: [String: String] {
+        var output: [String: String] = [:]
+        for key in runtimeDataStore.modelPrices.keys.sorted() {
+            let model = InternalModelID.publicName(key)
+            if key == model || output[model] == nil {
+                output[model] = key
+            }
+        }
+        return output
+    }
+
     private var rows: [ModelPricePresentation] {
-        let models = Set(runtimeDataStore.modelPrices.keys).union(Set(usageByModel.keys))
+        let priceKeys = priceKeysByModel
+        let models = Set(priceKeys.keys).union(Set(usageByModel.keys))
         let query = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return models.compactMap { modelID in
-            let payload = runtimeDataStore.modelPrices[modelID]
+            let priceKey = priceKeys[modelID]
+            let payload = priceKey.flatMap { runtimeDataStore.modelPrices[$0] }
             let usage = usageByModel[modelID]
-            let row = ModelPricePresentation(modelID: modelID, payload: payload, usage: usage)
+            let row = ModelPricePresentation(modelID: modelID, priceKey: priceKey ?? modelID, payload: payload, usage: usage)
             guard query.isEmpty ||
                     modelID.lowercased().contains(query) ||
                     payload?.source.lowercased().contains(query) == true ||
@@ -57,7 +74,7 @@ struct ModelPricesView: View {
     }
 
     private var configuredCount: Int {
-        runtimeDataStore.modelPrices.count
+        priceKeysByModel.count
     }
 
     private var missingCount: Int {
@@ -227,7 +244,7 @@ struct ModelPricesView: View {
             Text("当前目标 CPAMP 会为 \(modelsForSync.count) 个已配置或已调用模型查询 models.dev、LiteLLM 和 OpenRouter 公开元数据。同步不会自动覆盖存在歧义的模型，且不会修改 CPA 路由或真实 Provider 账单。")
         }
         .confirmationDialog(
-            "删除 \(deletingRecord?.modelID ?? "") 的价格？",
+            "删除 \(InternalModelID.publicName(deletingRecord?.modelID ?? "")) 的价格？",
             isPresented: $deleteConfirmationPresented,
             titleVisibility: .visible
         ) {
@@ -289,7 +306,7 @@ struct ModelPricesView: View {
                             onDelete: row.payload.map { payload in
                                 {
                                     deletingRecord = RuntimeModelPriceRecord(
-                                        modelID: row.modelID,
+                                        modelID: row.priceKey,
                                         payload: payload
                                     )
                                     deleteConfirmationPresented = true
@@ -336,7 +353,10 @@ struct ModelPricesView: View {
 }
 
 private struct ModelPricePresentation: Identifiable {
+    /// The public model name (shown, and used for every new or edited price).
     let modelID: String
+    /// The key the shown price is stored under (an internal id only for an older entry).
+    let priceKey: String
     let payload: RuntimeModelPricePayload?
     let usage: RuntimeModelPriceUsageStat?
 

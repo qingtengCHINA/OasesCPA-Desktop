@@ -291,8 +291,9 @@ struct RuntimeModelPriceDraft: Equatable, Sendable {
         cacheCreation = Self.configuredValue(payload.cacheCreation, configured: payload.cacheCreationConfigured)
     }
 
+    /// New and edited prices are always stored under the public model name.
     var normalizedModelID: String {
-        modelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        InternalModelID.publicName(modelID.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     var validationMessage: String? {

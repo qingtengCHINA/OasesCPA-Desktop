@@ -179,7 +179,7 @@ struct UsageAnalyticsWorkbenchView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 10) {
-                            selectionMenu("模型", values: store.filterOptions?.models ?? [], selection: store.selectedModels) { value in
+                            selectionMenu("模型", values: store.filterOptions?.publicModels ?? [], selection: store.selectedModels) { value in
                                 toggle(value, in: \UsageAnalyticsWorkbenchStore.selectedModels)
                             }
                             selectionMenu("Provider", values: store.filterOptions?.providers ?? [], selection: store.selectedProviders) { value in
@@ -287,7 +287,7 @@ struct UsageAnalyticsWorkbenchView: View {
             case .trends:
                 trends(response)
             case .modelRanks:
-                ranks(title: "模型调用排行", subtitle: "按请求次数排序；同次数按成本和名称稳定排序", models: response.modelStats)
+                ranks(title: "模型调用排行", subtitle: "按请求次数排序；同次数按成本和名称稳定排序", models: response.publicModelStats)
             case .apiKeyRanks:
                 apiKeyRanks(response.apiKeyStats)
             case .credentialRanks:
@@ -562,7 +562,7 @@ struct UsageAnalyticsWorkbenchView: View {
                         Circle()
                             .fill(event.failed ? Color.oasesRed : Color.oasesGreen)
                             .frame(width: 7, height: 7)
-                        Text(event.model.isEmpty ? event.endpoint : event.model)
+                        Text(event.model.isEmpty ? event.endpoint : event.displayModel)
                             .lineLimit(1)
                         Spacer()
                         Text(formatTokens(event.totalTokens))

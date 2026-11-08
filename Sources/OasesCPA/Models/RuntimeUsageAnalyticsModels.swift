@@ -1049,3 +1049,55 @@ enum RuntimeUsageAnalyticsPresentation {
         String(format: "%.1f%%", value * 100)
     }
 }
+
+// MARK: - Public model names
+
+extension RuntimeUsageAnalyticsResponse {
+    /// Model statistics with internal `pin-x/…` ids folded into their public names (counts and
+    /// cost add up; the success rate follows from the summed counts).
+    var publicModelStats: [RuntimeUsageAnalyticsModelStat] {
+        let renamed = modelStats.map { $0.renamed(InternalModelID.publicName($0.model)) }
+        return InternalModelID.mergeByPublicName(renamed, name: \.model) { left, right in
+            let calls = left.calls + right.calls
+            let success = left.successCalls + right.successCalls
+            return RuntimeUsageAnalyticsModelStat(
+                model: left.model,
+                calls: calls,
+                successCalls: success,
+                failureCalls: left.failureCalls + right.failureCalls,
+                successRate: calls > 0 ? Double(success) / Double(calls) : 0,
+                inputTokens: left.inputTokens + right.inputTokens,
+                outputTokens: left.outputTokens + right.outputTokens,
+                cachedTokens: left.cachedTokens + right.cachedTokens,
+                totalTokens: left.totalTokens + right.totalTokens,
+                cost: left.cost + right.cost
+            )
+        }
+    }
+}
+
+extension RuntimeUsageAnalyticsModelStat {
+    fileprivate func renamed(_ name: String) -> RuntimeUsageAnalyticsModelStat {
+        RuntimeUsageAnalyticsModelStat(
+            model: name, calls: calls, successCalls: successCalls, failureCalls: failureCalls,
+            successRate: successRate, inputTokens: inputTokens, outputTokens: outputTokens,
+            cachedTokens: cachedTokens, totalTokens: totalTokens, cost: cost
+        )
+    }
+}
+
+extension RuntimeUsageAnalyticsFailure {
+    var displayModel: String { InternalModelID.publicName(model) }
+    var displayFailSummary: String { InternalModelID.publicText(failSummary) }
+}
+
+extension RuntimeUsageAnalyticsEvent {
+    var displayModel: String { InternalModelID.publicName(model) }
+    var displayFailSummary: String { InternalModelID.publicText(failSummary) }
+}
+
+extension RuntimeUsageAnalyticsFilterOptions {
+    /// The model filter's choices: public names without duplicates. A chosen name is expanded
+    /// back to every raw name it stands for with `InternalModelID.rawNames(matching:in:)`.
+    var publicModels: [String] { InternalModelID.publicNames(models) }
+}

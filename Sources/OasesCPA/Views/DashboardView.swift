@@ -497,10 +497,10 @@ struct ModelCostCard: View {
 
     private var models: [ModelCost] {
         let entries: [(String, Double)]
-        if let ranked = dashboard?.modelCostRank, !ranked.isEmpty {
+        if let ranked = dashboard?.publicModelCostRank, !ranked.isEmpty {
             entries = ranked.map { ($0.model, $0.cost) }
         } else {
-            entries = (dashboard?.topModelsToday ?? []).map { ($0.model, $0.cost) }
+            entries = (dashboard?.publicTopModels ?? []).map { ($0.model, $0.cost) }
         }
         let maxCost = entries.map(\.1).max() ?? 0
         return entries.prefix(4).enumerated().map { index, entry in
@@ -658,7 +658,7 @@ struct RecentFailuresCard: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(source)
                     .font(.callout.weight(.medium))
-                Text("\(event.model) · \(time)")
+                Text("\(event.displayModel) · \(time)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

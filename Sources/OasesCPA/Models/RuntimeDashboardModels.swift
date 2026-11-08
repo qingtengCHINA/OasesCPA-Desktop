@@ -243,3 +243,69 @@ struct RuntimeRecentFailure: Decodable, Sendable {
         failSummary = try container.decodeIfPresent(String.self, forKey: .failSummary)
     }
 }
+
+// MARK: - Public model names
+
+extension RuntimeDashboardSummary {
+    /// Today's top models with internal `pin-x/…` ids folded into their public names: calls,
+    /// tokens and cost add up, the success rate is weighted by calls. Most calls first.
+    var publicTopModels: [RuntimeTopModel] {
+        let renamed = (topModelsToday ?? []).map {
+            RuntimeTopModel(model: InternalModelID.publicName($0.model), calls: $0.calls, tokens: $0.tokens, cost: $0.cost, successRate: $0.successRate)
+        }
+        let merged = InternalModelID.mergeByPublicName(renamed, name: \.model) { left, right in
+            RuntimeTopModel(
+                model: left.model,
+                calls: left.calls + right.calls,
+                tokens: left.tokens + right.tokens,
+                cost: left.cost + right.cost,
+                successRate: RuntimePublicModelMath.weightedRate(left.successRate, left.calls, right.successRate, right.calls)
+            )
+        }
+        return RuntimePublicModelMath.stableSorted(merged) { $0.calls > $1.calls }
+    }
+
+    /// The cost ranking with internal ids folded into their public names (shares add up).
+    /// Highest cost first.
+    var publicModelCostRank: [RuntimeModelCostRank] {
+        let renamed = (modelCostRank ?? []).map {
+            RuntimeModelCostRank(model: InternalModelID.publicName($0.model), calls: $0.calls, tokens: $0.tokens, cost: $0.cost, successRate: $0.successRate, costShare: $0.costShare)
+        }
+        let merged = InternalModelID.mergeByPublicName(renamed, name: \.model) { left, right in
+            RuntimeModelCostRank(
+                model: left.model,
+                calls: left.calls + right.calls,
+                tokens: left.tokens + right.tokens,
+                cost: left.cost + right.cost,
+                successRate: RuntimePublicModelMath.weightedRate(left.successRate, left.calls, right.successRate, right.calls),
+                costShare: left.costShare + right.costShare
+            )
+        }
+        return RuntimePublicModelMath.stableSorted(merged) { $0.cost > $1.cost }
+    }
+}
+
+extension RuntimeRecentFailure {
+    var displayModel: String { InternalModelID.publicName(model) }
+    var displayFailSummary: String? { failSummary.map(InternalModelID.publicText) }
+}
+
+enum RuntimePublicModelMath {
+    /// The success rate of two merged rows, weighted by their calls.
+    static func weightedRate(_ left: Double, _ leftCalls: Int, _ right: Double, _ rightCalls: Int) -> Double {
+        let total = leftCalls + rightCalls
+        guard total > 0 else { return max(left, right) }
+        return (left * Double(leftCalls) + right * Double(rightCalls)) / Double(total)
+    }
+
+    /// Sorted by `before`; rows that compare equal keep their order.
+    static func stableSorted<Row>(_ rows: [Row], by before: (Row, Row) -> Bool) -> [Row] {
+        rows.enumerated()
+            .sorted { lhs, rhs in
+                if before(lhs.element, rhs.element) { return true }
+                if before(rhs.element, lhs.element) { return false }
+                return lhs.offset < rhs.offset
+            }
+            .map(\.element)
+    }
+}

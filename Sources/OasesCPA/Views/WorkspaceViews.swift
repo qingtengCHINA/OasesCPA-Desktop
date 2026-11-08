@@ -202,10 +202,10 @@ struct AnalyticsBreakdownCard: View {
 
     private var rows: [ModelRow] {
         let values: [(String, Int64, Double)]
-        if let rank = dashboard?.modelCostRank, !rank.isEmpty {
+        if let rank = dashboard?.publicModelCostRank, !rank.isEmpty {
             values = rank.map { ($0.model, $0.tokens, $0.cost) }
         } else {
-            values = (dashboard?.topModelsToday ?? []).map { ($0.model, $0.tokens, $0.cost) }
+            values = (dashboard?.publicTopModels ?? []).map { ($0.model, $0.tokens, $0.cost) }
         }
         let colors: [Color] = [.oasesBlue, .oasesPurple, .oasesMint, .oasesOrange]
         return values.prefix(4).enumerated().map { index, value in
@@ -601,8 +601,8 @@ struct MonitoringEventRow: View {
                 if !event.authFileSnapshot.isEmpty {
                     MonitoringEventDetail(title: "认证文件", value: event.authFileSnapshot)
                 }
-                if !event.resolvedModel.isEmpty && event.resolvedModel != event.model {
-                    MonitoringEventDetail(title: "解析模型", value: event.resolvedModel)
+                if !event.resolvedModel.isEmpty && event.displayResolvedModel != event.displayModel {
+                    MonitoringEventDetail(title: "解析模型", value: event.displayResolvedModel)
                 }
                 if !event.authProjectIdSnapshot.isEmpty {
                     MonitoringEventDetail(title: "项目", value: event.authProjectIdSnapshot)
@@ -686,7 +686,7 @@ struct MonitoringEventRow: View {
     }
 
     private var modelTitle: String {
-        event.model.isEmpty ? "未标记模型" : event.model
+        event.model.isEmpty ? "未标记模型" : event.displayModel
     }
 
     private var requestTarget: String {

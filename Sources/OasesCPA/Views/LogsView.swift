@@ -131,7 +131,7 @@ struct LogsView: View {
                     .frame(maxWidth: .infinity, minHeight: 220)
                 } else {
                     ScrollView([.vertical, .horizontal]) {
-                        Text(logs.lines.joined(separator: "\n"))
+                        Text(InternalModelID.publicText(logs.lines.joined(separator: "\n")))
                             .font(.system(size: 12, design: .monospaced))
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
