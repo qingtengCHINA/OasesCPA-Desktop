@@ -58,4 +58,21 @@ final class SystemModelDirectoryTests: XCTestCase {
             RuntimeGatewayModel(id: "gpt-4o", displayName: nil, ownedBy: "openai")
         ], query: "missing").isEmpty)
     }
+
+    func testGatewayModelsResponseDropsInternalIDs() throws {
+        let response = try JSONDecoder().decode(RuntimeGatewayModelsResponse.self, from: Data("""
+        {"object":"list","data":[{"id":"a","owned_by":"x"},{"id":"pin-x/a","owned_by":"x"},{"id":"cc-pin-x/a"},{"id":"team-a/b"}]}
+        """.utf8))
+        XCTAssertEqual(response.data.map(\.id), ["a", "team-a/b"])
+    }
+
+    func testGroupedModelsBecomeADirectoryWithoutInternalIDs() {
+        let models = RuntimeGatewayModel.directory(fromGroupedModels: [
+            "compat-a": ["glm-5", "pin-a/glm-5"],
+            "compat-b": ["glm-5"],
+            "认证文件 / 引擎模型": ["gpt-5.5"]
+        ])
+        XCTAssertEqual(models.map(\.id), ["glm-5", "gpt-5.5"])
+        XCTAssertEqual(models.map(\.ownedBy), ["compat-a", "认证文件 / 引擎模型"])
+    }
 }

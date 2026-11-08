@@ -40,6 +40,26 @@ final class AppExperienceTests: XCTestCase {
         }
     }
 
+    func testModelsPageIsInTheGatewayGroupWithEnglishTexts() {
+        XCTAssertEqual(SectionGroup.gateway.sections, [.accessKeys, .models, .aiProviders])
+        XCTAssertEqual(AppSection.models.group, .gateway)
+        let expected = [
+            "模型列表": "Models",
+            "可用模型与测活结果": "Available models and health check results",
+            "全部测活": "Test All",
+            "测活会向上游发送真实请求并产生费用": "A health check sends real requests upstream and incurs costs",
+            "网关还没有可用模型": "The gateway has no models yet",
+            "需要升级到完整版": "Upgrade to the full edition required",
+            "Oases 网关只支持原生部署": "The Oases gateway supports native deployments only",
+            "管理密钥被拒绝，请重新验证": "Management key rejected, verify again",
+            "重新验证": "Verify Again"
+        ]
+        for (source, translation) in expected {
+            XCTAssertEqual(OasesLocalization.localized(source, language: .english), translation, source)
+        }
+        XCTAssertEqual(OasesLocalization.localizedFormat("%lld 个模型", language: .english, 3), "3 models")
+    }
+
     func testAppVersionInfoUsesBundleMarketingVersionAndBuild() {
         let version = AppVersionInfo(
             infoDictionary: [

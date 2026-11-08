@@ -131,6 +131,7 @@ final class RuntimeDataStore: ObservableObject {
     @Published private(set) var isCancellingCodexInspection = false
     @Published private(set) var codexInspectionMutatingRunID: Int64?
     @Published private(set) var isLoadingGatewayAccess = false
+    @Published private(set) var isLoadingGatewayModels = false
     @Published private(set) var isSavingGatewayAccess = false
     @Published private(set) var pluginsErrorMessage: String?
     @Published private(set) var isLoadingPlugins = false
@@ -183,6 +184,7 @@ final class RuntimeDataStore: ObservableObject {
     private var codexInspectionRunsTask: Task<Void, Never>?
     private var codexInspectionDetailTask: Task<Void, Never>?
     private var gatewayAccessTask: Task<Void, Never>?
+    private var gatewayModelsTask: Task<Void, Never>?
     private var pluginsTask: Task<Void, Never>?
     private var pluginStoreTask: Task<Void, Never>?
     private var codexInspectionMutationRevision = 0
@@ -215,6 +217,7 @@ final class RuntimeDataStore: ObservableObject {
         resetProviderConnectivity()
         authFilesTask?.cancel()
         gatewayAccessTask?.cancel()
+        gatewayModelsTask?.cancel()
         pluginsTask?.cancel()
         pluginStoreTask?.cancel()
         cpaConfigTask?.cancel()
@@ -299,6 +302,7 @@ final class RuntimeDataStore: ObservableObject {
             isCancellingCodexInspection = false
             codexInspectionMutatingRunID = nil
             isLoadingGatewayAccess = false
+            isLoadingGatewayModels = false
             isSavingGatewayAccess = false
             pluginsErrorMessage = nil
             isLoadingPlugins = false
@@ -467,11 +471,10 @@ final class RuntimeDataStore: ObservableObject {
 
     func refreshGatewayAccess(using deploymentStore: DeploymentStore) {
         gatewayAccessTask?.cancel()
+        refreshGatewayModels(using: deploymentStore)
         guard deploymentStore.stage == .attached, !deploymentStore.managementKey.isEmpty else {
             apiKeys = []
-            gatewayModels = []
             gatewayAccessErrorMessage = nil
-            gatewayModelsErrorMessage = nil
             isLoadingGatewayAccess = false
             return
         }
@@ -480,7 +483,6 @@ final class RuntimeDataStore: ObservableObject {
         let managementKey = deploymentStore.managementKey
         isLoadingGatewayAccess = true
         gatewayAccessErrorMessage = nil
-        gatewayModelsErrorMessage = nil
 
         gatewayAccessTask = Task { [weak self] in
             let client = ManagementAPIClient()
@@ -498,35 +500,88 @@ final class RuntimeDataStore: ObservableObject {
 
                 self?.apiKeys = fetchedKeys
                 self?.gatewayAccessErrorMessage = nil
-
-                do {
-                    let catalog = try await client.gatewayModels(
-                        baseURL: baseURL,
-                        apiKey: fetchedKeys.first?.value
-                    )
-                    guard !Task.isCancelled,
-                          deploymentStore.stage == .attached,
-                          deploymentStore.managementKey == managementKey else { return }
-                    self?.gatewayModels = catalog.data.sorted {
-                        $0.id.localizedCaseInsensitiveCompare($1.id) == .orderedAscending
-                    }
-                    self?.gatewayModelsErrorMessage = nil
-                } catch {
-                    guard !Task.isCancelled else { return }
-                    self?.gatewayModels = []
-                    self?.gatewayModelsErrorMessage = error.localizedDescription
-                }
-
-                if !Task.isCancelled {
-                    self?.isLoadingGatewayAccess = false
-                }
+                self?.isLoadingGatewayAccess = false
             } catch {
                 guard !Task.isCancelled else { return }
                 self?.apiKeys = []
-                self?.gatewayModels = []
                 self?.gatewayAccessErrorMessage = error.localizedDescription
-                self?.gatewayModelsErrorMessage = nil
                 self?.isLoadingGatewayAccess = false
+            }
+        }
+    }
+
+    /// The model directory. A gateway deployment reads the gateway's `groupedModels`
+    /// (`permissions/api/data`, internal `pin-x/…` ids dropped); a legacy (0.1.x) deployment reads
+    /// the engine's `/v1/models` without a client key (no client key is borrowed for it), and
+    /// `RuntimeGatewayModelsResponse` drops internal ids there too.
+    func refreshGatewayModels(using deploymentStore: DeploymentStore) {
+        gatewayModelsTask?.cancel()
+        guard deploymentStore.stage == .attached, !deploymentStore.managementKey.isEmpty else {
+            gatewayModels = []
+            gatewayModelsErrorMessage = nil
+            isLoadingGatewayModels = false
+            return
+        }
+        let managementKey = deploymentStore.managementKey
+        let topology = deploymentStore.topology
+
+        if topology == .gateway {
+            guard let client = deploymentStore.gatewayAdminClient() else {
+                gatewayModels = []
+                gatewayModelsErrorMessage = deploymentStore.gatewayAvailability == .credentialsRejected
+                    ? GatewayAdminError.unauthorized.errorDescription
+                    : nil
+                isLoadingGatewayModels = false
+                return
+            }
+            isLoadingGatewayModels = true
+            gatewayModelsErrorMessage = nil
+            gatewayModelsTask = Task { [weak self] in
+                do {
+                    let data = try await client.permissionsData()
+                    guard !Task.isCancelled, let self,
+                          deploymentStore.stage == .attached,
+                          deploymentStore.managementKey == managementKey else { return }
+                    self.gatewayModels = RuntimeGatewayModel.directory(fromGroupedModels: data.groupedModels)
+                    self.gatewayModelsErrorMessage = nil
+                    self.isLoadingGatewayModels = false
+                } catch {
+                    guard !Task.isCancelled, let self else { return }
+                    if case GatewayAdminError.unauthorized = error {
+                        // Never retried: latch the key the gateway rejected.
+                        deploymentStore.reportGatewayUnauthorized(rejectedKey: client.managementKey)
+                    }
+                    self.gatewayModels = []
+                    self.gatewayModelsErrorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                    self.isLoadingGatewayModels = false
+                }
+            }
+            return
+        }
+
+        let baseURL = deploymentStore.engineBaseURL
+        isLoadingGatewayModels = true
+        gatewayModelsErrorMessage = nil
+        gatewayModelsTask = Task { [weak self] in
+            do {
+                let catalog = try await ManagementAPIClient().gatewayModels(baseURL: baseURL, apiKey: nil)
+                guard !Task.isCancelled, let self,
+                      deploymentStore.stage == .attached,
+                      deploymentStore.managementKey == managementKey else { return }
+                self.gatewayModels = catalog.data.sorted {
+                    $0.id.localizedCaseInsensitiveCompare($1.id) == .orderedAscending
+                }
+                self.gatewayModelsErrorMessage = nil
+                self.isLoadingGatewayModels = false
+            } catch {
+                guard !Task.isCancelled, let self else { return }
+                self.gatewayModels = []
+                if case ManagementAPIError.apiKeyUnauthorized = error {
+                    self.gatewayModelsErrorMessage = OasesLocalization.localized("旧版（0.1.x）部署的引擎要求调用 Key 才能列出模型；App 不再借用调用 Key 读取模型目录。升级到 Oases 网关后可在“模型列表”查看。")
+                } else {
+                    self.gatewayModelsErrorMessage = error.localizedDescription
+                }
+                self.isLoadingGatewayModels = false
             }
         }
     }

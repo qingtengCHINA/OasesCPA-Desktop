@@ -173,7 +173,7 @@ struct SystemInfoView: View {
                     systemImage: "exclamationmark.triangle",
                     tint: .oasesOrange
                 )
-            } else if runtimeDataStore.isLoadingGatewayAccess && runtimeDataStore.gatewayModels.isEmpty {
+            } else if runtimeDataStore.isLoadingGatewayModels && runtimeDataStore.gatewayModels.isEmpty {
                 ProgressView("正在读取当前网关模型…")
                     .frame(maxWidth: .infinity, minHeight: 150)
             } else if groups.isEmpty {
@@ -207,22 +207,24 @@ struct SystemInfoView: View {
     private var modelDirectoryTitle: some View {
         CardTitle(
             title: "当前网关模型目录",
-            subtitle: "从当前 CPA 网关的 /v1/models 读取可调用模型；不会展示静态演示数据",
+            subtitle: deploymentStore.topology == .gateway
+                ? "从 Oases 网关读取模型目录（不含内部供应商 id）；不会展示静态演示数据"
+                : "从旧版部署引擎的 /v1/models 读取模型目录；不会展示静态演示数据",
             icon: "cpu"
         )
     }
 
     private var modelDirectoryRefresh: some View {
         HStack(spacing: 8) {
-            if runtimeDataStore.isLoadingGatewayAccess {
+            if runtimeDataStore.isLoadingGatewayModels {
                 ProgressView()
                     .controlSize(.small)
             }
             Button("刷新", systemImage: "arrow.clockwise") {
-                runtimeDataStore.refreshGatewayAccess(using: deploymentStore)
+                runtimeDataStore.refreshGatewayModels(using: deploymentStore)
             }
             .buttonStyle(.bordered)
-            .disabled(deploymentStore.stage != .attached || runtimeDataStore.isLoadingGatewayAccess)
+            .disabled(deploymentStore.stage != .attached || runtimeDataStore.isLoadingGatewayModels)
         }
     }
 

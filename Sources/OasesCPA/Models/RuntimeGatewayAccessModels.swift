@@ -25,7 +25,23 @@ struct RuntimeAPIKey: Identifiable, Hashable, Sendable {
 }
 
 struct RuntimeGatewayModelsResponse: Decodable, Sendable {
+    /// The engine's `/v1/models` without internal `pin-x/…` ids (the engine lists one per pinned
+    /// provider; they are never shown).
     let data: [RuntimeGatewayModel]
+
+    private enum CodingKeys: String, CodingKey {
+        case data
+    }
+
+    init(data: [RuntimeGatewayModel]) {
+        self.data = data
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        data = try container.decode([RuntimeGatewayModel].self, forKey: .data)
+            .filter { InternalModelID.publicName($0.id) == $0.id }
+    }
 }
 
 struct RuntimeGatewayModel: Decodable, Identifiable, Hashable, Sendable {
@@ -42,6 +58,15 @@ struct RuntimeGatewayModel: Decodable, Identifiable, Hashable, Sendable {
     var title: String {
         let name = displayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return name.isEmpty ? id : name
+    }
+
+    /// The model directory of a gateway deployment: the public ids of the gateway's
+    /// `groupedModels` (internal `pin-x/…` ids dropped), each owned by the first group that lists
+    /// it, sorted by id.
+    static func directory(fromGroupedModels groupedModels: [String: [String]]) -> [RuntimeGatewayModel] {
+        GatewayModelRow.rows(groupedModels: groupedModels, health: [:]).map {
+            RuntimeGatewayModel(id: $0.id, displayName: nil, ownedBy: $0.groups.first)
+        }
     }
 }
 

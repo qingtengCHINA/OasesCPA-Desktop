@@ -26,7 +26,7 @@ enum SectionGroup: String, CaseIterable, Identifiable {
         switch self {
         case .overview: [.dashboard, .usageAnalytics, .monitoring]
         case .accounts: [.authFiles, .oauth, .quota, .accountActions, .codexInspection]
-        case .gateway: [.accessKeys, .aiProviders]
+        case .gateway: [.accessKeys, .models, .aiProviders]
         case .configuration: [.config, .modelPrices, .plugins]
         case .operations: [.environments, .panel, .logs, .system]
         }
@@ -43,6 +43,7 @@ enum AppSection: String, CaseIterable, Identifiable, Hashable {
     case modelPrices
     case config
     case accessKeys
+    case models
     case aiProviders
     case plugins
     case authFiles
@@ -65,6 +66,7 @@ enum AppSection: String, CaseIterable, Identifiable, Hashable {
         case .modelPrices: OasesLocalization.localized("成本与价格")
         case .config: OasesLocalization.localized("配置面板")
         case .accessKeys: OasesLocalization.localized("调用 API Key")
+        case .models: OasesLocalization.localized("模型列表")
         case .aiProviders: OasesLocalization.localized("AI 提供商")
         case .plugins: OasesLocalization.localized("插件管理")
         case .authFiles: OasesLocalization.localized("认证文件")
@@ -87,6 +89,7 @@ enum AppSection: String, CaseIterable, Identifiable, Hashable {
         case .modelPrices: OasesLocalization.localized("成本估算与模型计价")
         case .config: OasesLocalization.localized("网关配置与运行策略")
         case .accessKeys: OasesLocalization.localized("调用地址、访问密钥与模型目录")
+        case .models: OasesLocalization.localized("可用模型与测活结果")
         case .aiProviders: OasesLocalization.localized("添加服务、读取模型并检查连接")
         case .plugins: OasesLocalization.localized("扩展能力与插件资源")
         case .authFiles: OasesLocalization.localized("账号、凭证与认证池")
@@ -109,6 +112,7 @@ enum AppSection: String, CaseIterable, Identifiable, Hashable {
         case .modelPrices: "dollarsign.arrow.circlepath"
         case .config: "slider.horizontal.3"
         case .accessKeys: "key.horizontal"
+        case .models: "cpu"
         case .aiProviders: "point.3.connected.trianglepath.dotted"
         case .plugins: "puzzlepiece.extension"
         case .authFiles: "doc.badge.gearshape"

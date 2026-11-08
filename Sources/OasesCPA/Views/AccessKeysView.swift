@@ -230,7 +230,7 @@ struct AccessKeysView: View {
             HStack(alignment: .top) {
                 CardTitle(
                     title: "当前可调用模型 ID",
-                    subtitle: "使用当前目标的第一个调用 Key 读取 `/v1/models`；这不是静态或演示目录",
+                    subtitle: "当前目标的真实模型目录（不含内部供应商 id）；这不是静态或演示目录",
                     icon: "cpu"
                 )
                 Spacer()
@@ -241,11 +241,6 @@ struct AccessKeysView: View {
 
             if deploymentStore.stage != .attached {
                 Text("连接目标后读取模型目录。")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, minHeight: 110, alignment: .center)
-            } else if runtimeDataStore.apiKeys.isEmpty && !runtimeDataStore.isLoadingGatewayAccess {
-                Text("当前目标尚无调用 Key；若网关要求鉴权，请先创建 Key 后再读取模型目录。")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 110, alignment: .center)

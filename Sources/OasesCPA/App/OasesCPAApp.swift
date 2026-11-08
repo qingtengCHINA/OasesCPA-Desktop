@@ -171,8 +171,8 @@ struct OasesCommands: Commands {
             }
             .keyboardShortcut("0", modifiers: .command)
 
-            Button("CPAMP 面板") {
-                store.selectSection(.panel)
+            Button("模型列表") {
+                store.selectSection(.models)
             }
             .keyboardShortcut("4", modifiers: .command)
 
