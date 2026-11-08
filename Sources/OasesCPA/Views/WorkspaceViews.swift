@@ -239,6 +239,9 @@ struct MonitoringView: View {
     @State private var failedOnly = false
     @State private var appliedFailedOnly = false
     @State private var range: RuntimeDashboardRange = .today
+    @State private var filterDraft = RuntimeMonitoringFilterDraft()
+    @State private var appliedFilterDraft = RuntimeMonitoringFilterDraft()
+    @State private var showsAdvancedFilters = false
     @State private var accountHistoryCatchUpConfirmationPresented = false
     @State private var retainedMonitoringEvents: [RuntimeMonitoringEvent] = []
 
@@ -254,10 +257,6 @@ struct MonitoringView: View {
                     .buttonStyle(.bordered)
                     Button("成本与价格", systemImage: "dollarsign.arrow.circlepath") {
                         store.selectSection(.modelPrices)
-                    }
-                    .buttonStyle(.bordered)
-                    Button("高级 CPAMP 面板", systemImage: "rectangle.on.rectangle") {
-                        store.selectSection(.panel)
                     }
                     .buttonStyle(.bordered)
                     StatusPill(
@@ -296,7 +295,8 @@ struct MonitoringView: View {
                             using: deploymentStore,
                             range: range,
                             searchQuery: appliedSearch,
-                            failedOnly: appliedFailedOnly
+                            failedOnly: appliedFailedOnly,
+                            filters: appliedFilters
                         )
                         runtimeDataStore.refreshMonitoringHeaderSnapshots(using: deploymentStore)
                     } label: {
@@ -306,6 +306,8 @@ struct MonitoringView: View {
                 }
                 .padding(14)
                 .oasesCard(cornerRadius: 14)
+
+                advancedFilterBar
 
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 12)], spacing: 12) {
                     ForEach(metrics) { metric in
@@ -323,7 +325,7 @@ struct MonitoringView: View {
                 } else if !isRangeLive {
                     InfoBanner(
                         title: "请求监控尚未接入目标环境",
-                        message: "连接成功后，这里显示所选范围内的 CPAMP 摘要与脱敏请求事件；原始响应和完整高级筛选仍可在 CPAMP 面板中查看。",
+                        message: "连接成功后，这里显示所选范围内的 CPAMP 摘要与脱敏请求事件，可按模型、供应商、账号、Key 指纹等高级条件筛选，并展开每个事件的原始字段。",
                         systemImage: "waveform.path.ecg",
                         tint: .oasesOrange
                     )
@@ -436,7 +438,7 @@ struct MonitoringView: View {
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
 
-                    Text("只展示 CPAMP 返回的已知事件字段；原始响应元数据、错误文件和完整高级筛选保留在 CPAMP 面板。")
+                    Text("展开事件可查看 CPAMP 返回的原始字段（凭证字段不显示）；请求错误文件在“日志查看”中下载。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -462,6 +464,7 @@ struct MonitoringView: View {
                         range: range,
                         searchQuery: appliedSearch,
                         failedOnly: appliedFailedOnly,
+                        filters: appliedFilters,
                         silently: true
                     )
                 }
@@ -499,18 +502,136 @@ struct MonitoringView: View {
     }
 
     private func applyMonitoringFilters() {
+        guard filterDraft.isValid else { return }
         appliedSearch = search.trimmingCharacters(in: .whitespacesAndNewlines)
         appliedFailedOnly = failedOnly
+        appliedFilterDraft = filterDraft
         runtimeDataStore.refreshMonitoringEvents(
             using: deploymentStore,
             range: range,
             searchQuery: appliedSearch,
-            failedOnly: appliedFailedOnly
+            failedOnly: appliedFailedOnly,
+            filters: appliedFilters
         )
     }
 
+    /// The applied filter bar as CPAMP filters; models are queried under every routing prefix.
+    private var appliedFilters: RuntimeMonitoringEventsRequest.Filters {
+        appliedFilterDraft.filters(prefixes: runtimeDataStore.openAICompatibility.map(\.prefix))
+    }
+
     private var monitoringRefreshTaskID: String {
-        "\(deploymentStore.stage.rawValue)|\(deploymentStore.cpampBaseURL.absoluteString)|\(range.rawValue)|\(appliedSearch)|\(appliedFailedOnly)|\(scenePhase == .active)"
+        "\(deploymentStore.stage.rawValue)|\(deploymentStore.cpampBaseURL.absoluteString)|\(range.rawValue)|\(appliedSearch)|\(appliedFailedOnly)|\(String(describing: appliedFilterDraft))|\(scenePhase == .active)"
+    }
+
+    private var advancedFilterBar: some View {
+        DisclosureGroup(isExpanded: $showsAdvancedFilters) {
+            VStack(alignment: .leading, spacing: Oases.Space.m) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: Oases.Space.m)], spacing: Oases.Space.m) {
+                    filterField("模型（公开名）", text: $filterDraft.model, suggestions: observedValues(\.displayModel))
+                    filterField("供应商", text: $filterDraft.provider, suggestions: observedValues(\.authProviderSnapshot))
+                    filterField("账号", text: $filterDraft.account, suggestions: observedValues(\.accountSnapshot))
+                    filterField("Key 指纹", text: $filterDraft.apiKeyHash, suggestions: observedValues(\.apiKeyHash))
+                    filterField("请求类型", text: $filterDraft.requestType, suggestions: observedValues(\.executorType))
+                    filterField("头部错误类型", text: $filterDraft.headerErrorKind, suggestions: observedValues(\.headerErrorKind))
+                    VStack(alignment: .leading, spacing: Oases.Space.xs) {
+                        Text("最小延迟（毫秒）")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        TextField("例如 500", text: $filterDraft.minLatencyText)
+                            .textFieldStyle(.roundedBorder)
+                            .monospacedDigit()
+                            .onSubmit(applyMonitoringFilters)
+                        if !filterDraft.isValid {
+                            Text("请输入不小于 0 的整数毫秒。")
+                                .font(.caption2)
+                                .foregroundStyle(Color.oasesRed)
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: Oases.Space.xs) {
+                        Text("缓存状态")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Picker("缓存状态", selection: $filterDraft.cacheStatus) {
+                            ForEach(RuntimeMonitoringFilterDraft.CacheStatus.allCases) { status in
+                                Text(status.title).tag(status)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                    }
+                }
+                HStack(spacing: Oases.Space.m) {
+                    Text("多个值用逗号分隔；模型按公开名筛选，也会匹配带路由前缀的记录。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("清除高级筛选", systemImage: "xmark.circle") {
+                        filterDraft = RuntimeMonitoringFilterDraft()
+                        applyMonitoringFilters()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(filterDraft == RuntimeMonitoringFilterDraft() && appliedFilterDraft == RuntimeMonitoringFilterDraft())
+                    Button("应用筛选", systemImage: "line.3.horizontal.decrease.circle") {
+                        applyMonitoringFilters()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!filterDraft.isValid)
+                }
+            }
+            .padding(.top, Oases.Space.sm)
+        } label: {
+            Label {
+                Text(
+                    appliedFilterDraft.activeCount > 0
+                        ? OasesLocalization.localizedFormat("高级筛选（已启用 %lld 项）", appliedFilterDraft.activeCount)
+                        : OasesLocalization.localized("高级筛选")
+                )
+            } icon: {
+                Image(systemName: "slider.horizontal.3")
+            }
+            .font(.callout.weight(.medium))
+        }
+        .padding(14)
+        .oasesCard(cornerRadius: 14)
+    }
+
+    private func filterField(_ title: String, text: Binding<String>, suggestions: [String]) -> some View {
+        VStack(alignment: .leading, spacing: Oases.Space.xs) {
+            Text(LocalizedStringKey(title))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            HStack(spacing: Oases.Space.xs) {
+                TextField(LocalizedStringKey(title), text: text)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(applyMonitoringFilters)
+                Menu {
+                    if suggestions.isEmpty {
+                        Text("已加载的事件里没有可选值")
+                    }
+                    ForEach(suggestions, id: \.self) { value in
+                        Button(value) { text.wrappedValue = value }
+                    }
+                } label: {
+                    Image(systemName: "list.bullet")
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("从已加载的事件中选择")
+                .accessibilityLabel(OasesLocalization.localizedFormat("%@ 的可选值", OasesLocalization.localized(title)))
+            }
+        }
+    }
+
+    /// Distinct non-empty values of one field among the loaded events (at most 15).
+    private func observedValues(_ field: KeyPath<RuntimeMonitoringEvent, String>) -> [String] {
+        var result: [String] = []
+        for event in runtimeDataStore.monitoringEvents {
+            let value = event[keyPath: field].trimmingCharacters(in: .whitespacesAndNewlines)
+            if !value.isEmpty, !result.contains(value) { result.append(value) }
+            if result.count == 15 { break }
+        }
+        return result.sorted()
     }
 
     private var visibleMonitoringEvents: [RuntimeMonitoringEvent] {
@@ -647,6 +768,35 @@ struct MonitoringEventRow: View {
                         MonitoringEventDetail(title: "错误摘要（已截断）", value: summary)
                     }
                 }
+
+                if !event.rawFields.isEmpty {
+                    DisclosureGroup {
+                        VStack(alignment: .leading, spacing: Oases.Space.xs) {
+                            ForEach(event.rawFields) { field in
+                                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                    Text(verbatim: field.key)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 220, alignment: .leading)
+                                        .lineLimit(2)
+                                    Text(verbatim: field.value)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .textSelection(.enabled)
+                                        .lineLimit(6)
+                                    Spacer(minLength: 0)
+                                }
+                            }
+                            Text("CPAMP 返回的全部字段；认证头、Cookie、管理密钥等凭证字段不显示，其余值中的密钥已替换成 ••••。")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.top, Oases.Space.xs)
+                    } label: {
+                        Text(OasesLocalization.localizedFormat("原始字段（%lld）", event.rawFields.count))
+                            .font(.caption.weight(.medium))
+                    }
+                }
             }
             .padding(.leading, 35)
             .padding(.top, 8)
@@ -721,7 +871,7 @@ private struct MonitoringEventDetail: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
                 .frame(width: 88, alignment: .leading)
@@ -1327,13 +1477,13 @@ struct ProvidersView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("需要完整控制？")
                             .font(.headline)
-                        Text("打开 CPAMP 查看原始配置和诊断工具。")
+                        Text("在“配置面板”的“完整 YAML”中直接编辑 config.yaml；运行日志和请求错误文件在“日志查看”。")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Button("打开高级面板", systemImage: "rectangle.on.rectangle") {
-                        store.selectSection(.panel)
+                    Button("编辑配置文件", systemImage: "doc.text") {
+                        store.selectSection(.config)
                     }
                     .buttonStyle(.bordered)
                 }
@@ -1524,10 +1674,6 @@ struct AuthFilesView: View {
                         ProgressView()
                             .controlSize(.small)
                     }
-                    Button("高级 CPAMP 面板", systemImage: "rectangle.on.rectangle") {
-                        store.selectSection(.panel)
-                    }
-                    .buttonStyle(.bordered)
                     Menu("添加", systemImage: "plus") {
                         Button("导入 JSON", systemImage: "square.and.arrow.down") {
                             importingFile = true
@@ -1563,7 +1709,7 @@ struct AuthFilesView: View {
                 } else if runtimeDataStore.authFiles.isEmpty {
                     InfoBanner(
                         title: "当前没有认证文件",
-                        message: "可以通过“添加”导入 JSON，或打开 CPAMP 面板开始 OAuth 授权。",
+                        message: "可以通过“添加”导入 JSON，或在“OAuth 登录”中完成授权。",
                         systemImage: "doc.badge.plus",
                         tint: .oasesBlue
                     )
@@ -1600,7 +1746,7 @@ struct AuthFilesView: View {
 
                 InfoBanner(
                     title: "原生操作直连 CLIProxyAPI",
-                    message: "认证文件导入、JSON 替换、下载、删除、启停，以及 OAuth 模型排除和别名规则都会直接调用当前目标的 Management API；OAuth 授权和其它高级流程仍可在 CPAMP 面板继续完成。",
+                    message: "认证文件导入、JSON 替换、下载、删除、启停，以及 OAuth 模型排除和别名规则都会直接调用当前目标的 Management API；OAuth 授权在“OAuth 登录”中完成。",
                     systemImage: "arrow.triangle.2.circlepath",
                     tint: .oasesBlue
                 )
@@ -2056,11 +2202,6 @@ struct QuotaView: View {
                         }
                     }
                 }
-
-                Button("打开 CPAMP 完整面板", systemImage: "rectangle.on.rectangle") {
-                    store.selectSection(.panel)
-                }
-                .buttonStyle(.bordered)
             }
             .padding(28)
         }

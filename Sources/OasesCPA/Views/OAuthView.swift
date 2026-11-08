@@ -140,12 +140,6 @@ struct OAuthView: View {
                 tint: flowState.tint,
                 systemImage: flowState.systemImage
             )
-
-            Button("打开 CPAMP", systemImage: "rectangle.on.rectangle") {
-                store.selectSection(.panel)
-            }
-            .buttonStyle(.oasesPrimary)
-            .disabled(deploymentStore.stage != .attached)
         }
     }
 

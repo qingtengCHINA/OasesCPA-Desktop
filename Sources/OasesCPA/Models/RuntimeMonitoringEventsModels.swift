@@ -253,10 +253,18 @@ struct RuntimeMonitoringEventsPage: Sendable {
     }
 }
 
-/// Known-safe, display-oriented fields of one CPAMP request event. Raw response
-/// metadata is intentionally not modeled here, so the native view never
-/// exposes headers or other arbitrary upstream payloads by accident.
+/// Known-safe, display-oriented fields of one CPAMP request event, plus every field the
+/// server sent as `rawFields` (credential-bearing keys dropped, values redacted, internal
+/// model heads removed) for the event detail's raw section.
 struct RuntimeMonitoringEvent: Identifiable, Equatable, Sendable {
+    /// One field of the event as CPA Manager Plus sent it; nested objects are flattened to
+    /// dotted keys (`response_headers.x-request-id`).
+    struct RawField: Identifiable, Equatable, Sendable {
+        let key: String
+        let value: String
+        var id: String { key }
+    }
+
     let eventHash: String
     let requestId: String
     let timestampMs: Int64
@@ -295,6 +303,7 @@ struct RuntimeMonitoringEvent: Identifiable, Equatable, Sendable {
     let headerErrorKind: String
     let headerErrorCode: String
     let headerTraceId: String
+    let rawFields: [RawField]
 
     var id: String { eventHash }
 
@@ -387,6 +396,84 @@ struct RuntimeMonitoringEvent: Identifiable, Equatable, Sendable {
         headerTraceId = Self.string(
             Self.value(in: values, keys: ["header_trace_id", "headerTraceId"])
         )
+        rawFields = Self.rawFields(from: values)
+    }
+
+    /// Keys whose values are credentials (headers such as `Authorization`, `X-Api-Key`,
+    /// `Cookie`, `X-Management-Key`, and secret or token fields): never shown, at any depth.
+    /// Token counts (`input_tokens`) are not credentials.
+    static func isCredentialKey(_ key: String) -> Bool {
+        let normalized = key.lowercased().replacingOccurrences(of: "-", with: "_")
+        let exact: Set<String> = [
+            "api_key", "apikey", "x_api_key", "x_goog_api_key", "management_key", "x_management_key",
+            "secret_key", "client_secret", "password", "passwd", "token", "access_token",
+            "refresh_token", "id_token", "session_token", "bearer", "credential", "credentials"
+        ]
+        if exact.contains(normalized) { return true }
+        return normalized.contains("authorization")
+            || normalized.contains("cookie")
+            || normalized.contains("secret")
+            || normalized.contains("password")
+            || normalized.hasSuffix("_api_key")
+            || normalized.hasSuffix("_token")
+    }
+
+    static let rawFieldLimit = 400
+
+    static func rawFields(from values: [String: RuntimeJSONValue]) -> [RawField] {
+        var fields: [RawField] = []
+        func visit(_ value: RuntimeJSONValue, path: String, depth: Int) {
+            guard fields.count < rawFieldLimit else { return }
+            switch value {
+            case .object(let children) where depth < 4:
+                for key in children.keys.sorted() where !isCredentialKey(key) {
+                    if let child = children[key] {
+                        visit(child, path: path.isEmpty ? key : "\(path).\(key)", depth: depth + 1)
+                    }
+                }
+            default:
+                let text = InternalModelID.publicText(SecretRedactor.redact(rawText(value), secrets: []))
+                fields.append(RawField(key: path, value: String(text.prefix(4_000))))
+            }
+        }
+        for key in values.keys.sorted() where !isCredentialKey(key) {
+            if let value = values[key] { visit(value, path: key, depth: 0) }
+        }
+        return fields.sorted { $0.key < $1.key }
+    }
+
+    /// `value` with every credential-bearing key removed at any depth.
+    private static func withoutCredentials(_ value: RuntimeJSONValue) -> RuntimeJSONValue {
+        switch value {
+        case .object(let children):
+            return .object(children.filter { !isCredentialKey($0.key) }.mapValues(withoutCredentials))
+        case .array(let items):
+            return .array(items.map(withoutCredentials))
+        default:
+            return value
+        }
+    }
+
+    private static func rawText(_ value: RuntimeJSONValue) -> String {
+        switch value {
+        case .string(let text):
+            return text
+        case .number(let number):
+            if number.isFinite, number.rounded(.towardZero) == number, abs(number) < 9.0e15 {
+                return String(Int64(number))
+            }
+            return String(number)
+        case .boolean(let flag):
+            return String(flag)
+        case .null:
+            return "null"
+        case .array, .object:
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+            guard let data = try? encoder.encode(withoutCredentials(value)),
+                  let text = String(data: data, encoding: .utf8) else { return "" }
+            return text
+        }
     }
 
     var sourceTitle: String {
@@ -493,5 +580,90 @@ struct RuntimeMonitoringEvent: Identifiable, Equatable, Sendable {
         let upperBound = 9_223_372_036_854_775_808.0
         guard rounded >= lowerBound, rounded < upperBound else { return nil }
         return Int64(rounded)
+    }
+}
+
+/// The monitoring page's advanced filter bar. Each text field takes one value or several
+/// separated by commas; a model is entered by its public name and queries every spelling it
+/// is recorded under (`pin-…/` routing prefixes). Values map one to one onto CPA Manager
+/// Plus's analytics `Filters` (`monitoring/service.go`).
+struct RuntimeMonitoringFilterDraft: Equatable, Sendable {
+    /// `cache_status` as CPA Manager Plus understands it (`usageevent/analytics.go`).
+    enum CacheStatus: String, CaseIterable, Identifiable, Sendable {
+        case any = ""
+        case hit
+        case miss
+        case read
+        case creation
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .any: OasesLocalization.localized("全部缓存状态")
+            case .hit: OasesLocalization.localized("命中缓存")
+            case .miss: OasesLocalization.localized("未命中缓存")
+            case .read: OasesLocalization.localized("读取缓存")
+            case .creation: OasesLocalization.localized("写入缓存")
+            }
+        }
+    }
+
+    var model = ""
+    var provider = ""
+    var account = ""
+    var apiKeyHash = ""
+    var requestType = ""
+    var headerErrorKind = ""
+    var minLatencyText = ""
+    var cacheStatus: CacheStatus = .any
+
+    /// Whole milliseconds, nil when the field is empty or not a non-negative whole number.
+    var minLatencyMS: Int64? {
+        let trimmed = minLatencyText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.allSatisfy({ $0.isASCII && $0.isNumber }) else { return nil }
+        return Int64(trimmed)
+    }
+
+    var isValid: Bool {
+        minLatencyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || minLatencyMS != nil
+    }
+
+    /// How many filters are set (shown on the filter button).
+    var activeCount: Int {
+        [model, provider, account, apiKeyHash, requestType, headerErrorKind]
+            .filter { !Self.values($0).isEmpty }.count
+            + ((minLatencyMS ?? 0) > 0 ? 1 : 0)
+            + (cacheStatus == .any ? 0 : 1)
+    }
+
+    func filters(prefixes: [String]) -> RuntimeMonitoringEventsRequest.Filters {
+        var filters = RuntimeMonitoringEventsRequest.Filters()
+        var models: [String] = []
+        for value in Self.values(model) {
+            for variant in InternalModelID.queryVariants(for: InternalModelID.publicName(value), prefixes: prefixes)
+            where !models.contains(variant) {
+                models.append(variant)
+            }
+        }
+        filters.models = models
+        filters.providers = Self.values(provider)
+        filters.accounts = Self.values(account)
+        filters.apiKeyHashes = Self.values(apiKeyHash)
+        filters.requestTypes = Self.values(requestType)
+        filters.headerErrorKinds = Self.values(headerErrorKind)
+        filters.minLatencyMS = minLatencyMS ?? 0
+        filters.cacheStatus = cacheStatus == .any ? nil : cacheStatus.rawValue
+        return filters
+    }
+
+    /// The comma-separated values of one field, trimmed, without empty or repeated ones.
+    static func values(_ text: String) -> [String] {
+        var result: [String] = []
+        for part in text.split(whereSeparator: { $0 == "," || $0 == "，" || $0 == "、" || $0.isNewline }) {
+            let value = String(String(part).trimmingCharacters(in: .whitespaces).prefix(256))
+            if !value.isEmpty, !result.contains(value) { result.append(value) }
+        }
+        return Array(result.prefix(20))
     }
 }

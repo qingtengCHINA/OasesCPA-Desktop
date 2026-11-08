@@ -70,12 +70,6 @@ struct PluginsView: View {
             Spacer()
 
             if deploymentStore.stage == .attached {
-                Button("打开 CPAMP 插件页", systemImage: "rectangle.on.rectangle") {
-                    store.selectSection(.panel)
-                }
-                .buttonStyle(.bordered)
-                .help("在 CPAMP 面板中安装、更新或删除插件")
-
                 Button("刷新", systemImage: "arrow.clockwise") {
                     operationErrorMessage = nil
                     runtimeDataStore.refreshPlugins(using: deploymentStore)

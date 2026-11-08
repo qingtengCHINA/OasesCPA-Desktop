@@ -1137,6 +1137,37 @@ final class RuntimeDataStore: ObservableObject {
         }
     }
 
+    /// Writes one sync candidate's price under its model. Like a manual price, the table is
+    /// re-read right before the full replacement so prices changed elsewhere are kept.
+    func adoptModelPriceCandidate(
+        _ candidate: RuntimeModelPriceCandidate,
+        for model: String,
+        using deploymentStore: DeploymentStore
+    ) async throws {
+        let (baseURL, adminKey) = try cpampManagementContext(using: deploymentStore)
+        isSavingModelPrices = true
+        modelPricesErrorMessage = nil
+        defer { isSavingModelPrices = false }
+
+        do {
+            let client = ManagementAPIClient()
+            let current = try await client.modelPrices(baseURL: baseURL, managementKey: adminKey)
+            let response = try await client.replaceModelPrices(
+                candidate.adopted(for: model, into: current.prices),
+                baseURL: baseURL,
+                managementKey: adminKey
+            )
+            guard deploymentStore.stage == .attached,
+                  deploymentStore.cpampAdminKey == adminKey else { return }
+            modelPrices = response.prices
+            modelPricesErrorMessage = nil
+            lastModelPriceSync = lastModelPriceSync?.removingCandidateSet(for: model)
+        } catch {
+            modelPricesErrorMessage = error.localizedDescription
+            throw error
+        }
+    }
+
     func deleteModelPrice(
         _ record: RuntimeModelPriceRecord,
         using deploymentStore: DeploymentStore
@@ -1704,6 +1735,7 @@ final class RuntimeDataStore: ObservableObject {
         range: RuntimeDashboardRange,
         searchQuery: String,
         failedOnly: Bool,
+        filters: RuntimeMonitoringEventsRequest.Filters = .init(),
         silently: Bool = false
     ) {
         monitoringEventsTask?.cancel()
@@ -1740,7 +1772,8 @@ final class RuntimeDataStore: ObservableObject {
         let request = RuntimeMonitoringEventsRequest(
             range: range,
             searchQuery: searchQuery,
-            failedOnly: failedOnly
+            failedOnly: failedOnly,
+            filters: filters
         )
         monitoringEventsRequest = request
 
@@ -2038,10 +2071,10 @@ final class RuntimeDataStore: ObservableObject {
     ) -> String? {
         guard page.hasMore else { return nil }
         guard let nextCursor = page.nextCursor else {
-            return OasesLocalization.localized("当前 CPAMP 返回了更多事件，但没有提供稳定的双字段分页游标；为避免跳过或重复记录，App 只显示当前批次。请升级目标服务或在 CPAMP 面板中继续查看。")
+            return OasesLocalization.localized("当前 CPAMP 返回了更多事件，但没有提供稳定的双字段分页游标；为避免跳过或重复记录，App 只显示当前批次。请升级目标服务，或缩小时间范围、加上筛选条件后再查看。")
         }
         guard nextCursor != previousCursor else {
-            return OasesLocalization.localized("当前 CPAMP 重复返回了同一分页游标；为避免重复加载，App 已停止继续翻页。请在 CPAMP 面板中查看完整记录。")
+            return OasesLocalization.localized("当前 CPAMP 重复返回了同一分页游标；为避免重复加载，App 已停止继续翻页。请缩小时间范围或加上筛选条件后再查看。")
         }
         return nil
     }

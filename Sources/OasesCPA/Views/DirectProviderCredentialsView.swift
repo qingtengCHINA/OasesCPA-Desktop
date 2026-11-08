@@ -87,7 +87,7 @@ struct DirectProviderCredentialsCard: View {
                 ContentUnavailableView {
                     Label(OasesLocalization.localizedFormat("尚未配置 %@ 凭证", selectedKind.title), systemImage: "key")
                 } description: {
-                    Text("添加后会直接写入当前目标 CLIProxyAPI，不依赖 Oases dev 或浏览器面板。")
+                    Text("添加后会直接写入当前目标 CLIProxyAPI。")
                 } actions: {
                     Button(OasesLocalization.localizedFormat("添加 %@ 凭证", selectedKind.title), systemImage: "plus") {
                         editorTarget = DirectProviderEditorTarget(kind: selectedKind, credential: nil)

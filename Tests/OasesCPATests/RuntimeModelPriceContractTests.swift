@@ -123,6 +123,60 @@ final class RuntimeModelPriceContractTests: XCTestCase {
         XCTAssertEqual(response.sourceResults[1].error, "partial")
     }
 
+    func testPriceSyncKeepsCandidateSets() throws {
+        // `modelprice.SyncResult.candidates` of CPA Manager Plus v1.14.10 (`service.go`).
+        let data = Data(
+            #"""
+            {
+              "source": "models.dev",
+              "imported": 1,
+              "skipped": 0,
+              "prices": {"gpt-5": {"prompt": 1.25, "completion": 10, "source": "models.dev"}},
+              "candidates": [
+                {
+                  "model": "pin-openrouter-2/glm-5",
+                  "candidates": [
+                    {"sourceModelId": "zhipu/glm-5", "score": 0.82, "reason": "fuzzy name",
+                     "price": {"prompt": 0.6, "completion": 2.2, "source": "openrouter", "sourceModelId": "zhipu/glm-5", "future": 1}},
+                    {"sourceModelId": "pin-x/glm-5-air", "score": 0.4, "reason": "family",
+                     "price": {"prompt": 0.2, "completion": 1.1, "source": "litellm"}}
+                  ]
+                },
+                {"model": "empty-model", "candidates": []}
+              ],
+              "unmatched": ["mystery"]
+            }
+            """#.utf8
+        )
+        let response = try JSONDecoder().decode(RuntimeModelPriceSyncResponse.self, from: data)
+        XCTAssertEqual(response.candidateSetCount, 2)
+        XCTAssertEqual(response.candidateSets.last?.candidates, [], "a set without candidates is kept, with nothing to adopt")
+        let set = try XCTUnwrap(response.candidateSets.first)
+        XCTAssertEqual(set.model, "pin-openrouter-2/glm-5")
+        XCTAssertEqual(set.displayModel, "glm-5")
+        XCTAssertEqual(set.candidates.map(\.sourceModelID), ["zhipu/glm-5", "pin-x/glm-5-air"])
+        XCTAssertEqual(set.candidates.map(\.displaySourceModelID), ["zhipu/glm-5", "glm-5-air"])
+        XCTAssertEqual(set.candidates.first?.score, 0.82)
+        XCTAssertEqual(set.candidates.first?.reason, "fuzzy name")
+        XCTAssertEqual(set.candidates.first?.price.prompt, 0.6)
+        XCTAssertEqual(set.candidates.first?.price.values["future"], .number(1), "the candidate's price is kept whole")
+
+        // Adopting writes the candidate's price under the set's model and keeps every other price.
+        let current: [String: RuntimeModelPricePayload] = [
+            "gpt-5": RuntimeModelPricePayload(values: ["prompt": .number(1.25)]),
+            "pin-openrouter-2/glm-5": RuntimeModelPricePayload(values: ["prompt": .number(9)])
+        ]
+        let merged = try XCTUnwrap(set.candidates.first).adopted(for: set.model, into: current)
+        XCTAssertEqual(merged["gpt-5"], current["gpt-5"])
+        XCTAssertEqual(merged["pin-openrouter-2/glm-5"], set.candidates.first?.price)
+        XCTAssertEqual(merged.count, 2)
+
+        // After adopting, the set is gone from the shown result.
+        let remaining = response.removingCandidateSet(for: set.model)
+        XCTAssertEqual(remaining.candidateSets.map(\.model), ["empty-model"])
+        XCTAssertEqual(remaining.candidateSetCount, 1)
+    }
+
     func testDraftValidationRejectsInvalidValuesAndAcceptsExplicitZero() {
         XCTAssertNotNil(RuntimeModelPriceDraft(prompt: "1").validationMessage)
 

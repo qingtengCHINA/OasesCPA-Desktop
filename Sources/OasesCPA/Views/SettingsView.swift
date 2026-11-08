@@ -119,8 +119,8 @@ struct SettingsView: View {
                         .font(.system(.caption, design: .monospaced))
                 }
 
-                LabeledContent("CPAMP 面板") {
-                    Text(deploymentStore.localPanelURL)
+                LabeledContent("CPA Manager Plus") {
+                    Text(deploymentStore.cpampManagementURL)
                         .font(.system(.caption, design: .monospaced))
                 }
 

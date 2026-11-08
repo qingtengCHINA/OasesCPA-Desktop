@@ -261,6 +261,13 @@ final class DeploymentStore: ObservableObject {
             : OasesLocalization.localized("SSH 隧道建立后使用本机回环地址")
     }
 
+    /// CPA Manager Plus (usage analytics and monitoring backend), as reached from this Mac.
+    var cpampManagementURL: String {
+        targetKind == .local || tunnelAttached
+            ? endpoints.cpampBaseURL.absoluteString
+            : OasesLocalization.localizedFormat("SSH 隧道建立后使用本机 %lld 端口", endpoints.cpampBaseURL.port ?? DeploymentPorts.cpamp)
+    }
+
     var cpaManagementURL: String {
         targetKind == .local || tunnelAttached
             ? endpoints.engineBaseURL.absoluteString

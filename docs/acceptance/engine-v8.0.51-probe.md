@@ -92,6 +92,33 @@ What the app does with this:
   `.managerConfigConflict`; other 409s (for example `connection_env_managed`) stay server errors.
   UNVERIFIED against a running CPA Manager Plus (Task 23's drill).
 
+## Task 21: request-error files
+
+Same probe engine (run 2026-11-08). The list was first empty; two synthetic files were then
+placed in the engine's log directory (`<scratch>/probe-engine/auths/logs`, the engine's fallback
+when no writable `logs` directory exists next to its working directory), plus a `main.log`:
+
+| Request | Status | Answer | Conclusion |
+|---|---|---|---|
+| `GET /v0/management/request-error-logs` (no files) | 200 | `{"files":[]}` | Empty list is a normal state. |
+| `GET …/request-error-logs` (two `error-*.log`, one `main.log`) | 200 | `{"files":[{"name":"error-probe sample.log","size":25,"modified":1794120387},{"name":"error-v1-chat-completions-probe.log","size":17,"modified":1794120387}]}` | `modified` is Unix seconds; only `error-*.log` names are listed (newest first per the source). `RequestErrorLogsContractTests` uses this shape with made-up names. |
+| `GET …/request-error-logs/error-probe%20sample.log` | 200 | `Content-Type: text/plain; charset=utf-8`, `Content-Disposition: attachment; filename="error-probe sample.log"`, `Accept-Ranges: bytes`, `Last-Modified`; body = the file | The name is one percent-encoded path segment. |
+| `GET …/request-error-logs/main.log` | 404 | `{"error":"log file not found"}` | Names outside `error-*.log` are refused (the app refuses them before any request). |
+| `GET …/request-error-logs/error-missing.log` | 404 | `{"error":"log file not found"}` | |
+| `GET …/request-error-logs/..%2Fconfig.yaml` | 404 | empty body | Traversal is refused by the router. |
+| `PATCH /v0/management/request-log {"value":true}`, then the list | 200, 200 | `{"status":"ok"}`, `{"files":[]}` | With request logging on, the list is always empty (the engine keeps full request logs instead); restored with `{"value":false}`. |
+
+The app lists the files on the logs page and saves a download to a place the user picks, after
+masking every key shape and the target's own keys and removing internal `pin-…/` model heads
+(`RuntimeRequestErrorLogFiles.redactedContents`). Full per-request logs
+(`/v0/management/request-log-by-id/:id`, only while request logging is on) were a web-panel
+extra and are not offered natively.
+
+The probe engine first ran with the caller's working directory (the engine falls back to
+`auth-dir/logs` only when `./logs` is missing or not writable); `start_probe_engine.sh` now
+changes into its work directory before it starts the engine, so it never writes next to the
+repository. Re-run after the change: the engine's working directory was `<scratch>/probe-engine`.
+
 ## Open items
 
 - **CPA Manager Plus prices usage events by `coalesce(nullif(resolved_model, ''), model)`**
@@ -115,6 +142,4 @@ What the app does with this:
 - **Privacy:** the engine's usage-queue records carry the client API key in plaintext
   (`api_key`) and the upstream credential in `source`; CPA Manager Plus masks `source` when it
   imports. `GET /v0/management/config` leaves out `remote-management`.
-- **Not measured yet:** the request-error log endpoints (`/v0/management/request-error-logs`,
-  Task 21); until they are measured, Task 21 lists and downloads only through the routes in
-  `server_management.go` and tolerates unknown fields.
+- **Request-error files** were measured for Task 21 (section above).

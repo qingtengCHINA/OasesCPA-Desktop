@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct ModelPricesView: View {
-    @EnvironmentObject private var appStore: AppStore
     @EnvironmentObject private var deploymentStore: DeploymentStore
     @EnvironmentObject private var runtimeDataStore: RuntimeDataStore
 
@@ -91,10 +90,6 @@ struct ModelPricesView: View {
                         ProgressView()
                             .controlSize(.small)
                     }
-                    Button("高级 CPAMP 面板", systemImage: "rectangle.on.rectangle") {
-                        appStore.selectSection(.panel)
-                    }
-                    .buttonStyle(.bordered)
                     Button("刷新", systemImage: "arrow.clockwise") {
                         runtimeDataStore.refreshModelPrices(using: deploymentStore)
                     }
@@ -602,6 +597,16 @@ private struct ModelPriceEditorView: View {
 
 private struct ModelPriceSyncResultCard: View {
     let result: RuntimeModelPriceSyncResponse
+    @EnvironmentObject private var deploymentStore: DeploymentStore
+    @EnvironmentObject private var runtimeDataStore: RuntimeDataStore
+    @State private var pendingAdoption: PendingAdoption?
+    @State private var adoptionError: String?
+
+    private struct PendingAdoption: Identifiable {
+        let model: String
+        let candidate: RuntimeModelPriceCandidate
+        var id: String { model + "\u{0}" + candidate.id }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -622,7 +627,7 @@ private struct ModelPriceSyncResultCard: View {
                 }
             }
 
-            Text(OasesLocalization.localized(summary))
+            Text(summary)
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -639,19 +644,108 @@ private struct ModelPriceSyncResultCard: View {
             }
 
             if result.candidateSetCount > 0 || !result.unmatchedModels.isEmpty {
-                Text("候选或未匹配模型未被自动写入，避免把不确定的公开价格错误套用到成本估算。可在高级 CPAMP 面板复核候选后再确认。")
+                Text("候选或未匹配模型未被自动写入，避免把不确定的公开价格错误套用到成本估算。核对下面的候选后，可逐个采用。")
                     .font(.caption)
                     .foregroundStyle(Color.oasesOrange)
+            }
+
+            ForEach(result.candidateSets) { set in
+                candidateSetView(set)
+            }
+
+            if let adoptionError {
+                Label(adoptionError, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(Color.oasesRed)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(20)
         .oasesCard()
+        .confirmationDialog(
+            pendingAdoption.map {
+                OasesLocalization.localizedFormat("采用 %@ 作为 %@ 的价格？", $0.candidate.displaySourceModelID, InternalModelID.publicName($0.model))
+            } ?? "",
+            isPresented: Binding(
+                get: { pendingAdoption != nil },
+                set: { if !$0 { pendingAdoption = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: pendingAdoption
+        ) { pending in
+            Button("采用") { adopt(pending) }
+            Button("取消", role: .cancel) {}
+        } message: { _ in
+            Text("会替换该模型当前的价格。其它模型价格会在保存前重新读取后保留。")
+        }
+    }
+
+    @ViewBuilder
+    private func candidateSetView(_ set: RuntimeModelPriceCandidateSet) -> some View {
+        VStack(alignment: .leading, spacing: Oases.Space.sm) {
+            Text(verbatim: set.displayModel)
+                .font(.system(.callout, design: .monospaced).weight(.semibold))
+            if set.candidates.isEmpty {
+                Text("没有可采用的候选。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(set.candidates) { candidate in
+                HStack(spacing: Oases.Space.m) {
+                    VStack(alignment: .leading, spacing: Oases.Space.xs) {
+                        Text(verbatim: candidate.displaySourceModelID)
+                            .font(.system(.caption, design: .monospaced))
+                        Text(verbatim: candidateDetail(candidate))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("采用", systemImage: "checkmark.circle") {
+                        adoptionError = nil
+                        pendingAdoption = PendingAdoption(model: set.model, candidate: candidate)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(runtimeDataStore.isSavingModelPrices || deploymentStore.stage != .attached)
+                }
+            }
+        }
+        .padding(Oases.Space.m)
+        .background(Oases.Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: Oases.Radius.panel, style: .continuous))
+    }
+
+    private func candidateDetail(_ candidate: RuntimeModelPriceCandidate) -> String {
+        var parts = [
+            OasesLocalization.localizedFormat("输入 %@", candidate.price.prompt.formatted()),
+            OasesLocalization.localizedFormat("输出 %@", candidate.price.completion.formatted()),
+            OasesLocalization.localizedFormat("匹配度 %@", candidate.score.formatted(.percent.precision(.fractionLength(0))))
+        ]
+        if !candidate.price.source.isEmpty {
+            parts.append(OasesLocalization.localizedFormat("来源 %@", candidate.price.source))
+        }
+        if !candidate.reason.isEmpty {
+            parts.append(InternalModelID.publicText(candidate.reason))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private func adopt(_ pending: PendingAdoption) {
+        Task {
+            do {
+                try await runtimeDataStore.adoptModelPriceCandidate(
+                    pending.candidate,
+                    for: pending.model,
+                    using: deploymentStore
+                )
+            } catch {
+                adoptionError = error.localizedDescription
+            }
+        }
     }
 
     private var summary: String {
         var parts = [OasesLocalization.localizedFormat("同步 %@", result.sources.isEmpty ? OasesLocalization.localized("公开目录") : result.sources.joined(separator: "、"))]
         if result.proxyUsed {
-            parts.append("使用目标代理")
+            parts.append(OasesLocalization.localized("使用目标代理"))
         }
         if result.candidateSetCount > 0 {
             parts.append(OasesLocalization.localizedFormat("%lld 组候选待核对", result.candidateSetCount))

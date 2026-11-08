@@ -10,6 +10,7 @@ enum ManagementAPIError: LocalizedError {
     case invalidOAuthModelPolicyChannel
     case invalidAccountActionCandidateID
     case invalidCodexInspectionRunID
+    case invalidRequestErrorLogName
     case restartRequired(message: String)
     /// `PUT config.yaml` answered 412/428: the file changed since it was read (only possible
     /// when the engine sent an `ETag`; v8.0.51 sends none, so its writes are last-writer-wins).
@@ -23,7 +24,7 @@ enum ManagementAPIError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidURL:
-            return OasesLocalization.localized("管理面板地址无效。")
+            return OasesLocalization.localized("管理地址无效。")
         case .unauthorized:
             return OasesLocalization.localized("当前目标的管理密钥无效或已失效。")
         case .apiKeyUnauthorized:
@@ -40,6 +41,8 @@ enum ManagementAPIError: LocalizedError {
             return OasesLocalization.localized("账号待办标识无效。")
         case .invalidCodexInspectionRunID:
             return OasesLocalization.localized("凭证健康巡检运行标识无效。")
+        case .invalidRequestErrorLogName:
+            return OasesLocalization.localized("请求错误文件名无效。")
         case .restartRequired(let message):
             let detail = message.trimmingCharacters(in: .whitespacesAndNewlines)
             return detail.isEmpty
@@ -851,6 +854,39 @@ struct ManagementAPIClient {
         guard let value = response.value(forHTTPHeaderField: "ETag")?
             .trimmingCharacters(in: .whitespaces), !value.isEmpty else { return nil }
         return value
+    }
+
+    /// The engine's request-error files (`GET /v0/management/request-error-logs`).
+    func requestErrorLogs(baseURL: URL, managementKey: String) async throws -> [RuntimeRequestErrorLog] {
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            throw ManagementAPIError.invalidURL
+        }
+        components.path = RuntimeRequestErrorLogFiles.listPath
+        components.queryItems = nil
+        guard let url = components.url else { throw ManagementAPIError.invalidURL }
+        let response: RuntimeRequestErrorLogsResponse = try await get(url: url, managementKey: managementKey)
+        return response.files
+    }
+
+    /// One request-error file as the engine stores it (`GET …/request-error-logs/<name>`). The
+    /// caller masks secrets before the bytes go anywhere (`RuntimeRequestErrorLogFiles`).
+    func downloadRequestErrorLog(name: String, baseURL: URL, managementKey: String) async throws -> Data {
+        guard let path = RuntimeRequestErrorLogFiles.downloadPath(for: name) else {
+            throw ManagementAPIError.invalidRequestErrorLogName
+        }
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            throw ManagementAPIError.invalidURL
+        }
+        components.percentEncodedPath = path
+        components.queryItems = nil
+        guard let url = components.url else { throw ManagementAPIError.invalidURL }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 30
+        request.setValue("Bearer \(managementKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("text/plain, application/octet-stream;q=0.9, */*;q=0.8", forHTTPHeaderField: "Accept")
+        return try await performData(request)
     }
 
     func downloadAuthFile(

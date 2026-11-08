@@ -308,7 +308,7 @@ struct ConnectionCenterView: View {
             title: "CLIProxyAPI",
             value: String(deploymentStore.endpoints.engineBaseURL.port ?? DeploymentPorts.legacyEngine)
         )
-        DeploymentChoiceFact(title: "CPAMP 面板", value: String(DeploymentPorts.cpamp))
+        DeploymentChoiceFact(title: "CPA Manager Plus", value: String(DeploymentPorts.cpamp))
     }
 
     private var deploymentCard: some View {
@@ -536,16 +536,11 @@ struct ConnectionCenterView: View {
         VStack(alignment: .leading, spacing: 12) {
             CardTitle(
                 title: "当前目标管理",
-                subtitle: "停止服务、打开高级面板或解除目标绑定",
+                subtitle: "停止服务或解除目标绑定",
                 icon: "wrench.and.screwdriver"
             )
             HStack {
                 if deploymentStore.stage == .attached {
-                    Button("打开 CPAMP 面板", systemImage: "rectangle.portrait.and.arrow.right") {
-                        deploymentStore.openPanel()
-                    }
-                    .buttonStyle(.bordered)
-
                     Button("停止服务", systemImage: "stop.circle") {
                         confirmStop = true
                     }

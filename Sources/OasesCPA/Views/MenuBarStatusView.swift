@@ -38,9 +38,9 @@ struct MenuBarStatusView: View {
 
         if deploymentStore.stage == .attached {
             Button {
-                openSection(.panel)
+                openSection(.monitoring)
             } label: {
-                Label("打开 CPAMP 面板", systemImage: AppSection.panel.systemImage)
+                Label("请求监控", systemImage: AppSection.monitoring.systemImage)
             }
         }
 

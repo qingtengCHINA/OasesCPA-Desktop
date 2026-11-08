@@ -140,7 +140,10 @@ start() {
   chmod 600 "$WORK/config.yaml"
   key=""
 
-  # The environment is built from scratch: no inherited proxy, HOME or credentials.
+  # The environment is built from scratch: no inherited proxy, HOME or credentials. The engine
+  # resolves its relative `logs` directory against its working directory, so it runs inside the
+  # work directory (never the caller's, for example the repository).
+  cd "$WORK" || fail "cannot enter $WORK"
   nohup env -i \
     PATH=/usr/bin:/bin:/usr/sbin:/sbin \
     HOME="$WORK/home" \

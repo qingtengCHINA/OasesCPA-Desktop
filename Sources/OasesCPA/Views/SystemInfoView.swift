@@ -57,11 +57,6 @@ struct SystemInfoView: View {
                 modelDirectoryCard
 
                 HStack(spacing: 12) {
-                    Button("打开 CPAMP 面板", systemImage: "rectangle.on.rectangle") {
-                        store.selectSection(.panel)
-                    }
-                    .buttonStyle(.oasesPrimary)
-
                     Button("前往连接与部署", systemImage: "arrow.triangle.branch") {
                         store.selectSection(.environments)
                     }
@@ -111,7 +106,7 @@ struct SystemInfoView: View {
                 )
                 QuickLinkButton(
                     title: "CPA-Manager-Plus",
-                    subtitle: "管理面板项目",
+                    subtitle: "用量统计与请求监控后端",
                     systemImage: "rectangle.on.rectangle",
                     url: URL(string: "https://github.com/seakee/CPA-Manager-Plus")!
                 )

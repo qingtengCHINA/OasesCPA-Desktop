@@ -171,6 +171,89 @@ final class RuntimeMonitoringEventsContractTests: XCTestCase {
         XCTAssertNil(page.nextCursor)
     }
 
+    func testRawFieldsDropCredentialHeaders() throws {
+        let clientKey = "sk-" + String(repeating: "q", count: 30)
+        let event = try XCTUnwrap(RuntimeMonitoringEvent(value: .object([
+            "event_hash": .string("evt-1"),
+            "model": .string("pin-openrouter-2/gpt-4o"),
+            "latency_ms": .number(812),
+            "authorization": .string("Bearer \(clientKey)"),
+            "x-api-key": .string(clientKey),
+            "Cookie": .string("session=abc"),
+            "x-management-key": .string("cpa_" + String(repeating: "0", count: 64)),
+            "input_tokens": .number(12),
+            "response_headers": .object([
+                "Set-Cookie": .string("a=b"),
+                "x-request-id": .string("req-42"),
+                "proxy-authorization": .string("Basic Zm9v")
+            ]),
+            "fail_summary": .string("upstream echoed \(clientKey)"),
+            "tags": .array([.string("a"), .number(2)])
+        ])))
+        let fields = Dictionary(uniqueKeysWithValues: event.rawFields.map { ($0.key, $0.value) })
+        for dropped in ["authorization", "x-api-key", "Cookie", "x-management-key", "response_headers.Set-Cookie", "response_headers.proxy-authorization"] {
+            XCTAssertNil(fields[dropped], dropped)
+        }
+        XCTAssertEqual(fields["event_hash"], "evt-1")
+        XCTAssertEqual(fields["latency_ms"], "812")
+        XCTAssertEqual(fields["input_tokens"], "12", "token counts are not credentials")
+        XCTAssertEqual(fields["response_headers.x-request-id"], "req-42")
+        XCTAssertEqual(fields["model"], "gpt-4o", "internal pin- heads are never shown")
+        XCTAssertEqual(fields["tags"], #"["a",2]"#)
+        let summary = try XCTUnwrap(fields["fail_summary"])
+        XCTAssertFalse(summary.contains(clientKey), "values pass the secret redactor")
+        XCTAssertTrue(summary.contains(SecretRedactor.mask))
+        XCTAssertEqual(event.rawFields.map(\.key), event.rawFields.map(\.key).sorted(), "sorted by key")
+    }
+
+    func testAdvancedMonitoringFiltersBuildRequest() throws {
+        var draft = RuntimeMonitoringFilterDraft()
+        draft.provider = "openai-compatible-mock"
+        draft.requestType = "OpenAICompatExecutor"
+        draft.minLatencyText = "500"
+        draft.cacheStatus = .hit
+        draft.model = "gpt-4o"
+        draft.account = " ops-account-1 , 另一个账号 "
+        draft.apiKeyHash = "f1e2d3"
+        draft.headerErrorKind = "rate_limit"
+        XCTAssertTrue(draft.isValid)
+        XCTAssertEqual(draft.activeCount, 8)
+
+        let request = RuntimeMonitoringEventsRequest(
+            range: .today,
+            now: Date(timeIntervalSince1970: 1_735_689_600),
+            searchQuery: "",
+            failedOnly: false,
+            filters: draft.filters(prefixes: ["pin-mock"])
+        )
+        let filters = try XCTUnwrap(try jsonObject(for: request)["filters"] as? [String: Any])
+        XCTAssertEqual(filters["providers"] as? [String], ["openai-compatible-mock"])
+        XCTAssertEqual(filters["request_types"] as? [String], ["OpenAICompatExecutor"])
+        XCTAssertEqual(filters["min_latency_ms"] as? Int, 500)
+        XCTAssertEqual(filters["cache_status"] as? String, "hit")
+        XCTAssertEqual(filters["models"] as? [String], ["gpt-4o", "pin-mock/gpt-4o"], "a public name queries every spelling")
+        XCTAssertEqual(filters["accounts"] as? [String], ["ops-account-1", "另一个账号"])
+        XCTAssertEqual(filters["api_key_hashes"] as? [String], ["f1e2d3"])
+        XCTAssertEqual(filters["header_error_kinds"] as? [String], ["rate_limit"])
+        XCTAssertEqual(filters["failed_only"] as? Bool, false)
+
+        // An internal spelling typed by hand is folded to its public name first.
+        draft = RuntimeMonitoringFilterDraft()
+        draft.model = "pin-mock/gpt-4o"
+        XCTAssertEqual(draft.filters(prefixes: ["pin-mock"]).models, ["gpt-4o", "pin-mock/gpt-4o"])
+
+        // Nothing chosen: nothing but failed_only is sent; a bad latency is refused.
+        let empty = RuntimeMonitoringEventsRequest(range: .today, searchQuery: "", failedOnly: true, filters: RuntimeMonitoringFilterDraft().filters(prefixes: []))
+        let emptyFilters = try XCTUnwrap(try jsonObject(for: empty)["filters"] as? [String: Any])
+        XCTAssertEqual(Set(emptyFilters.keys), ["failed_only"])
+        draft.minLatencyText = "-3"
+        XCTAssertFalse(draft.isValid)
+        draft.minLatencyText = "1.5"
+        XCTAssertFalse(draft.isValid)
+        draft.minLatencyText = ""
+        XCTAssertTrue(draft.isValid)
+    }
+
     private func jsonObject<T: Encodable>(for value: T) throws -> [String: Any] {
         let data = try JSONEncoder().encode(value)
         return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])

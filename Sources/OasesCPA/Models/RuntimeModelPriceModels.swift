@@ -171,13 +171,71 @@ struct RuntimeModelPriceSyncSourceResult: Equatable, Sendable {
     }
 }
 
+/// One public price the sync could not match with certainty (`modelprice.SyncCandidate`).
+struct RuntimeModelPriceCandidate: Identifiable, Equatable, Sendable {
+    let sourceModelID: String
+    let score: Double
+    let reason: String
+    /// The price as CPA Manager Plus would store it (kept whole, unknown fields included).
+    let price: RuntimeModelPricePayload
+
+    var id: String { sourceModelID }
+    var displaySourceModelID: String { InternalModelID.publicName(sourceModelID) }
+
+    init?(value: RuntimeJSONValue) {
+        guard case .object(let object) = value,
+              case .string(let sourceModelID) = object["sourceModelId"],
+              case .object(let price) = object["price"] else { return nil }
+        self.sourceModelID = sourceModelID
+        if case .number(let score) = object["score"], score.isFinite {
+            self.score = score
+        } else {
+            score = 0
+        }
+        if case .string(let reason) = object["reason"] {
+            self.reason = reason
+        } else {
+            reason = ""
+        }
+        self.price = RuntimeModelPricePayload(values: price)
+    }
+
+    /// `current` with this candidate's price stored under `model`; every other price unchanged.
+    func adopted(for model: String, into current: [String: RuntimeModelPricePayload]) -> [String: RuntimeModelPricePayload] {
+        var merged = current
+        merged[model] = price
+        return merged
+    }
+}
+
+/// The candidates for one model (`modelprice.SyncCandidateSet`).
+struct RuntimeModelPriceCandidateSet: Identifiable, Equatable, Sendable {
+    let model: String
+    let candidates: [RuntimeModelPriceCandidate]
+
+    var id: String { model }
+    var displayModel: String { InternalModelID.publicName(model) }
+
+    init?(value: RuntimeJSONValue) {
+        guard case .object(let object) = value,
+              case .string(let model) = object["model"], !model.isEmpty else { return nil }
+        self.model = model
+        if case .array(let items) = object["candidates"] {
+            candidates = items.compactMap(RuntimeModelPriceCandidate.init(value:))
+        } else {
+            candidates = []
+        }
+    }
+}
+
 struct RuntimeModelPriceSyncResponse: Decodable, Sendable {
     let prices: [String: RuntimeModelPricePayload]
     let imported: Int
     let skipped: Int
     let source: String?
     let sources: [String]
-    let candidateSetCount: Int
+    private(set) var candidateSets: [RuntimeModelPriceCandidateSet]
+    var candidateSetCount: Int { candidateSets.count }
     let unmatchedModels: [String]
     let preservedModels: [String]
     let proxyUsed: Bool
@@ -202,9 +260,9 @@ struct RuntimeModelPriceSyncResponse: Decodable, Sendable {
         }
         sources = Self.strings(root["sources"])
         if case .array(let candidates) = root["candidates"] {
-            candidateSetCount = candidates.count
+            candidateSets = candidates.compactMap(RuntimeModelPriceCandidateSet.init(value:))
         } else {
-            candidateSetCount = 0
+            candidateSets = []
         }
         unmatchedModels = Self.strings(root["unmatched"])
         preservedModels = Self.strings(root["preserved"])
@@ -218,6 +276,13 @@ struct RuntimeModelPriceSyncResponse: Decodable, Sendable {
         } else {
             sourceResults = []
         }
+    }
+
+    /// This result without the candidates of `model` (after one of them was adopted).
+    func removingCandidateSet(for model: String) -> RuntimeModelPriceSyncResponse {
+        var copy = self
+        copy.candidateSets.removeAll { $0.model == model }
+        return copy
     }
 
     private static func integer(_ value: RuntimeJSONValue?) -> Int {

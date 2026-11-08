@@ -224,7 +224,7 @@ private struct WelcomeMapPage: View {
                 Text("三件事，先记清楚")
                     .font(.largeTitle.bold())
 
-                Text("Oases CPA 是控制面。它不替代网关，也不替代管理面板。")
+                Text("Oases CPA 是控制面。它不替代网关，也不替代用量统计后端。")
                     .font(.title3)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -262,10 +262,10 @@ private struct WelcomeMapPage: View {
                 detail: "对外提供通用兼容 /v1，默认 :\(DeploymentPorts.gatewayAPI)。"
             ),
             WelcomeMapCard(
-                id: "panel",
+                id: "usage",
                 symbol: "switch.2",
-                title: "管理面板",
-                detail: "签发密钥、看用量、管 Provider。"
+                title: "用量与监控后端",
+                detail: "CPA Manager Plus 记录用量和请求事件，App 原生展示。"
             ),
         ]
     }
@@ -472,7 +472,7 @@ private struct WelcomeHeroDiagram: View {
 
             VStack(spacing: 8) {
                 WelcomeRuntimeRow(dot: Color.accentColor, name: WelcomeRuntimeLabels.apiRowName(topology: topology), meta: ":\(DeploymentPorts.gatewayAPI) /v1")
-                WelcomeRuntimeRow(dot: Color.accentColor.opacity(0.55), name: "CPA Manager Plus", meta: "panel")
+                WelcomeRuntimeRow(dot: Color.accentColor.opacity(0.55), name: "CPA Manager Plus", meta: ":\(DeploymentPorts.cpamp)")
             }
             .padding(14)
             .background(

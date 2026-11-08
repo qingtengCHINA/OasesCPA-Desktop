@@ -310,7 +310,7 @@ struct AuthFilesWorkbenchView: View {
             ContentUnavailableView(
                 workbench.files.isEmpty ? "暂无认证文件" : "没有匹配结果",
                 systemImage: workbench.files.isEmpty ? "doc.badge.plus" : "line.3.horizontal.decrease.circle",
-                description: Text(workbench.files.isEmpty ? "可以从“更多”导入 JSON，或先在 CPAMP 面板完成 OAuth 登录。" : "试试清空搜索词或切换状态筛选。")
+                description: Text(workbench.files.isEmpty ? "可以从“更多”导入 JSON，或先在“OAuth 登录”中完成授权。" : "试试清空搜索词或切换状态筛选。")
             )
             .frame(maxWidth: .infinity, minHeight: 260)
         } else {
