@@ -1,0 +1,359 @@
+import XCTest
+@testable import OasesCPA
+
+/// The native and Docker upgrade and rollback scripts, run for real with `/bin/bash` against
+/// deployments under `$OASES_SCRATCH` laid out by the real install script (or by hand, for the
+/// app 0.1.x layout) with fake packages and fake tools (`FakeArtifacts`): no network, no real
+/// binaries, no listening sockets, a scratch HOME.
+final class UpgradeScriptTests: XCTestCase {
+    private var startedRoots: [(FakeArtifacts, URL)] = []
+
+    override func tearDown() {
+        for (fake, root) in startedRoots { fake.stopProcesses(under: root) }
+        startedRoots.removeAll()
+        super.tearDown()
+    }
+
+    // MARK: - Helpers
+
+    private let maintenance = DeploymentMaintenanceService()
+
+    /// A gateway deployment installed and started by the real install script.
+    private func installed(_ caseName: String, extraEnvironment: [String: String] = [:]) throws -> (FakeArtifacts, URL) {
+        let fake = try FakeArtifacts.make(caseName: caseName)
+        let root = fake.caseDirectory.appendingPathComponent("root", isDirectory: true)
+        startedRoots.append((fake, root))
+        let result = try fake.run(DeploymentExecutor().scriptForVerification(
+            method: .native, installDirectory: root.path, pins: fake.pins, gatewayPayloadBase64: fake.gatewayPayloadBase64
+        ), extraEnvironment: extraEnvironment)
+        XCTAssertEqual(result.status, 0, result.stderr)
+        return (fake, root)
+    }
+
+    private func upgrade(_ fake: FakeArtifacts, _ root: URL, prelude: String = "", extraEnvironment: [String: String] = [:]) throws -> FakeArtifacts.RunResult {
+        try fake.run(maintenance.upgradeScriptForVerification(
+            method: .native, installDirectory: root.path, pins: fake.pins,
+            gatewayPayloadBase64: fake.gatewayPayloadBase64, healthAttempts: 3
+        ), prelude: prelude, extraEnvironment: extraEnvironment)
+    }
+
+    private func rollback(_ fake: FakeArtifacts, _ root: URL, extraEnvironment: [String: String] = [:]) throws -> FakeArtifacts.RunResult {
+        try fake.run(maintenance.rollbackScriptForVerification(method: .native, installDirectory: root.path, healthAttempts: 3),
+                     extraEnvironment: extraEnvironment)
+    }
+
+    private func data(_ root: URL, _ relative: String) -> Data? {
+        try? Data(contentsOf: root.appendingPathComponent(relative))
+    }
+
+    private func text(_ root: URL, _ relative: String) -> String {
+        (try? String(contentsOf: root.appendingPathComponent(relative), encoding: .utf8)) ?? ""
+    }
+
+    private func write(_ text: String, _ root: URL, _ relative: String) throws {
+        let url = root.appendingPathComponent(relative)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(text.utf8).write(to: url)
+    }
+
+    private func versions(_ root: URL) throws -> [String: String] {
+        try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(data(root, ".oases-cpa-versions"))) as? [String: String])
+    }
+
+    private func setVersion(_ component: String, _ value: String, _ root: URL) throws {
+        var current = try versions(root)
+        current[component] = value
+        let body = ["engine", "cpamp", "node", "gateway"].compactMap { key in current[key].map { "  \"\(key)\": \"\($0)\"" } }
+        try write("{\n" + body.joined(separator: ",\n") + "\n}\n", root, ".oases-cpa-versions")
+    }
+
+    private func link(_ root: URL, _ relative: String) -> String? {
+        try? FileManager.default.destinationOfSymbolicLink(atPath: root.appendingPathComponent(relative).path)
+    }
+
+    private func upgradeBackups(_ root: URL) -> [String] {
+        ((try? FileManager.default.contentsOfDirectory(atPath: root.appendingPathComponent("backups").path)) ?? [])
+            .filter { $0.hasPrefix("upgrade-") }.sorted()
+    }
+
+    private func pid(_ root: URL, _ name: String) -> Int32? {
+        Int32(text(root, name).trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    /// The variables `gateway/run.sh` exports (only its `export` lines, in an empty environment).
+    private func exportedEnvironment(_ root: URL) throws -> [String: String] {
+        let lines = text(root, "gateway/run.sh").split(separator: "\n").filter { $0.hasPrefix("export ") }.joined(separator: "\n")
+        let process = Process()
+        let output = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = ["-c", lines + "\nenv"]
+        process.environment = [:]
+        process.standardOutput = output
+        try process.run()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        var values: [String: String] = [:]
+        for line in String(decoding: data, as: UTF8.self).split(separator: "\n") {
+            let parts = line.split(separator: "=", maxSplits: 1).map(String.init)
+            if parts.count == 2 { values[parts[0]] = parts[1] }
+        }
+        for automatic in ["PWD", "SHLVL", "_", "OLDPWD"] { values[automatic] = nil }
+        return values
+    }
+
+    /// The app 0.1.x layout: engine on 8317 with its config.yaml and a user's client key, CPA
+    /// Manager Plus with its config.json inside the versioned runtime directory, no versions
+    /// file, no Node, no gateway.
+    private func legacyLayout(_ fake: FakeArtifacts, mode: Int = 0o700) throws -> URL {
+        let root = fake.caseDirectory.appendingPathComponent("root", isDirectory: true)
+        let fileManager = FileManager.default
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: mode])
+        try fileManager.setAttributes([.posixPermissions: mode], ofItemAtPath: root.path)
+        startedRoots.append((fake, root))
+        try write("owned-by=oases-cpa\n", root, ".oases-cpa-managed")
+        try write("", root, ".oases-cpa-installed")
+        try write("cpa_\(String(repeating: "1f", count: 32))\n", root, "secrets/cpa-management-key")
+        try write("cpamp_\(String(repeating: "2e", count: 32))\n", root, "secrets/cpamp-admin-key")
+        try fileManager.setAttributes([.posixPermissions: mode], ofItemAtPath: root.appendingPathComponent("secrets").path)
+        let engine = root.appendingPathComponent("cli-proxy-api/runtime/CLIProxyAPI_7.2.141_darwin_aarch64/cli-proxy-api")
+        try write(FakeArtifacts.fakeService(name: "cli-proxy-api"), root, "cli-proxy-api/runtime/CLIProxyAPI_7.2.141_darwin_aarch64/cli-proxy-api")
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: engine.path)
+        try write("#!/bin/bash\nset -euo pipefail\ncd \"\(root.path)/cli-proxy-api\"\nexec \"\(engine.path)\" -config \"\(root.path)/cli-proxy-api/config.yaml\"\n",
+                  root, "cli-proxy-api/run.sh")
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: root.appendingPathComponent("cli-proxy-api/run.sh").path)
+        try write(Self.legacyConfig(root: root), root, "cli-proxy-api/config.yaml")
+        let panelDirectory = "cpamp/runtime/cpa-manager-plus_v1.11.10_darwin_arm64"
+        let panel = root.appendingPathComponent("\(panelDirectory)/cpa-manager-plus")
+        try write(FakeArtifacts.fakeService(name: "cpa-manager-plus"), root, "\(panelDirectory)/cpa-manager-plus")
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: panel.path)
+        try write("{\"httpAddr\":\"127.0.0.1:18317\",\"cpaUpstreamUrl\":\"http://127.0.0.1:8317\",\"dataDir\":\"../../data\"}\n", root, "\(panelDirectory)/config.json")
+        try write("#!/bin/bash\nset -euo pipefail\ncd \"\(root.path)/\(panelDirectory)\"\nexec \"\(panel.path)\"\n", root, "cpamp/run.sh")
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: root.appendingPathComponent("cpamp/run.sh").path)
+        try write("usage\n", root, "cpamp/data/usage.db")
+        try fileManager.createDirectory(at: root.appendingPathComponent("logs"), withIntermediateDirectories: true)
+        return root
+    }
+
+    static let legacyUserKey = "sk-user-legacy-0001"
+
+    static func legacyConfig(root: URL) -> String {
+        """
+        host: "127.0.0.1"
+        port: 8317
+
+        remote-management:
+          allow-remote: false
+          secret-key: "cpa_\(String(repeating: "1f", count: 32))"
+
+        auth-dir: "\(root.path)/cli-proxy-api/auths"
+        api-keys:
+          - "\(legacyUserKey)"
+        usage-statistics-enabled: true
+
+        """
+    }
+
+    // MARK: - No downgrade (10a)
+
+    func testHigherInstalledComponentRefusesWithExit22BeforeStopping() throws {
+        let (fake, root) = try installed("downgrade-engine")
+        try setVersion("engine", "v9.0.0", root)
+        let runScript = data(root, "cli-proxy-api/run.sh")
+        let config = data(root, "cli-proxy-api/config.yaml")
+        let pids = DeploymentScriptFragments.managedProcesses(topology: .gateway).compactMap { pid(root, $0.pidFile) }
+        XCTAssertEqual(pids.count, 3)
+
+        let result = try upgrade(fake, root)
+        XCTAssertEqual(result.status, 22, result.stderr)
+        XCTAssertTrue(result.stderr.contains("OASES_DOWNGRADE_REFUSED component=engine installed=v9.0.0 target=\(FakeArtifacts.engineTag)"), result.stderr)
+        for pid in pids { XCTAssertEqual(kill(pid, 0), 0, "\(pid) still runs") }
+        XCTAssertEqual(data(root, "cli-proxy-api/run.sh"), runScript)
+        XCTAssertEqual(data(root, "cli-proxy-api/config.yaml"), config)
+        XCTAssertEqual(upgradeBackups(root), [], "no backup was made")
+        XCTAssertFalse(result.stdout.contains("OASES_CPA_BACKUP"))
+    }
+
+    func testEachComponentIsGuarded() throws {
+        let (fake, root) = try installed("downgrade-each")
+        let original = try XCTUnwrap(data(root, ".oases-cpa-versions"))
+        for (component, higher) in [("cpamp", "v9.0.0"), ("node", "v99.0.0"), ("gateway", "9.0.0")] {
+            try original.write(to: root.appendingPathComponent(".oases-cpa-versions"))
+            try setVersion(component, higher, root)
+            let result = try upgrade(fake, root)
+            XCTAssertEqual(result.status, 22, "\(component): \(result.stderr)")
+            XCTAssertTrue(result.stderr.contains("OASES_DOWNGRADE_REFUSED component=\(component) installed=\(higher) target="), result.stderr)
+        }
+        XCTAssertEqual(upgradeBackups(root), [])
+    }
+
+    func testExit22MapsToReadableError() {
+        let stderr = "noise from /some/target/path\nOASES_DOWNGRADE_REFUSED component=engine installed=v9.0.0 target=v8.0.51\n目标上的组件版本高于本应用要安装的版本。\n"
+        let error = DeploymentMaintenanceService.mapError(.nonZero(status: 22, standardOutput: "", standardError: stderr))
+        guard case .downgradeRefused(let component, let installed, let target) = error else {
+            return XCTFail("\(error)")
+        }
+        XCTAssertEqual([component, installed, target], ["engine", "v9.0.0", "v8.0.51"])
+        for language in [AppLanguage.simplifiedChinese, .english] {
+            let description = OasesLocalization.localizedFormat(
+                "目标上的 %@ 是 %@，比本应用要安装的 %@ 新；已拒绝降级，没有停止或修改任何内容。请先更新 Oases CPA 应用。",
+                language: language, "CLIProxyAPI", installed, target
+            )
+            XCTAssertTrue(description.contains("CLIProxyAPI") && description.contains("v9.0.0") && description.contains("v8.0.51"), description)
+        }
+        let description = error.errorDescription ?? ""
+        XCTAssertTrue(description.contains("CLIProxyAPI"), description)
+        XCTAssertTrue(description.contains("v9.0.0") && description.contains("v8.0.51"), description)
+        XCTAssertFalse(description.contains("/some/target/path"), "no raw stderr")
+        XCTAssertFalse(description.contains("OASES_DOWNGRADE_REFUSED"))
+        XCTAssertEqual(DeploymentExecutionError.componentName("gateway"), OasesLocalization.localized("Oases 网关"))
+
+        // A malformed line or another status keeps the general mapping.
+        for other in [BoundedProcessError.nonZero(status: 22, standardOutput: "", standardError: "OASES_DOWNGRADE_REFUSED component=x installed=$(id) target=1"),
+                      .nonZero(status: 26, standardOutput: "", standardError: stderr)] {
+            guard case .commandFailed = DeploymentMaintenanceService.mapError(other) else { return XCTFail("\(other)") }
+        }
+    }
+
+    // MARK: - Backup, restore, rollback (10a)
+
+    func testFailedGatewayHealthRestoresEverythingIncludingData() throws {
+        let (fake, root) = try installed("restore-on-failure")
+        try write("{\"schema_version\":2,\"keys\":{\"k\":{\"label\":\"before\"}}}\n", root, "gateway-data/permissions.json")
+        let before = [".oases-cpa-versions", "gateway/run.sh", "cli-proxy-api/run.sh", "cli-proxy-api/config.yaml",
+                      "cpamp/run.sh", "cpamp/config.json", "gateway-data/permissions.json"].map { ($0, data(root, $0)) }
+        let gatewayLink = link(root, "gateway/current")
+        let nodeLink = link(root, "node/current")
+
+        let next = try fake.withGateway(version: "0.9.1-test")
+        let result = try upgrade(next, root, extraEnvironment: ["FAKE_GATEWAY_EXIT": "1"])
+        XCTAssertNotEqual(result.status, 0)
+        XCTAssertTrue(result.stderr.contains("Oases 网关没有通过健康检查"), result.stderr)
+        for (path, bytes) in before {
+            XCTAssertNotNil(bytes, path)
+            XCTAssertEqual(data(root, path), bytes, "\(path) is back byte for byte")
+        }
+        XCTAssertEqual(link(root, "gateway/current"), gatewayLink)
+        XCTAssertEqual(link(root, "node/current"), nodeLink)
+        let backup = try XCTUnwrap(upgradeBackups(root).last)
+        for item in ["versions.json", "gateway-run.sh", "gateway-current", "node-current", "cpamp-config.json",
+                     "cli-proxy-api-config.yaml", "cli-proxy-api-run.sh", "cpamp-run.sh", "gateway-data/permissions.json"] {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("backups/\(backup)/\(item)").path), item)
+        }
+        XCTAssertEqual(text(root, "backups/\(backup)/gateway-current").trimmingCharacters(in: .whitespacesAndNewlines), fake.gatewayVersion)
+    }
+
+    func testRollbackRestoresGatewayDataAndVersions() throws {
+        let (fake, root) = try installed("rollback-data")
+        try write("{\"packs\":[\"before\"]}\n", root, "gateway-data/packs.json")
+        let versionsBefore = data(root, ".oases-cpa-versions")
+        let next = try fake.withGateway(version: "0.9.1-test")
+        let upgraded = try upgrade(next, root)
+        XCTAssertEqual(upgraded.status, 0, upgraded.stderr)
+        XCTAssertTrue(upgraded.stdout.contains("OASES_CPA_TOPOLOGY=gateway"))
+        XCTAssertEqual(try versions(root)["gateway"], "0.9.1-test")
+        XCTAssertEqual(link(root, "gateway/current"), "0.9.1-test")
+        let result = maintenance.parseResultForVerification(upgraded.stdout)
+        XCTAssertEqual(result.topology, .gateway)
+        XCTAssertNotNil(result.packEngineKeyFingerprint)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("gateway/\(fake.gatewayVersion)").path), "the previous version stays")
+
+        // The newer gateway rewrites its data.
+        try write("{\"packs\":[\"after\"]}\n", root, "gateway-data/packs.json")
+        try write("{}\n", root, "gateway-data/only-after-upgrade.json")
+
+        let rolledBack = try rollback(fake, root)
+        XCTAssertEqual(rolledBack.status, 0, rolledBack.stderr)
+        XCTAssertTrue(rolledBack.stdout.contains("OASES_CPA_TOPOLOGY=gateway"))
+        XCTAssertEqual(text(root, "gateway-data/packs.json"), "{\"packs\":[\"before\"]}\n")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("gateway-data/only-after-upgrade.json").path))
+        let backup = try XCTUnwrap(upgradeBackups(root).last)
+        XCTAssertEqual(text(root, "backups/\(backup)/gateway-data-after-upgrade/only-after-upgrade.json"), "{}\n", "moved, not deleted")
+        XCTAssertEqual(text(root, "backups/\(backup)/gateway-data-after-upgrade/packs.json"), "{\"packs\":[\"after\"]}\n")
+        XCTAssertEqual(data(root, ".oases-cpa-versions"), versionsBefore)
+        XCTAssertEqual(link(root, "gateway/current"), fake.gatewayVersion)
+        XCTAssertNotNil(pid(root, "gateway.pid"), "the rolled-back gateway runs")
+    }
+
+    func testRunScriptFollowsVersionsAfterUpgradeAndRollback() throws {
+        let (fake, root) = try installed("run-script-versions")
+        // An older engine recorded before the upgrade.
+        try setVersion("engine", "v8.0.50", root)
+        let oldRun = text(root, "gateway/run.sh").replacingOccurrences(
+            of: "HOST_STATUS_ENGINE_VERSION=\(FakeArtifacts.engineTag)", with: "HOST_STATUS_ENGINE_VERSION=v8.0.50")
+        try write(oldRun, root, "gateway/run.sh")
+        XCTAssertEqual(try exportedEnvironment(root)["HOST_STATUS_ENGINE_VERSION"], "v8.0.50")
+
+        let upgraded = try upgrade(try fake.withGateway(version: "0.9.1-test"), root)
+        XCTAssertEqual(upgraded.status, 0, upgraded.stderr)
+        let after = try exportedEnvironment(root)
+        XCTAssertEqual(Set(after.keys), ["PORT", "BIND_HOST", "ADMIN_LISTEN_PORT", "GO_BACKEND_URL", "CONFIG_PATH", "KEY_FILE_PATH",
+                                         "PACK_ENGINE_KEY_PATH", "PACK_STORE_KEY_FILE", "OASES_DATA_DIR",
+                                         "HOST_STATUS_ENGINE_VERSION", "HOST_STATUS_PANEL_VERSION"])
+        XCTAssertEqual(after["HOST_STATUS_ENGINE_VERSION"], try versions(root)["engine"])
+        XCTAssertEqual(after["HOST_STATUS_PANEL_VERSION"], try versions(root)["cpamp"])
+        XCTAssertEqual(after["HOST_STATUS_ENGINE_VERSION"], FakeArtifacts.engineTag)
+
+        let rolledBack = try rollback(fake, root)
+        XCTAssertEqual(rolledBack.status, 0, rolledBack.stderr)
+        let restored = try exportedEnvironment(root)
+        XCTAssertEqual(restored["HOST_STATUS_ENGINE_VERSION"], "v8.0.50")
+        XCTAssertEqual(restored["HOST_STATUS_ENGINE_VERSION"], try versions(root)["engine"])
+        XCTAssertEqual(restored["HOST_STATUS_PANEL_VERSION"], try versions(root)["cpamp"])
+    }
+
+    /// A backup written by app 0.1.4 has only the two run scripts, the engine config and the
+    /// runtime directories: no versions.json, no versions.absent, no gateway-data/.
+    func testRollbackOfAppV014BackupIsTreatedAsLegacy() throws {
+        let fake = try FakeArtifacts.make(caseName: "rollback-014")
+        let root = try legacyLayout(fake)
+        let backup = "backups/upgrade-20261101-000000"
+        try write(text(root, "cli-proxy-api/run.sh"), root, "\(backup)/cli-proxy-api-run.sh")
+        try write(text(root, "cpamp/run.sh"), root, "\(backup)/cpamp-run.sh")
+        try write(text(root, "cli-proxy-api/config.yaml"), root, "\(backup)/cli-proxy-api-config.yaml")
+        for directory in ["cli-proxy-api-runtime", "cpamp-runtime"] {
+            try FileManager.default.createDirectory(at: root.appendingPathComponent("\(backup)/\(directory)"), withIntermediateDirectories: true)
+        }
+        // After that 0.1.4 upgrade the run script pointed somewhere else.
+        let originalRun = text(root, "cli-proxy-api/run.sh")
+        try write(originalRun + "# changed by the upgrade\n", root, "cli-proxy-api/run.sh")
+
+        let result = try rollback(fake, root)
+        XCTAssertEqual(result.status, 0, result.stderr)
+        XCTAssertTrue(result.stdout.contains("OASES_CPA_TOPOLOGY=legacy"), result.stdout)
+        XCTAssertEqual(maintenance.parseResultForVerification(result.stdout).topology, .legacy)
+        XCTAssertEqual(text(root, "cli-proxy-api/run.sh"), originalRun)
+        XCTAssertTrue(text(root, "cli-proxy-api/config.yaml").contains("port: 8317"))
+        XCTAssertNil(pid(root, "gateway.pid"))
+    }
+
+    // MARK: - Docker (10a)
+
+    func testDockerUpgradeRefusesDowngradeFromVersionsFile() throws {
+        let fake = try FakeArtifacts.make(caseName: "docker-versions")
+        let root = fake.caseDirectory.appendingPathComponent("root", isDirectory: true)
+        try write("", root, ".oases-cpa-installed")
+        try write("services:\n  cpa:\n    image: test\n", root, "compose.yaml")
+        try write("{\n  \"engine\": \"v9.0.0\",\n  \"cpamp\": \"v1.14.10\"\n}\n", root, ".oases-cpa-versions")
+        let bin = fake.caseDirectory.appendingPathComponent("docker-bin", isDirectory: true)
+        let dockerLog = fake.caseDirectory.appendingPathComponent("docker.log")
+        try write("#!/bin/bash\nprintf '%s\\n' \"$*\" >> '\(dockerLog.path)'\nexit 0\n", bin, "docker")
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bin.appendingPathComponent("docker").path)
+        let environment = ["PATH": "\(bin.path):\(fake.binDirectory.path):/usr/bin:/bin:/usr/sbin:/sbin"]
+        let script = maintenance.upgradeScriptForVerification(method: .docker, installDirectory: root.path, pins: fake.pins)
+
+        let refused = try fake.run(script, extraEnvironment: environment)
+        XCTAssertEqual(refused.status, 22, refused.stderr)
+        XCTAssertTrue(refused.stderr.contains("OASES_DOWNGRADE_REFUSED component=engine installed=v9.0.0 target=\(FakeArtifacts.engineTag)"))
+        XCTAssertFalse(((try? String(contentsOf: dockerLog, encoding: .utf8)) ?? "").contains("pull"), "nothing was pulled")
+        XCTAssertEqual(upgradeBackups(root), [])
+
+        try write("{\n  \"engine\": \"v8.0.0\",\n  \"cpamp\": \"v1.14.10\"\n}\n", root, ".oases-cpa-versions")
+        let accepted = try fake.run(script, extraEnvironment: environment)
+        XCTAssertEqual(accepted.status, 0, accepted.stderr)
+        XCTAssertTrue(accepted.stdout.contains("OASES_CPA_TOPOLOGY=legacy"))
+        XCTAssertEqual(try versions(root), ["engine": FakeArtifacts.engineTag, "cpamp": FakeArtifacts.cpampTag], "two keys only")
+        let backup = try XCTUnwrap(upgradeBackups(root).last)
+        XCTAssertTrue(text(root, "backups/\(backup)/versions.json").contains("v8.0.0"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("gateway").path), "no gateway for Docker")
+    }
+}

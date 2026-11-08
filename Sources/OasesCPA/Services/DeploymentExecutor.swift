@@ -30,6 +30,9 @@ enum DeploymentExecutionError: LocalizedError {
     case placeholderGateway
     /// The gateway package is missing from the app or its SHA-256 differs from the pinned one.
     case gatewayPackageUnavailable
+    /// The upgrade found a newer component on the target than this app would install (exit 22
+    /// before anything was stopped or changed).
+    case downgradeRefused(component: String, installed: String, target: String)
 
     var errorDescription: String? {
         switch self {
@@ -49,6 +52,22 @@ enum DeploymentExecutionError: LocalizedError {
             OasesLocalization.localized("此构建只含占位网关，不能部署；请先放入正式网关包")
         case .gatewayPackageUnavailable:
             OasesLocalization.localized("应用内的网关包缺失或校验失败，已停止部署。请重新安装应用。")
+        case .downgradeRefused(let component, let installed, let target):
+            OasesLocalization.localizedFormat(
+                "目标上的 %@ 是 %@，比本应用要安装的 %@ 新；已拒绝降级，没有停止或修改任何内容。请先更新 Oases CPA 应用。",
+                Self.componentName(component), installed, target
+            )
+        }
+    }
+
+    /// The user-facing name of a component of `.oases-cpa-versions`.
+    static func componentName(_ component: String) -> String {
+        switch component {
+        case "engine": "CLIProxyAPI"
+        case "cpamp": "CPA Manager Plus"
+        case "node": "Node"
+        case "gateway": OasesLocalization.localized("Oases 网关")
+        default: component
         }
     }
 }

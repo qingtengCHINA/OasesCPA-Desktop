@@ -2176,3 +2176,4 @@
 "验证引擎、CPA Manager Plus 与网关的本机健康检查" = "验证引擎、CPA Manager Plus 与网关的本机健康检查";
 "%@：CLIProxyAPI、CPAMP、Oases 网关和连接通道已重新可用。" = "%@：CLIProxyAPI、CPAMP、Oases 网关和连接通道已重新可用。";
 "CLIProxyAPI、CPAMP 或 Oases 网关健康检查未通过。" = "CLIProxyAPI、CPAMP 或 Oases 网关健康检查未通过。";
+"目标上的 %@ 是 %@，比本应用要安装的 %@ 新；已拒绝降级，没有停止或修改任何内容。请先更新 Oases CPA 应用。" = "目标上的 %@ 是 %@，比本应用要安装的 %@ 新；已拒绝降级，没有停止或修改任何内容。请先更新 Oases CPA 应用。";

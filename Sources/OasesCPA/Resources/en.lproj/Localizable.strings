@@ -2183,3 +2183,4 @@
 "验证引擎、CPA Manager Plus 与网关的本机健康检查" = "Verify the local health checks of the engine, CPA Manager Plus and the gateway";
 "%@：CLIProxyAPI、CPAMP、Oases 网关和连接通道已重新可用。" = "%@: CLIProxyAPI, CPAMP, the Oases gateway, and connection channels are available again.";
 "CLIProxyAPI、CPAMP 或 Oases 网关健康检查未通过。" = "CLIProxyAPI, CPAMP, or Oases gateway health check failed.";
+"目标上的 %@ 是 %@，比本应用要安装的 %@ 新；已拒绝降级，没有停止或修改任何内容。请先更新 Oases CPA 应用。" = "%@ on the target is %@, newer than %@ that this app would install. The downgrade was refused; nothing was stopped or changed. Update Oases CPA first.";

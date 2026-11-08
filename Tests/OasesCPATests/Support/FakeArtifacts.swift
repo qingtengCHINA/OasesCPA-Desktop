@@ -301,7 +301,7 @@ struct FakeArtifacts {
 
     /// A long-running fake service: `ps` shows the script's own path; SIGTERM ends it and its
     /// child and logs `<name> TERM`.
-    private static func fakeService(name: String) -> String {
+    static func fakeService(name: String) -> String {
         """
         #!/bin/bash
         child=""
