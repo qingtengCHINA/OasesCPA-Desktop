@@ -2,9 +2,14 @@
 set -euo pipefail
 
 # Build identity comes from the environment, never from this file:
-#   OASES_BUNDLE_ID  bundle identifier of the release (default com.example.cpa.macos)
+#   OASES_BUNDLE_ID  bundle identifier of the release (default com.example.cpa.macos, which is
+#                    only for local builds: an official release needs an explicit, own id)
 #   OASES_TEAM_ID    Apple team identifier; required for an official release and for
 #                    --render-export-options, and it must match CODESIGN_IDENTITY's team.
+#   OASES_UPDATE_REPOSITORY
+#                    "owner/name" the shipped updater reads; when the variable is not set the
+#                    value of Config/Local.xcconfig (else Config/Base.xcconfig) is used. An
+#                    official release refuses an empty one unless ALLOW_RELEASE_WITHOUT_UPDATER=1.
 VALIDATE_POLICY_ONLY=0
 RENDER_EXPORT_OPTIONS=""
 case "${1:-}" in
@@ -36,6 +41,7 @@ APP_NAME="OasesCPA"
 DISPLAY_NAME="Oases CPA"
 BUNDLE_ID="${OASES_BUNDLE_ID:-com.example.cpa.macos}"
 TEAM_ID="${OASES_TEAM_ID:-}"
+ALLOW_RELEASE_WITHOUT_UPDATER="${ALLOW_RELEASE_WITHOUT_UPDATER:-0}"
 MIN_SYSTEM_VERSION="14.0"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-}"
 NOTARIZE="${NOTARIZE:-0}"
@@ -81,6 +87,33 @@ if [[ ! "$BUNDLE_ID" =~ ^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$ ]]; then
 fi
 if [[ -n "$TEAM_ID" && ! "$TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]; then
   die "OASES_TEAM_ID must be ten upper-case letters or digits."
+fi
+
+# xcconfig_value <key>: the last plain "KEY = value" assignment in Config/Local.xcconfig, else
+# Config/Base.xcconfig (comments and includes are not evaluated).
+xcconfig_value() {
+  local file value
+  for file in "$ROOT_DIR/Config/Local.xcconfig" "$ROOT_DIR/Config/Base.xcconfig"; do
+    [[ -f "$file" ]] || continue
+    if /usr/bin/grep -qE "^[[:space:]]*$1[[:space:]]*=" "$file"; then
+      value="$(/usr/bin/sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*(.*)$/\\1/p" "$file" | /usr/bin/tail -n 1)"
+      value="${value%%//*}"
+      value="${value%"${value##*[![:space:]]}"}"
+      printf '%s' "$value"
+      return 0
+    fi
+  done
+}
+if [[ -n "${OASES_UPDATE_REPOSITORY+set}" ]]; then
+  UPDATE_REPOSITORY="$OASES_UPDATE_REPOSITORY"
+else
+  UPDATE_REPOSITORY="$(xcconfig_value OASES_UPDATE_REPOSITORY)"
+fi
+if [[ -n "$UPDATE_REPOSITORY" && ! "$UPDATE_REPOSITORY" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$ ]]; then
+  die "OASES_UPDATE_REPOSITORY must be \"owner/name\"."
+fi
+if [[ "$ALLOW_RELEASE_WITHOUT_UPDATER" != "0" && "$ALLOW_RELEASE_WITHOUT_UPDATER" != "1" ]]; then
+  die "ALLOW_RELEASE_WITHOUT_UPDATER must be 0 or 1."
 fi
 
 # Writes an ExportOptions.plist for an App Store archive export from the committed
@@ -141,6 +174,15 @@ else
   if [[ "$CODESIGN_IDENTITY" != *"($TEAM_ID)" ]]; then
     die "CODESIGN_IDENTITY does not belong to OASES_TEAM_ID."
   fi
+  if [[ -z "${OASES_BUNDLE_ID:-}" ]]; then
+    die "Official release requires an explicit OASES_BUNDLE_ID (your own bundle identifier)."
+  fi
+  if [[ "$BUNDLE_ID" == "com.example" || "$BUNDLE_ID" == com.example.* ]]; then
+    die "Official release refuses the neutral com.example bundle identifier; set OASES_BUNDLE_ID to your own."
+  fi
+  if [[ -z "$UPDATE_REPOSITORY" && "$ALLOW_RELEASE_WITHOUT_UPDATER" != "1" ]]; then
+    die "Official release has no OASES_UPDATE_REPOSITORY, so its updater would be off; set it, or set ALLOW_RELEASE_WITHOUT_UPDATER=1 to ship without updates."
+  fi
   if [[ -z "$NOTARY_PROFILE" && ( -z "$NOTARY_APPLE_ID" || -z "$NOTARY_TEAM_ID" || -z "$NOTARY_PASSWORD" ) ]]; then
     die "Official notarization requires NOTARY_PROFILE or Apple ID/team/password configuration."
   fi
@@ -151,6 +193,12 @@ announce_release_mode() {
     echo "!!! LOCAL UNTRUSTED RELEASE ONLY: this artifact is not publishable. !!!" >&2
   else
     echo "OFFICIAL RELEASE POLICY: Developer ID Application signing and notarization are required." >&2
+  fi
+  echo "Bundle identifier: $BUNDLE_ID" >&2
+  if [[ -n "$UPDATE_REPOSITORY" ]]; then
+    echo "Updater: enabled, reads the releases of $UPDATE_REPOSITORY" >&2
+  else
+    echo "Updater: disabled (no OASES_UPDATE_REPOSITORY)" >&2
   fi
 }
 
@@ -179,7 +227,7 @@ trap cleanup EXIT
 
 cd "$ROOT_DIR"
 XCODE_DERIVED="$TEMP_ROOT/xcode-derived"
-IDENTITY_SETTINGS=(PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID")
+IDENTITY_SETTINGS=(PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" OASES_UPDATE_REPOSITORY="$UPDATE_REPOSITORY")
 if [[ -n "$TEAM_ID" ]]; then
   IDENTITY_SETTINGS+=(OASES_UPDATE_TEAM_ID="$TEAM_ID")
 fi
@@ -203,6 +251,8 @@ mkdir -p "$RELEASE_DIR"
 [[ -x "$APP_BINARY" ]] || die "Built app executable is missing: $APP_BINARY"
 BUILT_BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO_PLIST" 2>/dev/null || true)"
 [[ "$BUILT_BUNDLE_ID" == "$BUNDLE_ID" ]] || die "Built app bundle identifier does not match OASES_BUNDLE_ID."
+BUILT_UPDATE_REPOSITORY="$(/usr/libexec/PlistBuddy -c 'Print :OasesUpdateRepository' "$INFO_PLIST" 2>/dev/null || true)"
+[[ "$BUILT_UPDATE_REPOSITORY" == "$UPDATE_REPOSITORY" ]] || die "Built app update repository does not match the checked one."
 
 if [[ "$RELEASE_MODE" == "official" ]]; then
   /usr/bin/codesign \

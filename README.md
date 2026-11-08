@@ -171,11 +171,12 @@ open "OasesCPA.xcodeproj"
 ALLOW_UNTRUSTED_LOCAL_RELEASE=1 NOTARIZE=0 ./script/package_release.sh
 ```
 
-正式分发要求 Developer ID 签名与公证，且签名身份必须属于 `OASES_TEAM_ID`：
+正式分发要求 Developer ID 签名与公证，签名身份必须属于 `OASES_TEAM_ID`，并且必须显式设置自己的 `OASES_BUNDLE_ID`（拒绝中性的 `com.example…`）。自动更新读取的仓库 `OASES_UPDATE_REPOSITORY`（`owner/name`）未设置环境变量时取自 `Config/Local.xcconfig`；为空时正式打包会拒绝，确实要发布不带自动更新的版本时设置 `ALLOW_RELEASE_WITHOUT_UPDATER=1`。脚本会打印包标识与更新器状态：
 
 ```bash
 CODESIGN_IDENTITY="Developer ID Application: Your Company (TEAMID)" \
-OASES_TEAM_ID="TEAMID" OASES_BUNDLE_ID="com.example.cpa.macos" \
+OASES_TEAM_ID="TEAMID" OASES_BUNDLE_ID="<your.bundle.id>" \
+OASES_UPDATE_REPOSITORY="<owner>/<repo>" \
 APP_VERSION="0.1.5" APP_BUILD="41" \
 NOTARIZE=1 NOTARY_PROFILE="oases-cpa-notary" \
 ./script/package_release.sh
