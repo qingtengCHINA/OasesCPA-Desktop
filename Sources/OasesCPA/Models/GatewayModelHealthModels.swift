@@ -200,3 +200,95 @@ struct GatewayModelRow: Identifiable, Equatable, Sendable {
             }
     }
 }
+
+// MARK: - Providers of a model
+
+/// What serves a model: an openai-compatibility provider (`compat`, can be pinned and reordered)
+/// or an OAuth account pool (`oauth`).
+enum GatewayModelProviderKind: Equatable, Sendable {
+    case compat
+    case oauth
+    case other(String)
+
+    init(rawValue: String) {
+        switch rawValue {
+        case "compat": self = .compat
+        case "oauth": self = .oauth
+        default: self = .other(rawValue)
+        }
+    }
+
+    var rawValue: String {
+        switch self {
+        case .compat: "compat"
+        case .oauth: "oauth"
+        case .other(let value): value
+        }
+    }
+}
+
+/// One entry of `GET …/models/providers?model=` (`describeModelProviders` in `server.mjs`), in the
+/// order the engine tries them. `prefix` is routing configuration: it is never shown outside the
+/// configuration screens. Unknown fields are kept in `extra` and written back.
+struct GatewayModelProvider: Codable, Equatable, Identifiable, Sendable {
+    var id: String
+    var kind: GatewayModelProviderKind
+    var name: String
+    var priority: Int
+    var prefix: String?
+    var draggable: Bool
+    var upstreamModel: String
+    var extra: [String: RuntimeJSONValue] = [:]
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case id, kind, name, priority, prefix, draggable, upstreamModel
+    }
+
+    private static let known = Set(CodingKeys.allCases.map(\.rawValue))
+
+    init(id: String, kind: GatewayModelProviderKind, name: String, priority: Int, prefix: String?, draggable: Bool, upstreamModel: String, extra: [String: RuntimeJSONValue] = [:]) {
+        self.id = id
+        self.kind = kind
+        self.name = name
+        self.priority = priority
+        self.prefix = prefix
+        self.draggable = draggable
+        self.upstreamModel = upstreamModel
+        self.extra = extra
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        kind = GatewayModelProviderKind(rawValue: try container.decodeIfPresent(String.self, forKey: .kind) ?? "")
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? id
+        priority = try container.decodeIfPresent(Int.self, forKey: .priority) ?? 0
+        prefix = try container.decodeIfPresent(String.self, forKey: .prefix)
+        draggable = try container.decodeIfPresent(Bool.self, forKey: .draggable) ?? false
+        upstreamModel = try container.decodeIfPresent(String.self, forKey: .upstreamModel) ?? ""
+        extra = try UnknownFields.capture(from: decoder, known: Self.known)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(kind.rawValue, forKey: .kind)
+        try container.encode(name, forKey: .name)
+        try container.encode(priority, forKey: .priority)
+        try container.encode(prefix, forKey: .prefix)
+        try container.encode(draggable, forKey: .draggable)
+        try container.encode(upstreamModel, forKey: .upstreamModel)
+        try UnknownFields.encode(extra, to: encoder, skipping: Self.known)
+    }
+}
+
+/// `GET /cpa-admin/permissions/api/models/providers?model=<id>` answers `{ model, providers }`.
+struct GatewayModelProvidersResponse: Decodable, Sendable {
+    let model: String
+    let providers: [GatewayModelProvider]
+
+    /// The providers a key may be pinned to: openai-compatibility providers only.
+    var pinnableProviders: [GatewayModelProvider] {
+        providers.filter { $0.kind == .compat }
+    }
+}

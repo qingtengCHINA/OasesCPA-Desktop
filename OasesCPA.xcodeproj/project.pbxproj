@@ -50,6 +50,7 @@
 		4029456F89FCD00AD62B46A3 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36A46B875E6365F132C9B69B /* AppStore.swift */; };
 		417A2EB0FA96D8519F768441 /* GatewayBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1979B48D10D5D2630F1BEAD2 /* GatewayBundle.swift */; };
 		444F11C5E2EB9D97F4AC90DB /* ModelsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0F5AB2F8630E877EE10D6ED /* ModelsView.swift */; };
+		4516CF55C2253F3400F270F0 /* GatewayKeysStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3298450BF8F46B0AB89B9B0E /* GatewayKeysStoreTests.swift */; };
 		4542A746287172FD4A3450B6 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = B449A4709469035427350F58 /* Localizable.strings */; };
 		455EAEBDAFC2F71D9DDF8CBB /* RuntimeMonitoringAccountHistoryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62D283B7AAF82A3621ED06FA /* RuntimeMonitoringAccountHistoryModels.swift */; };
 		473E58CB08545DC59F49FE46 /* SecretRedactor.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB1B29896CF52D29D2C99C6E /* SecretRedactor.swift */; };
@@ -155,6 +156,7 @@
 		D113449438BB2611FA200F07 /* DeploymentProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD629568267BE1D1905EE36A /* DeploymentProfile.swift */; };
 		D121269032E42D98FA73684B /* GatewayAdminClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA2F4AEDC278A02AA06CAA8 /* GatewayAdminClient.swift */; };
 		D1A01541B6A9812528E3448F /* ModelPricesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FA7767A48FFF26462E335AE /* ModelPricesView.swift */; };
+		D2C6B2D6364F63BABAAFA123 /* GatewayKeyPolicyContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45219DD9653E5C8CAE63EC00 /* GatewayKeyPolicyContractTests.swift */; };
 		D45F00C3B749B5BBD5CBCB0D /* RuntimeGatewayAccessModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16226ED1625ACA82FCCCA905 /* RuntimeGatewayAccessModels.swift */; };
 		D5F047125AF017C349F3AD12 /* ProviderConnectivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE0E12FC1F4DE45B8BE4D70C /* ProviderConnectivityView.swift */; };
 		D7E1EBF66950102CCAB596F1 /* ConnectionCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4DC9EB0282FF80DBA7D2166 /* ConnectionCenterView.swift */; };
@@ -189,6 +191,7 @@
 		F9FE7DC3E00212541182610F /* WelcomeFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15F47DF73FAFAC4A313CA13F /* WelcomeFlowView.swift */; };
 		FA4F03078D3BF5D8C879187E /* SSHConnectionServiceSecurityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD7BF40B1D1B98D7C5767D88 /* SSHConnectionServiceSecurityTests.swift */; };
 		FB9EB1DD3F14F5AD0514840C /* CLIProxyAPI-MIT.txt in Resources */ = {isa = PBXBuildFile; fileRef = CA80448BE2BFEE5DCFA741EE /* CLIProxyAPI-MIT.txt */; };
+		FBBE84356CEC99EB4C419C11 /* GatewayKeysStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBDEF83C1CCDD685FCD92387 /* GatewayKeysStore.swift */; };
 		FD0D6AA691C7190D6F0FC46E /* UpgradeScriptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B1773BF45D361376BBC1027 /* UpgradeScriptTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -239,6 +242,7 @@
 		2CFA6EDC2F75C3EA74A91181 /* PluginsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginsView.swift; sourceTree = "<group>"; };
 		2D50A08C076B510C4F3471CC /* GatewayAdminClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatewayAdminClientTests.swift; sourceTree = "<group>"; };
 		32097B6ACA91DBEB2CF65AC1 /* RuntimeCPAConfigDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeCPAConfigDocument.swift; sourceTree = "<group>"; };
+		3298450BF8F46B0AB89B9B0E /* GatewayKeysStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatewayKeysStoreTests.swift; sourceTree = "<group>"; };
 		33598341B509506D16443FAF /* DeploymentLifecycleServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentLifecycleServiceTests.swift; sourceTree = "<group>"; };
 		335E3CC42F7A7277B29061A8 /* OasesAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OasesAppearance.swift; sourceTree = "<group>"; };
 		342F29054C8C443FD338DD83 /* RuntimeAuthFileModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeAuthFileModels.swift; sourceTree = "<group>"; };
@@ -256,6 +260,7 @@
 		41E4129ABF950D88449784AF /* ConfigurationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigurationView.swift; sourceTree = "<group>"; };
 		435819142CFF57BC0AE87707 /* PageHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageHeader.swift; sourceTree = "<group>"; };
 		437DB3F8504078C6F87B8A89 /* MetricCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricCard.swift; sourceTree = "<group>"; };
+		45219DD9653E5C8CAE63EC00 /* GatewayKeyPolicyContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatewayKeyPolicyContractTests.swift; sourceTree = "<group>"; };
 		45F6EFD34B3B75F326460945 /* WindowLayoutPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowLayoutPolicyTests.swift; sourceTree = "<group>"; };
 		470194F6E815A208FF8CF742 /* AuthFilesWorkbenchStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthFilesWorkbenchStore.swift; sourceTree = "<group>"; };
 		48217F1C322404FC58B8A0DE /* GatewayAdminClient+Permissions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GatewayAdminClient+Permissions.swift"; sourceTree = "<group>"; };
@@ -384,6 +389,7 @@
 		FAA2F4AEDC278A02AA06CAA8 /* GatewayAdminClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatewayAdminClient.swift; sourceTree = "<group>"; };
 		FB3CA85364B3B47BFA18D7D4 /* RuntimeLifecycleGatewayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeLifecycleGatewayTests.swift; sourceTree = "<group>"; };
 		FB6DC80408688F7932F78C36 /* RuntimeProviderConnectivityModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeProviderConnectivityModels.swift; sourceTree = "<group>"; };
+		FBDEF83C1CCDD685FCD92387 /* GatewayKeysStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatewayKeysStore.swift; sourceTree = "<group>"; };
 		FD145168516C60D8AAAD6660 /* GatewayPageStates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatewayPageStates.swift; sourceTree = "<group>"; };
 		FD629568267BE1D1905EE36A /* DeploymentProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentProfile.swift; sourceTree = "<group>"; };
 		FDE01E866F493A2E13E61537 /* DeploymentProbeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentProbeService.swift; sourceTree = "<group>"; };
@@ -479,6 +485,8 @@
 				9E18F55F4951B4381FBAED72 /* DockerInstallerSupplyChainTests.swift */,
 				2D50A08C076B510C4F3471CC /* GatewayAdminClientTests.swift */,
 				4E25C2AB687CC05FA456EF37 /* GatewayBundleTests.swift */,
+				45219DD9653E5C8CAE63EC00 /* GatewayKeyPolicyContractTests.swift */,
+				3298450BF8F46B0AB89B9B0E /* GatewayKeysStoreTests.swift */,
 				9630A03A65B07E063635C7AA /* GatewayModelHealthContractTests.swift */,
 				814C8F47BC57549132577247 /* GatewayWorkbenchStoreTests.swift */,
 				14600603605C6DD2DDE0F8C1 /* ModelsWorkbenchStoreTests.swift */,
@@ -582,6 +590,7 @@
 				02D65ED9C9C1755A99EFCD65 /* CPAQuickConfigStore.swift */,
 				D1D5A52C4F38274371D0D121 /* DeploymentStore.swift */,
 				62418CF425B2D0E6646A1089 /* DeploymentStoreServices.swift */,
+				FBDEF83C1CCDD685FCD92387 /* GatewayKeysStore.swift */,
 				9D04EA1764A637C0B83610ED /* GatewayWorkbenchStore.swift */,
 				1F0FC0EAA1F2A57E6DECED08 /* ModelsWorkbenchStore.swift */,
 				BEE0F1301F1A40B2E03C9CFB /* RuntimeDataStore.swift */,
@@ -859,6 +868,7 @@
 				417A2EB0FA96D8519F768441 /* GatewayBundle.swift in Sources */,
 				797D0B6205D8D517E08561BA /* GatewayJSONSupport.swift in Sources */,
 				609E8C371FBF43AB67BDCAFB /* GatewayKeyPolicyModels.swift in Sources */,
+				FBBE84356CEC99EB4C419C11 /* GatewayKeysStore.swift in Sources */,
 				52D799E4D4F89E2412AB2DB6 /* GatewayModelHealthModels.swift in Sources */,
 				CBCF6767278349B3573E62D9 /* GatewayPageStates.swift in Sources */,
 				1D876B6BC046130AA2E681C3 /* GatewayWorkbenchStore.swift in Sources */,
@@ -959,6 +969,8 @@
 				4793230DC5AE20493D94067B /* FakeGatewayClientProvider.swift in Sources */,
 				47566F5699A475CD66C6385E /* GatewayAdminClientTests.swift in Sources */,
 				CB66E0E50FE4BEA30EE3999E /* GatewayBundleTests.swift in Sources */,
+				D2C6B2D6364F63BABAAFA123 /* GatewayKeyPolicyContractTests.swift in Sources */,
+				4516CF55C2253F3400F270F0 /* GatewayKeysStoreTests.swift in Sources */,
 				DA87F5BF37A66A8C4B3980D2 /* GatewayModelHealthContractTests.swift in Sources */,
 				DA377A6D57FD2F7B19AFB086 /* GatewayWorkbenchStoreTests.swift in Sources */,
 				E4B461A77356C4CB6AC448AD /* ModelsWorkbenchStoreTests.swift in Sources */,

@@ -42,3 +42,14 @@ private struct GatewayModelTestBody: Encodable, Sendable {
         try container.encodeIfPresent(provider, forKey: .provider)
     }
 }
+
+extension GatewayAdminClient {
+    /// `GET /cpa-admin/permissions/api/models/providers?model=<id>` (reads the engine's providers).
+    func modelProviders(model: String) async throws -> GatewayModelProvidersResponse {
+        try await get(
+            "/cpa-admin/permissions/api/models/providers",
+            query: [URLQueryItem(name: "model", value: model)],
+            timeout: GatewayAdminTimeouts.modelProviders
+        )
+    }
+}
