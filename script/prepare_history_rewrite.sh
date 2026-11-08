@@ -78,7 +78,7 @@ fi
 git log --all --format='%ae%n%ce' >"$TMP/addresses" || die 1 "git log failed"
 LC_ALL=C tr 'A-Z' 'a-z' <"$TMP/addresses" | LC_ALL=C awk '
   $0 == "" { next }
-  # GitHub noreply addresses, and GitHub's own web-UI committer address (written in two parts).
+  # GitHub noreply addresses, and the web-UI committer address of GitHub (written in two parts).
   $0 ~ /@users\.noreply\.github\.com$/ || $0 == ("noreply" "@" "github.com") { next }
   { print }
 ' | LC_ALL=C sort -u >"$TMP/old-addresses"
