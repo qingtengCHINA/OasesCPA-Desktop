@@ -232,6 +232,42 @@ final class DeploymentScriptFragmentsTests: XCTestCase {
         XCTAssertEqual(refusedRoot.status, 25)
     }
 
+    /// Every exit 25 of the private-directory step says what failed (no silent exits).
+    func testPrivateDirectoryFailuresExplainThemselves() throws {
+        let fake = try FakeArtifacts.make(caseName: "fragment-secure-messages")
+        let functions = DeploymentScriptFragments.securePrivateDirectories() + "\n"
+
+        // chmod go-w of the root fails (a chmod on PATH that refuses go-w).
+        let chmodRoot = fake.caseDirectory.appendingPathComponent("chmod-root")
+        try FileManager.default.createDirectory(at: chmodRoot, withIntermediateDirectories: true)
+        let failingBin = fake.caseDirectory.appendingPathComponent("failing-chmod-bin")
+        try FileManager.default.createDirectory(at: failingBin, withIntermediateDirectories: true)
+        try Data("#!/bin/bash\n[ \"$1\" = go-w ] && exit 1\nexec /bin/chmod \"$@\"\n".utf8).write(to: failingBin.appendingPathComponent("chmod"))
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: failingBin.appendingPathComponent("chmod").path)
+        let chmodFailed = try fake.run(
+            functions + "oases_secure_private_directories '\(chmodRoot.path)'\n",
+            extraEnvironment: ["PATH": "\(failingBin.path):\(fake.binDirectory.path):/usr/bin:/bin"]
+        )
+        XCTAssertEqual(chmodFailed.status, 25)
+        XCTAssertTrue(chmodFailed.stderr.contains("无法去掉安装目录的组与其他用户写权限（chmod go-w）：\(chmodRoot.path)"), chmodFailed.stderr)
+
+        // mkdir -p of secrets fails (a regular file is in the way).
+        let fileInTheWay = fake.caseDirectory.appendingPathComponent("file-root")
+        try FileManager.default.createDirectory(at: fileInTheWay, withIntermediateDirectories: true)
+        try Data("not a directory\n".utf8).write(to: fileInTheWay.appendingPathComponent("secrets"))
+        let mkdirFailed = try fake.run(functions + "oases_secure_private_directories '\(fileInTheWay.path)'\n")
+        XCTAssertEqual(mkdirFailed.status, 25)
+        XCTAssertTrue(mkdirFailed.stderr.contains("无法创建 secrets 目录：\(fileInTheWay.path)/secrets，已停止部署。"), mkdirFailed.stderr)
+
+        // gateway-data cannot be created (a regular file that is not a directory is in the way).
+        let dataInTheWay = fake.caseDirectory.appendingPathComponent("data-root")
+        try FileManager.default.createDirectory(at: dataInTheWay, withIntermediateDirectories: true)
+        try Data("x\n".utf8).write(to: dataInTheWay.appendingPathComponent("gateway-data"))
+        let dataFailed = try fake.run(functions + "oases_secure_private_directories '\(dataInTheWay.path)'\n")
+        XCTAssertEqual(dataFailed.status, 25)
+        XCTAssertTrue(dataFailed.stderr.contains("无法创建 gateway-data 目录："), dataFailed.stderr)
+    }
+
     func testRunScriptsCloseTheResultDescriptorsAndQuotePaths() throws {
         let fake = try FakeArtifacts.make(caseName: "fragment-run")
         let root = fake.caseDirectory.appendingPathComponent("odd root 'x'")

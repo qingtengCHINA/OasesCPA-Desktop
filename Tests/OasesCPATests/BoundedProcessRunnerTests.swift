@@ -121,22 +121,25 @@ final class BoundedProcessRunnerTests: XCTestCase {
         // A native install script carries the gateway package (about 160 KB) and exits early on
         // its guards (lock, existing install). The unread rest of stdin must not raise SIGPIPE in
         // this process; the script's own exit status is the answer.
-        let input = "exit 12\n" + String(repeating: "# padding line for the unread rest of the script\n", count: 80_000)
-        for _ in 0..<5 {
-            do {
-                _ = try await BoundedProcessRunner.run(
-                    executable: "/bin/bash",
-                    arguments: ["-s"],
-                    standardInput: input,
-                    timeout: 10
-                )
-                XCTFail("expected non-zero status")
-            } catch let error as BoundedProcessError {
-                guard case .nonZero(let status, _, _) = error else {
-                    return XCTFail("unexpected error: \(error)")
-                }
-                XCTAssertEqual(status, 12)
+        //
+        // Deterministic: the child closes its stdin at once and stays alive for a second, so the
+        // writer (which only writes while the child runs) is guaranteed to write into a pipe
+        // without a reader. Without F_SETNOSIGPIPE that write raises SIGPIPE in this process.
+        let input = String(repeating: "# padding line for the unread rest of the script\n", count: 80_000)
+        XCTAssertGreaterThan(input.utf8.count, 3_000_000, "far more than one pipe buffer")
+        do {
+            _ = try await BoundedProcessRunner.run(
+                executable: "/bin/sh",
+                arguments: ["-c", "exec 0<&-; sleep 1; exit 12"],
+                standardInput: input,
+                timeout: 10
+            )
+            XCTFail("expected non-zero status")
+        } catch let error as BoundedProcessError {
+            guard case .nonZero(let status, _, _) = error else {
+                return XCTFail("unexpected error: \(error)")
             }
+            XCTAssertEqual(status, 12)
         }
     }
 

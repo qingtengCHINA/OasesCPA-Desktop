@@ -32,7 +32,8 @@ final class NativeInstallScriptTests: XCTestCase {
         _ fake: FakeArtifacts,
         prelude: String = "",
         prepareRoot: ((URL) throws -> Void)? = nil,
-        extraEnvironment: [String: String] = [:]
+        extraEnvironment: [String: String] = [:],
+        gatewayHealthAttempts: Int = DeploymentExecutor.gatewayHealthAttempts
     ) throws -> Install {
         let root = fake.caseDirectory.appendingPathComponent("root", isDirectory: true)
         try prepareRoot?(root)
@@ -40,7 +41,8 @@ final class NativeInstallScriptTests: XCTestCase {
             method: .native,
             installDirectory: root.path,
             pins: fake.pins,
-            gatewayPayloadBase64: fake.gatewayPayloadBase64
+            gatewayPayloadBase64: fake.gatewayPayloadBase64,
+            gatewayHealthAttempts: gatewayHealthAttempts
         )
         startedRoots.append((fake, root))
         let result = try fake.run(script, prelude: prelude, extraEnvironment: extraEnvironment)
@@ -373,6 +375,54 @@ final class NativeInstallScriptTests: XCTestCase {
         XCTAssertEqual(run.result.status, 26, run.result.stderr)
         XCTAssertFalse(FileManager.default.fileExists(atPath: run.root.appendingPathComponent(".oases-cpa-installed").path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: run.root.appendingPathComponent(".oases-cpa-versions").path))
+    }
+
+    /// Our gateway stays alive, but whatever answers the admin port reports another version
+    /// (another program on 18320): the wait runs out (45 attempts in production, 3 here) and
+    /// the install fails with 26 instead of trusting the foreign answer.
+    func testForeignHealthzAnswerWhileOurGatewayRunsTimesOutWith26() throws {
+        let fake = try FakeArtifacts.make(caseName: "gateway-foreign-healthz")
+        let started = Date()
+        let run = try install(
+            fake,
+            extraEnvironment: ["FAKE_HEALTHZ_BODY": "{\"ok\":true,\"version\":\"9.9.9-someone-else\"}"],
+            gatewayHealthAttempts: 3
+        )
+        XCTAssertEqual(run.result.status, 26, run.result.stderr)
+        XCTAssertTrue(run.result.stderr.contains("Oases 网关在 45 秒内没有通过健康检查。"), run.result.stderr)
+        XCTAssertGreaterThanOrEqual(Date().timeIntervalSince(started), 3, "every attempt was waited for")
+        // It was the wait that ran out, not our gateway that died: its process is still ours.
+        let pidText = try run.text("gateway.pid").trimmingCharacters(in: .whitespacesAndNewlines)
+        let pid = try XCTUnwrap(Int32(pidText))
+        XCTAssertEqual(kill(pid, 0), 0, "our gateway is still running")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: run.root.appendingPathComponent(".oases-cpa-installed").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: run.root.appendingPathComponent(".oases-cpa-versions").path))
+        let script = DeploymentExecutor().scriptForVerification(method: .native, installDirectory: "/x", gatewayPayloadBase64: "")
+        XCTAssertTrue(script.contains("for _ in $(seq 1 45); do\n  HEALTHZ_BODY="), "production waits 45 attempts")
+    }
+
+    /// Defence in depth (the rule of vendor_gateway.sh): Node and gateway archives with an
+    /// absolute path or a `..` component are refused before anything is unpacked.
+    func testArchivesWithAbsoluteOrParentPathsAreRefused() throws {
+        let gatewayParent = try FakeArtifacts.make(caseName: "gateway-dotdot", gatewayCraftedEntry: "oases-gateway_0.9.0-test/../../escaped")
+        let refusedParent = try install(gatewayParent)
+        XCTAssertEqual(refusedParent.result.status, 24, refusedParent.result.stderr)
+        XCTAssertTrue(refusedParent.result.stderr.contains("Oases 网关包含有绝对路径或 .. 路径，已拒绝。"), refusedParent.result.stderr)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: refusedParent.root.appendingPathComponent("gateway").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: gatewayParent.caseDirectory.appendingPathComponent("escaped").path))
+
+        let absoluteTarget = FakeArtifacts.scratchRoot.appendingPathComponent("absolute-entry-\(UUID().uuidString.prefix(8))").path
+        let gatewayAbsolute = try FakeArtifacts.make(caseName: "gateway-absolute", gatewayCraftedEntry: absoluteTarget)
+        let refusedAbsolute = try install(gatewayAbsolute)
+        XCTAssertEqual(refusedAbsolute.result.status, 24, refusedAbsolute.result.stderr)
+        XCTAssertTrue(refusedAbsolute.result.stderr.contains("Oases 网关包含有绝对路径或 .. 路径，已拒绝。"), refusedAbsolute.result.stderr)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: absoluteTarget))
+
+        let nodeParent = try FakeArtifacts.make(caseName: "node-dotdot", nodeCraftedEntry: "node-v24.99.0-darwin-arm64/../../escaped-node")
+        let refusedNode = try install(nodeParent)
+        XCTAssertEqual(refusedNode.result.status, 23, refusedNode.result.stderr)
+        XCTAssertTrue(refusedNode.result.stderr.contains("Node 运行时包含有绝对路径或 .. 路径，已拒绝。"), refusedNode.result.stderr)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: refusedNode.root.appendingPathComponent("node/v24.99.0").path))
     }
 
     func testNodeVersionMismatchExits23() throws {

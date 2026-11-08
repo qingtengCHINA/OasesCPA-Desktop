@@ -8,13 +8,18 @@ import XCTest
 /// under `$OASES_SCRATCH` (default `${TMPDIR}/oases-b-scratch`), mode 0700, which is left in
 /// place for inspection.
 ///
-/// - Engine and CPA Manager Plus: `#!/bin/bash` scripts that `exec sleep 300`.
+/// - Engine and CPA Manager Plus: `#!/bin/bash` scripts that wait on a `sleep 300` child, so
+///   `ps` shows their path under the install root (how the lifecycle scripts recognise their
+///   own processes). SIGTERM ends them (and the child) and appends `<name> TERM` to
+///   `$OASES_FAKE_TERM_LOG` when that is set.
 /// - Node: `--version` prints the pinned tag; with `bootstrap.mjs` it applies the gateway
 ///   bootstrap's rules (interfaces §4 and the Server's `bootstrap.mjs`): a secrets or data
 ///   directory that is a symlink or writable by group/other, or a data directory to be created
 ///   inside such a parent, exits 3 (`insecure_directory`); a missing or empty management key
 ///   exits 2; otherwise it creates `permissions.json` (0600), `pack-engine-key` and
-///   `pack-store-key` (0600) and prints one JSON line. With `server.mjs` it `exec sleep 300`.
+///   `pack-store-key` (0600) and prints one JSON line. With `server.mjs` it behaves like the
+///   engine fake (named `gateway`; `FAKE_GATEWAY_TERM_DELAY` seconds pass between SIGTERM and
+///   the exit, like the real gateway's shutdown grace; `FAKE_GATEWAY_EXIT` exits at once).
 /// - The gateway package: one top directory `oases-gateway_<ver>/` (optionally a second one).
 /// - `curl` (first on PATH): copies the matching fake package for `/releases/download/` and
 ///   `nodejs.org/dist/` URLs to `-o`, answers health URLs with success (`/healthz` with the
@@ -48,7 +53,9 @@ struct FakeArtifacts {
         caseName: String,
         gatewayVersion: String = "0.9.0-test",
         gatewayExtraTopDirectory: String? = nil,
-        gatewaySHA256Override: String? = nil
+        gatewaySHA256Override: String? = nil,
+        gatewayCraftedEntry: String? = nil,
+        nodeCraftedEntry: String? = nil
     ) throws -> FakeArtifacts {
         let fileManager = FileManager.default
         try fileManager.createDirectory(at: scratchRoot, withIntermediateDirectories: true)
@@ -75,7 +82,7 @@ struct FakeArtifacts {
             let enginePackage = "CLIProxyAPI_8.0.51_\(os)_\(arch == "arm64" ? "aarch64" : arch)"
             let engineStage = staging.appendingPathComponent(enginePackage, isDirectory: true)
             try fileManager.createDirectory(at: engineStage, withIntermediateDirectories: true)
-            try writeExecutable("#!/bin/bash\nexec sleep 300\n", to: engineStage.appendingPathComponent("cli-proxy-api"))
+            try writeExecutable(fakeService(name: "cli-proxy-api"), to: engineStage.appendingPathComponent("cli-proxy-api"))
             let engineFile = "\(enginePackage).tar.gz"
             try tar(create: artifacts.appendingPathComponent(engineFile), from: engineStage, entries: ["cli-proxy-api"])
             engineAssets[platform] = PinnedAsset(fileName: engineFile, sha256: try sha256(of: artifacts.appendingPathComponent(engineFile)))
@@ -84,7 +91,7 @@ struct FakeArtifacts {
             let cpampPackage = "cpa-manager-plus_\(cpampTag)_\(os)_\(arch)"
             let cpampStage = staging.appendingPathComponent("cpamp-\(os)-\(arch)", isDirectory: true)
             try fileManager.createDirectory(at: cpampStage.appendingPathComponent(cpampPackage), withIntermediateDirectories: true)
-            try writeExecutable("#!/bin/bash\nexec sleep 300\n", to: cpampStage.appendingPathComponent(cpampPackage).appendingPathComponent("cpa-manager-plus"))
+            try writeExecutable(fakeService(name: "cpa-manager-plus"), to: cpampStage.appendingPathComponent(cpampPackage).appendingPathComponent("cpa-manager-plus"))
             let cpampFile = "\(cpampPackage).tar.gz"
             try tar(create: artifacts.appendingPathComponent(cpampFile), from: cpampStage, entries: [cpampPackage])
             cpampAssets[platform] = PinnedAsset(fileName: cpampFile, sha256: try sha256(of: artifacts.appendingPathComponent(cpampFile)))
@@ -95,27 +102,18 @@ struct FakeArtifacts {
             try fileManager.createDirectory(at: nodeStage.appendingPathComponent(nodePackage).appendingPathComponent("bin"), withIntermediateDirectories: true)
             try writeExecutable(fakeNode, to: nodeStage.appendingPathComponent(nodePackage).appendingPathComponent("bin/node"))
             let nodeFile = "\(nodePackage).tar.gz"
-            try tar(create: artifacts.appendingPathComponent(nodeFile), from: nodeStage, entries: [nodePackage])
+            try tar(create: artifacts.appendingPathComponent(nodeFile), from: nodeStage, entries: [nodePackage], craftedEntry: nodeCraftedEntry)
             nodeAssets[platform] = PinnedAsset(fileName: nodeFile, sha256: try sha256(of: artifacts.appendingPathComponent(nodeFile)))
         }
 
-        // The gateway package.
-        let gatewayTop = "oases-gateway_\(gatewayVersion)"
-        let gatewayStage = staging.appendingPathComponent("gateway", isDirectory: true)
-        try fileManager.createDirectory(at: gatewayStage.appendingPathComponent(gatewayTop), withIntermediateDirectories: true)
-        try Data("\(gatewayVersion)\n".utf8).write(to: gatewayStage.appendingPathComponent(gatewayTop).appendingPathComponent("VERSION"))
-        try Data("// fake gateway\n".utf8).write(to: gatewayStage.appendingPathComponent(gatewayTop).appendingPathComponent("server.mjs"))
-        try Data("// fake bootstrap\n".utf8).write(to: gatewayStage.appendingPathComponent(gatewayTop).appendingPathComponent("bootstrap.mjs"))
-        var gatewayEntries = [gatewayTop]
-        if let extra = gatewayExtraTopDirectory {
-            try fileManager.createDirectory(at: gatewayStage.appendingPathComponent(extra), withIntermediateDirectories: true)
-            try Data("stray\n".utf8).write(to: gatewayStage.appendingPathComponent(extra).appendingPathComponent("file.txt"))
-            gatewayEntries.append(extra)
-        }
-        let gatewayFile = "\(gatewayTop).tar.gz"
-        let gatewayURL = artifacts.appendingPathComponent(gatewayFile)
-        try tar(create: gatewayURL, from: gatewayStage, entries: gatewayEntries)
-        let gatewayData = try Data(contentsOf: gatewayURL)
+        let gatewayData = try makeGatewayPackage(
+            version: gatewayVersion,
+            artifacts: artifacts,
+            staging: staging,
+            extraTopDirectory: gatewayExtraTopDirectory,
+            craftedEntry: gatewayCraftedEntry
+        )
+        let gatewayFile = "oases-gateway_\(gatewayVersion).tar.gz"
 
         try writeExecutable(fakeCurl, to: bin.appendingPathComponent("curl"))
 
@@ -141,6 +139,58 @@ struct FakeArtifacts {
             gatewayPayloadBase64: gatewayData.base64EncodedString(),
             gatewayVersion: gatewayVersion
         )
+    }
+
+    /// The same case directory, fake tools and engine/CPA Manager Plus/Node packages, with a
+    /// second gateway package of `version` (an upgrade target).
+    func withGateway(version: String) throws -> FakeArtifacts {
+        let staging = caseDirectory.appendingPathComponent("staging-\(version)", isDirectory: true)
+        try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+        let data = try Self.makeGatewayPackage(version: version, artifacts: artifactsDirectory, staging: staging, extraTopDirectory: nil, craftedEntry: nil)
+        let pins = DeploymentPinSet(
+            engine: self.pins.engine,
+            cpamp: self.pins.cpamp,
+            node: self.pins.node,
+            gateway: GatewayBundle(version: version, fileName: "oases-gateway_\(version).tar.gz", sha256: Self.sha256(of: data)),
+            cliDockerImage: self.pins.cliDockerImage,
+            cpampDockerImage: self.pins.cpampDockerImage
+        )
+        return FakeArtifacts(
+            caseDirectory: caseDirectory,
+            artifactsDirectory: artifactsDirectory,
+            binDirectory: binDirectory,
+            homeDirectory: homeDirectory,
+            argvLog: argvLog,
+            pins: pins,
+            gatewayPayloadBase64: data.base64EncodedString(),
+            gatewayVersion: version
+        )
+    }
+
+    private static func makeGatewayPackage(
+        version gatewayVersion: String,
+        artifacts: URL,
+        staging: URL,
+        extraTopDirectory gatewayExtraTopDirectory: String?,
+        craftedEntry: String?
+    ) throws -> Data {
+        let fileManager = FileManager.default
+        let gatewayTop = "oases-gateway_\(gatewayVersion)"
+        let gatewayStage = staging.appendingPathComponent("gateway", isDirectory: true)
+        try fileManager.createDirectory(at: gatewayStage.appendingPathComponent(gatewayTop), withIntermediateDirectories: true)
+        try Data("\(gatewayVersion)\n".utf8).write(to: gatewayStage.appendingPathComponent(gatewayTop).appendingPathComponent("VERSION"))
+        try Data("// fake gateway\n".utf8).write(to: gatewayStage.appendingPathComponent(gatewayTop).appendingPathComponent("server.mjs"))
+        try Data("// fake bootstrap\n".utf8).write(to: gatewayStage.appendingPathComponent(gatewayTop).appendingPathComponent("bootstrap.mjs"))
+        var gatewayEntries = [gatewayTop]
+        if let extra = gatewayExtraTopDirectory {
+            try fileManager.createDirectory(at: gatewayStage.appendingPathComponent(extra), withIntermediateDirectories: true)
+            try Data("stray\n".utf8).write(to: gatewayStage.appendingPathComponent(extra).appendingPathComponent("file.txt"))
+            gatewayEntries.append(extra)
+        }
+        let gatewayFile = "\(gatewayTop).tar.gz"
+        let gatewayURL = artifacts.appendingPathComponent(gatewayFile)
+        try tar(create: gatewayURL, from: gatewayStage, entries: gatewayEntries, craftedEntry: craftedEntry)
+        return try Data(contentsOf: gatewayURL)
     }
 
     /// The environment of a script run: nothing of the caller's environment but a scratch HOME,
@@ -201,7 +251,7 @@ struct FakeArtifacts {
 
     /// Stops every fake long-running process a run under `root` started (pid files).
     func stopProcesses(under root: URL) {
-        for name in ["gateway.pid", "cpa-manager-plus.pid", "cli-proxy-api.pid"] {
+        for name in DeploymentScriptFragments.managedProcesses(topology: .gateway).reversed().map(\.pidFile) {
             guard let text = try? String(contentsOf: root.appendingPathComponent(name), encoding: .utf8),
                   let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)), pid > 1 else { continue }
             kill(pid, SIGTERM)
@@ -227,16 +277,40 @@ struct FakeArtifacts {
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
     }
 
-    private static func tar(create archive: URL, from directory: URL, entries: [String]) throws {
+    /// `craftedEntry` adds one extra file under that exact archive path (absolute or with `..`,
+    /// which a well-formed package never has), written with bsdtar's `-s` substitution.
+    private static func tar(create archive: URL, from directory: URL, entries: [String], craftedEntry: String? = nil) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
-        process.arguments = ["-czf", archive.path, "-C", directory.path] + entries
+        var arguments = ["-czf", archive.path, "-C", directory.path]
+        var allEntries = entries
+        if let craftedEntry {
+            let source = "crafted-entry-\(UUID().uuidString.prefix(8))"
+            try Data("crafted\n".utf8).write(to: directory.appendingPathComponent(source))
+            arguments += ["-P", "-s", "|^\(source)$|\(craftedEntry)|"]
+            allEntries.append(source)
+        }
+        process.arguments = arguments + allEntries
         process.environment = ["COPYFILE_DISABLE": "1", "PATH": "/usr/bin:/bin"]
         try process.run()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
             throw NSError(domain: "FakeArtifacts", code: Int(process.terminationStatus), userInfo: [NSLocalizedDescriptionKey: "tar failed for \(archive.lastPathComponent)"])
         }
+    }
+
+    /// A long-running fake service: `ps` shows the script's own path; SIGTERM ends it and its
+    /// child and logs `<name> TERM`.
+    private static func fakeService(name: String) -> String {
+        """
+        #!/bin/bash
+        child=""
+        trap 'printf "%s\\n" "\(name) TERM" >> "${OASES_FAKE_TERM_LOG:-/dev/null}"; kill "$child" 2>/dev/null; exit 0' TERM
+        sleep 300 &
+        child=$!
+        wait "$child"
+
+        """
     }
 
     private static let fakeCurl = #"""
@@ -283,7 +357,12 @@ struct FakeArtifacts {
     done
     if [ "$mode" = server ]; then
       if [ -n "${FAKE_GATEWAY_EXIT:-}" ]; then exit "$FAKE_GATEWAY_EXIT"; fi
-      exec sleep 300
+      child=""
+      trap 'printf "%s\n" "gateway TERM" >> "${OASES_FAKE_TERM_LOG:-/dev/null}"; sleep "${FAKE_GATEWAY_TERM_DELAY:-0}"; printf "%s\n" "gateway exited" >> "${OASES_FAKE_TERM_LOG:-/dev/null}"; kill "$child" 2>/dev/null; exit 0' TERM
+      sleep 300 &
+      child=$!
+      wait "$child"
+      exit 0
     fi
     [ "$mode" = bootstrap ] || exit 0
 

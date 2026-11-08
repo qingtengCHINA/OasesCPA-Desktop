@@ -57,6 +57,8 @@ struct DeploymentExecutor {
     private static let cpampInstallerURL = "https://raw.githubusercontent.com/seakee/CPA-Manager-Plus/931d771344fdd5d95db5ae0adb87259eca133adc/bin/install-cpamp.sh"
     private static let cpampInstallerSHA256 = "074153b81eebbcb6a9937323a804943508fd99463b746464bd079d8dbb13b289"
     private static let cpampInstallerMaxBytes = 131_072
+    /// The gateway health wait after an install: one `/healthz` attempt per second.
+    static let gatewayHealthAttempts = 45
 
     func execute(
         request: DeploymentExecutionRequest,
@@ -80,7 +82,8 @@ struct DeploymentExecutor {
                 controlToken: controlToken,
                 pins: pins,
                 gatewayPayloadBase64: payload.base64EncodedString(),
-                ports: .standard
+                ports: .standard,
+                gatewayHealthAttempts: Self.gatewayHealthAttempts
             )
         }
 
@@ -123,7 +126,8 @@ struct DeploymentExecutor {
 
     /// The script `execute` would run, for tests and scratch drills. `gatewayPayloadBase64`
     /// defaults to the verified package of `pins.gateway` (empty when it is unavailable, so the
-    /// script would stop with exit 24); `ports` other than `.standard` are for scratch runs only.
+    /// script would stop with exit 24); `ports` other than `.standard` are for scratch runs only;
+    /// `gatewayHealthAttempts` (one per second) shortens the gateway health wait in tests.
     func scriptForVerification(
         method: DeploymentMethod,
         installDirectory: String,
@@ -131,6 +135,7 @@ struct DeploymentExecutor {
         pins: DeploymentPinSet = .current,
         gatewayPayloadBase64: String? = nil,
         ports: DeploymentScriptPorts = .standard,
+        gatewayHealthAttempts: Int = DeploymentExecutor.gatewayHealthAttempts,
         dockerInstallerURL: String? = nil,
         dockerInstallerSHA256: String? = nil,
         dockerInstallerMaxBytes: Int? = nil
@@ -154,7 +159,8 @@ struct DeploymentExecutor {
                 controlToken: controlToken,
                 pins: pins,
                 gatewayPayloadBase64: payload,
-                ports: ports
+                ports: ports,
+                gatewayHealthAttempts: gatewayHealthAttempts
             )
         }
     }
@@ -234,7 +240,8 @@ struct DeploymentExecutor {
         controlToken: String,
         pins: DeploymentPinSet,
         gatewayPayloadBase64: String,
-        ports: DeploymentScriptPorts
+        ports: DeploymentScriptPorts,
+        gatewayHealthAttempts: Int
     ) -> String {
         let root = shellQuote(installDirectory)
         let token = shellQuote(controlToken)
@@ -651,7 +658,7 @@ struct DeploymentExecutor {
         # (no credentials) with ok and the version that was just installed.
         set_stage "wait-gateway"
         GATEWAY_HEALTHY=0
-        for _ in $(seq 1 45); do
+        for _ in $(seq 1 \(max(1, gatewayHealthAttempts))); do
           HEALTHZ_BODY="$(curl -fsS --max-time 2 "http://127.0.0.1:$GATEWAY_ADMIN_PORT/healthz" 2>/dev/null || true)"
           case "$HEALTHZ_BODY" in
             *'"ok":true'*'"version":"'"$GATEWAY_VERSION"'"'*)

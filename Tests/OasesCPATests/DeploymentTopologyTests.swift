@@ -107,6 +107,20 @@ final class DeploymentTopologyTests: XCTestCase {
         XCTAssertEqual(RuntimeLifecycleService().panelHealthURL.absoluteString, "http://127.0.0.1:18317/health")
     }
 
+    /// The session and the endpoints both come from the initializer (one source of endpoints).
+    func testLifecycleHealthChecksGoThroughTheInjectedSession() async {
+        URLProtocolStub.install { request, _ in .json(200, "{}", for: request) }
+        defer { URLProtocolStub.reset() }
+        let healthy = await RuntimeLifecycleService(
+            session: URLProtocolStub.makeSession(),
+            endpoints: DeploymentEndpoints(topology: .gateway)
+        ).checkConnectionHealth(cpaManagementKey: "cpa_test")
+        XCTAssertTrue(healthy)
+        let urls = Set(URLProtocolStub.recordedRequests.compactMap { $0.0.url?.absoluteString })
+        XCTAssertTrue(urls.contains("http://127.0.0.1:18316/v0/management/config"), "\(urls)")
+        XCTAssertTrue(urls.contains("http://127.0.0.1:18317/health"), "\(urls)")
+    }
+
     func testWelcomeDiagramNamesThe8317RowByTopology() {
         // In the gateway topology 8317 /v1 is the Oases gateway, not CLIProxyAPI.
         XCTAssertEqual(WelcomeRuntimeLabels.apiRowName(topology: .gateway, language: .simplifiedChinese), "Oases 网关")
@@ -115,5 +129,19 @@ final class DeploymentTopologyTests: XCTestCase {
         XCTAssertTrue(WelcomeRuntimeLabels.diagramAccessibilityLabel(topology: .gateway, language: .english).contains("Oases gateway"))
         XCTAssertTrue(WelcomeRuntimeLabels.diagramAccessibilityLabel(topology: .gateway, language: .simplifiedChinese).contains("Oases 网关"))
         XCTAssertFalse(WelcomeRuntimeLabels.diagramAccessibilityLabel(topology: .legacy, language: .english).contains("gateway"))
+    }
+
+    /// Nothing attached yet: a native install would deploy the gateway, so the diagram already
+    /// names the 8317 row "Oases gateway" (zh-Hans and en); an attached target shows its own.
+    func testWelcomeDiagramShowsTheGatewayWhenNothingIsAttached() {
+        let unattached = WelcomeRuntimeLabels.displayedTopology(topology: .legacy, hasInstalledDeployment: false, method: .native)
+        XCTAssertEqual(unattached, .gateway)
+        XCTAssertEqual(WelcomeRuntimeLabels.apiRowName(topology: unattached, language: .simplifiedChinese), "Oases 网关")
+        XCTAssertEqual(WelcomeRuntimeLabels.apiRowName(topology: unattached, language: .english), "Oases gateway")
+        XCTAssertEqual(WelcomeRuntimeLabels.displayedTopology(topology: .legacy, hasInstalledDeployment: false, method: .docker), .legacy,
+                       "a Docker install has no gateway")
+        XCTAssertEqual(WelcomeRuntimeLabels.displayedTopology(topology: .legacy, hasInstalledDeployment: true, method: .native), .legacy,
+                       "an attached legacy deployment keeps its own label")
+        XCTAssertEqual(WelcomeRuntimeLabels.displayedTopology(topology: .gateway, hasInstalledDeployment: true, method: .native), .gateway)
     }
 }

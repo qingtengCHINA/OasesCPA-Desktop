@@ -260,6 +260,22 @@ enum DeploymentScriptFragments {
 
     // MARK: - Node, gateway, bootstrap
 
+    /// `oases_archive_paths_are_relative <archive>`: fails when the listing of a tar.gz holds an
+    /// absolute path or a `..` component (the rule of `script/vendor_gateway.sh`), checked
+    /// before anything is unpacked. Defined by both the Node and the gateway fragment.
+    private static let archivePathCheck = """
+    oases_archive_paths_are_relative() {
+      local listing
+      listing="$(tar -tzf "$1")" || return 1
+      # A here-string, not a pipe: with pipefail an early exit of grep -q could turn a
+      # match into a failure of the pipeline and so into "no match".
+      if grep -Eq '(^|/)\\.\\.(/|$)|^/' <<< "$listing"; then
+        return 1
+      fi
+      return 0
+    }
+    """
+
     /// `oases_install_node <root>` (segment J). Needs `NODE_VERSION_TAG`, `NODE_ASSET`,
     /// `NODE_PACKAGE`, `NODE_EXPECTED_SHA256` (`DeploymentPinSet.nativeSelectionScript()`),
     /// `curl_retry` and `verify_fixed_archive`. Downloads the pinned package, checks its SHA-256,
@@ -269,6 +285,7 @@ enum DeploymentScriptFragments {
     /// download, 23 for every check.
     static func installNode() -> String {
         """
+        \(archivePathCheck)
         oases_install_node() {
           local root="$1"
           local node_dir="$root/node"
@@ -288,6 +305,11 @@ enum DeploymentScriptFragments {
           fi
           if ! tops="$(tar -tzf "$part" | sed -e 's|^\\./||' -e 's|/.*$||' | sort -u)"; then
             printf '%s\\n' 'Node 运行时下载包不完整或不是有效的 tar.gz。' >&2
+            rm -f "$part"
+            exit 23
+          fi
+          if ! oases_archive_paths_are_relative "$part"; then
+            printf '%s\\n' 'Node 运行时包含有绝对路径或 .. 路径，已拒绝。' >&2
             rm -f "$part"
             exit 23
           fi
@@ -325,6 +347,7 @@ enum DeploymentScriptFragments {
     /// and leaves no `gateway/` directory behind on a fresh install.
     static func installGateway() -> String {
         """
+        \(archivePathCheck)
         oases_gateway_package_failed() {
           rm -f "$1/gateway/downloads/$GATEWAY_FILE.part"
           rm -rf "$1/gateway/.$GATEWAY_VERSION.partial.$$"
@@ -348,6 +371,9 @@ enum DeploymentScriptFragments {
           fi
           if ! tops="$(tar -tzf "$part" | sed -e 's|^\\./||' -e 's|/.*$||' | sort -u)"; then
             oases_gateway_package_failed "$root" 'Oases 网关包不是有效的 tar.gz。'
+          fi
+          if ! oases_archive_paths_are_relative "$part"; then
+            oases_gateway_package_failed "$root" 'Oases 网关包含有绝对路径或 .. 路径，已拒绝。'
           fi
           if [ "$tops" != "oases-gateway_$GATEWAY_VERSION" ]; then
             oases_gateway_package_failed "$root" 'Oases 网关包必须只有一个顶层目录 oases-gateway_<版本>/。'
@@ -377,27 +403,31 @@ enum DeploymentScriptFragments {
     /// 0700; a symlinked one exits 25).
     static func securePrivateDirectories() -> String {
         """
+        oases_private_directory_failed() {
+          printf '%s%s，已停止部署。\\n' "$1" "$2" >&2
+          exit 25
+        }
         oases_secure_private_directories() {
           local root="$1"
           if [ -L "$root" ]; then
             printf '%s\\n' '安装目录是符号链接，网关初始化拒绝使用；请选择真实目录。' >&2
             exit 25
           fi
-          chmod go-w "$root" || exit 25
+          chmod go-w "$root" || oases_private_directory_failed '无法去掉安装目录的组与其他用户写权限（chmod go-w）：' "$root"
           if [ -L "$root/secrets" ]; then
             printf '%s\\n' 'secrets 目录是符号链接，已停止部署。' >&2
             exit 25
           fi
-          mkdir -p "$root/secrets" || exit 25
-          chmod 700 "$root/secrets" || exit 25
+          mkdir -p "$root/secrets" || oases_private_directory_failed '无法创建 secrets 目录：' "$root/secrets"
+          chmod 700 "$root/secrets" || oases_private_directory_failed '无法把 secrets 目录设为 0700：' "$root/secrets"
           if [ -L "$root/gateway-data" ]; then
             printf '%s\\n' 'gateway-data 目录是符号链接，已停止部署。' >&2
             exit 25
           fi
           if [ -d "$root/gateway-data" ]; then
-            chmod 700 "$root/gateway-data" || exit 25
+            chmod 700 "$root/gateway-data" || oases_private_directory_failed '无法把 gateway-data 目录设为 0700：' "$root/gateway-data"
           else
-            mkdir -m 700 "$root/gateway-data" || exit 25
+            mkdir -m 700 "$root/gateway-data" || oases_private_directory_failed '无法创建 gateway-data 目录：' "$root/gateway-data"
           fi
         }
         """

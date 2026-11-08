@@ -392,6 +392,18 @@ private struct WelcomeStepCard: View {
 /// The welcome diagram's labels follow the deployment topology: in the gateway topology the
 /// `/v1` port 8317 belongs to the Oases gateway, in the legacy one to CLIProxyAPI.
 enum WelcomeRuntimeLabels {
+    /// The topology the diagram describes. With nothing attached the store's topology is only a
+    /// placeholder (`legacy`), while a new native install deploys the gateway: show what the
+    /// selected method would install. An attached deployment shows its own topology.
+    static func displayedTopology(
+        topology: DeploymentTopology,
+        hasInstalledDeployment: Bool,
+        method: DeploymentMethod
+    ) -> DeploymentTopology {
+        guard !hasInstalledDeployment else { return topology }
+        return method == .native ? .gateway : .legacy
+    }
+
     static func apiRowName(topology: DeploymentTopology, language: AppLanguage? = nil) -> String {
         switch topology {
         case .gateway: OasesLocalization.localized("Oases 网关", language: language)
@@ -411,6 +423,14 @@ enum WelcomeRuntimeLabels {
 
 private struct WelcomeHeroDiagram: View {
     @EnvironmentObject private var deploymentStore: DeploymentStore
+
+    private var topology: DeploymentTopology {
+        WelcomeRuntimeLabels.displayedTopology(
+            topology: deploymentStore.topology,
+            hasInstalledDeployment: deploymentStore.hasInstalledDeployment,
+            method: deploymentStore.deploymentMethod
+        )
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -451,7 +471,7 @@ private struct WelcomeHeroDiagram: View {
             }
 
             VStack(spacing: 8) {
-                WelcomeRuntimeRow(dot: Color.accentColor, name: WelcomeRuntimeLabels.apiRowName(topology: deploymentStore.topology), meta: ":\(DeploymentPorts.gatewayAPI) /v1")
+                WelcomeRuntimeRow(dot: Color.accentColor, name: WelcomeRuntimeLabels.apiRowName(topology: topology), meta: ":\(DeploymentPorts.gatewayAPI) /v1")
                 WelcomeRuntimeRow(dot: Color.accentColor.opacity(0.55), name: "CPA Manager Plus", meta: "panel")
             }
             .padding(14)
@@ -474,7 +494,7 @@ private struct WelcomeHeroDiagram: View {
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(WelcomeRuntimeLabels.diagramAccessibilityLabel(topology: deploymentStore.topology))
+        .accessibilityLabel(WelcomeRuntimeLabels.diagramAccessibilityLabel(topology: topology))
     }
 }
 

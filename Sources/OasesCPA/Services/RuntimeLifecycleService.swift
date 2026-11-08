@@ -1,15 +1,20 @@
 import Foundation
 
 struct RuntimeLifecycleService {
-    /// Where the health checks look (the engine moves to 18316 behind the gateway).
+    /// Where the health checks look (the engine moves to 18316 behind the gateway). The one
+    /// source of endpoints for every check of this value; no call takes its own.
     let endpoints: DeploymentEndpoints
+    /// The health checks send the management key and read the engine config: no disk cache
+    /// (`SecretBearingURLSession`). Tests inject a stub session to see the requests.
+    let session: URLSession
 
-    init(endpoints: DeploymentEndpoints = DeploymentEndpoints(topology: .legacy)) {
+    init(
+        session: URLSession = SecretBearingURLSession.shared,
+        endpoints: DeploymentEndpoints = DeploymentEndpoints(topology: .legacy)
+    ) {
+        self.session = session
         self.endpoints = endpoints
     }
-
-    /// The health checks send the management key and read the engine config: no disk cache.
-    var session: URLSession { SecretBearingURLSession.shared }
 
     /// The engine management endpoint the health check reads (needs the management key).
     var engineHealthURL: URL {

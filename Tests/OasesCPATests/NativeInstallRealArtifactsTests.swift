@@ -148,7 +148,7 @@ final class NativeInstallRealArtifactsTests: XCTestCase {
 
     private func stopAll(under root: URL) {
         var pids: [Int32] = []
-        for name in ["gateway.pid", "cpa-manager-plus.pid", "cli-proxy-api.pid"] {
+        for name in DeploymentScriptFragments.managedProcesses(topology: .gateway).reversed().map(\.pidFile) {
             if let text = try? String(contentsOf: root.appendingPathComponent(name), encoding: .utf8),
                let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)), pid > 1 {
                 pids.append(pid)
