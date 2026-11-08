@@ -7,8 +7,12 @@
 # Copies <server-repo-dir>/script/check-no-private.sh byte for byte to script/check-no-private.sh
 # and records its origin in script/check-no-private.source as one line:
 #   <server commit sha> <sha256 of the script>
-# The Server work tree must be clean and the script must be tracked there. On any failure the
-# script exits 1 and leaves both files untouched. Needs bash 3.2, git, cmp, shasum.
+# The Server work tree must be clean and the script must be tracked there. The scanner is
+# installed with mode 755 and the record with 644 (`install -m`, whatever the umask or the
+# old files' modes), both first as temporary files next to their targets and then moved into
+# place; when the second move fails, the scanner that was already moved is put back. On any
+# failure the script exits 1 and leaves both files as they were. Needs bash 3.2, git, cmp,
+# shasum, install.
 
 set -u
 
@@ -55,7 +59,32 @@ esac
 printf '%s %s\n' "$commit" "$digest" > "$tmp_source" || fail "cannot write the source record"
 chmod 644 "$tmp_source" || fail "chmod failed"
 
-cp "$tmp_script" "$target_script" || fail "cannot install the scanner"
-cp "$tmp_source" "$target_source" || fail "cannot write $target_source"
+# Stage both next to their targets (same file system, so the moves below are renames).
+staged_script="$repo_root/script/.check-no-private.sh.sync.$$"
+staged_source="$repo_root/script/.check-no-private.source.sync.$$"
+previous_script="$repo_root/script/.check-no-private.sh.previous.$$"
+cleanup() {
+  rm -f "$staged_script" "$staged_source" "$previous_script"
+}
+trap cleanup EXIT
+install -m 755 "$tmp_script" "$staged_script" || fail "cannot stage the scanner"
+install -m 644 "$tmp_source" "$staged_source" || fail "cannot stage the source record"
+cmp -s "$source_script" "$staged_script" || fail "staged scanner differs from the source"
+had_script=0
+if [ -e "$target_script" ]; then
+  cp -p "$target_script" "$previous_script" || fail "cannot keep a copy of the current scanner"
+  had_script=1
+fi
+
+mv -f "$staged_script" "$target_script" || fail "cannot install the scanner"
+if ! mv -f "$staged_source" "$target_source"; then
+  if [ "$had_script" -eq 1 ]; then
+    mv -f "$previous_script" "$target_script" \
+      || fail "cannot write $target_source, and the previous scanner could not be put back: restore script/check-no-private.sh with git"
+  else
+    rm -f "$target_script"
+  fi
+  fail "cannot write $target_source; the scanner was left as it was"
+fi
 cmp -s "$source_script" "$target_script" || fail "installed scanner differs from the source"
 printf 'vendored check-no-private.sh from %s (%s)\n' "$commit" "$digest"

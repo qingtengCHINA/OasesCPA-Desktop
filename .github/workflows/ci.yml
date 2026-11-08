@@ -59,6 +59,11 @@ jobs:
       - name: Check Xcode project membership
         run: bash script/check_xcodeproj_membership.sh
 
+      - name: Test the membership check and the scanner sync
+        run: |
+          bash script/check_xcodeproj_membership_test.sh
+          bash script/sync_check_no_private_test.sh
+
       - name: Run Swift package tests
         run: swift test --scratch-path "$RUNNER_TEMP/oases-swift-test"
 

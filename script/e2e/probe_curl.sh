@@ -30,6 +30,7 @@ IFS= read -r PORT < "$WORK/port" || true
 case "$PORT" in ''|*[!0-9]*) printf '%s\n' 'probe_curl: no valid port file' >&2; exit 1 ;; esac
 [ -n "$KEY" ] || { printf '%s\n' 'probe_curl: empty management key' >&2; exit 1; }
 
-# printf is a shell builtin: the key goes to curl's stdin, never into argv.
+# printf is a shell builtin: the key goes to curl's stdin, never into argv. --noproxy '*':
+# the request (and its key) never goes through an http_proxy/ALL_PROXY of the caller's shell.
 printf 'header = "Authorization: Bearer %s"\n' "$KEY" \
-  | curl -K - -sS -D - -X "$method" "http://127.0.0.1:$PORT$path" "$@"
+  | curl -K - --noproxy '*' -sS -D - -X "$method" "http://127.0.0.1:$PORT$path" "$@"

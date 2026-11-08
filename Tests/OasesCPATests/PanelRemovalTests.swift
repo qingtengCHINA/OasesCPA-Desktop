@@ -59,6 +59,20 @@ final class PanelRemovalTests: XCTestCase {
         }
     }
 
+    /// No test depends on the removed panel page either: the opt-in live checks use CPA
+    /// Manager Plus's `/health` as the liveness probe.
+    func testNoTestUsesThePanelPageAsALivenessCheck() throws {
+        let tests = repositoryRoot.appendingPathComponent("Tests/OasesCPATests")
+        let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: tests, includingPropertiesForKeys: nil))
+        var scanned = 0
+        for case let file as URL in enumerator where file.pathExtension == "swift" && file.lastPathComponent != "PanelRemovalTests.swift" {
+            let text = try String(contentsOf: file, encoding: .utf8)
+            XCTAssertFalse(text.contains("/management.html"), "\(file.lastPathComponent) requests the removed panel page")
+            scanned += 1
+        }
+        XCTAssertGreaterThan(scanned, 50)
+    }
+
     func testNoLocalizationKeyMentionsTheWebPanel() throws {
         let chineseTerms = ["CPAMP 面板", "高级面板", "完整面板", "打开 CPAMP", "网页面板", "浏览器面板", "浏览器打开", "管理面板"]
         let englishTerms = ["cpamp panel", "web panel", "advanced panel", "open cpamp", "embedded panel", "browser panel"]

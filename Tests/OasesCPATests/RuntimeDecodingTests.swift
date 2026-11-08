@@ -1093,7 +1093,7 @@ final class RuntimeDecodingTests: XCTestCase {
             managementKey: cpaKey
         )
         try await assertHTTPStatus(
-            URL(string: "http://127.0.0.1:18317/management.html")!,
+            URL(string: "http://127.0.0.1:18317/health")!,
             expected: 200
         )
 
@@ -1233,7 +1233,7 @@ final class RuntimeDecodingTests: XCTestCase {
             managementKey: cpaKey
         )
         try await assertHTTPStatus(
-            URL(string: "http://127.0.0.1:18317/management.html")!,
+            URL(string: "http://127.0.0.1:18317/health")!,
             expected: 200
         )
     }
@@ -1455,7 +1455,7 @@ final class RuntimeDecodingTests: XCTestCase {
                 managementKey: execution.cpaManagementKey
             )
             try await assertHTTPStatus(
-                URL(string: "http://127.0.0.1:18317/management.html")!,
+                URL(string: "http://127.0.0.1:18317/health")!,
                 expected: 200
             )
         } catch {

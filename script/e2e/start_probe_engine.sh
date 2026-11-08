@@ -22,7 +22,8 @@
 # package and a version manifest) are refused locally and nothing leaves the machine.
 #
 # stop signals only the process in engine.pid whose command line contains the work directory,
-# SIGTERM then SIGKILL after 10 s; the directory stays (it is scratch). Needs bash 3.2.
+# SIGTERM then SIGKILL after 10 s (OASES_PROBE_STOP_GRACE_SECONDS, 1-60, overrides the grace
+# period); the directory stays (it is scratch). Needs bash 3.2.
 #
 # Exit codes: 0 done / running; 1 refused or failed; 2 usage; 3 status: not running.
 
@@ -162,7 +163,7 @@ start() {
     if ! kill -0 "$pid" 2>/dev/null; then
       fail "the engine exited during start; see $WORK/engine.log"
     fi
-    if curl -fsS --max-time 2 "http://127.0.0.1:$port/healthz" >/dev/null 2>&1; then
+    if curl --noproxy '*' -fsS --max-time 2 "http://127.0.0.1:$port/healthz" >/dev/null 2>&1; then
       printf 'probe engine %s running: pid %s, http://127.0.0.1:%s\n' "$ENGINE_TAG" "$pid" "$port"
       return 0
     fi
@@ -174,7 +175,9 @@ start() {
 }
 
 stop() {
-  local pid waited=0
+  local pid waited=0 grace="${OASES_PROBE_STOP_GRACE_SECONDS:-10}"
+  case "$grace" in ''|*[!0-9]*) grace=10 ;; esac
+  if [ "$grace" -lt 1 ] || [ "$grace" -gt 60 ]; then grace=10; fi
   if ! pid="$(owned_pid)"; then
     if [ -f "$WORK/engine.pid" ]; then
       printf '%s\n' 'start_probe_engine: engine.pid does not name a running probe engine; nothing was signalled.' >&2
@@ -184,7 +187,7 @@ stop() {
     return 0
   fi
   kill -TERM "$pid" 2>/dev/null || true
-  while kill -0 "$pid" 2>/dev/null && [ "$waited" -lt 10 ]; do
+  while kill -0 "$pid" 2>/dev/null && [ "$waited" -lt "$grace" ]; do
     sleep 1
     waited=$((waited + 1))
   done

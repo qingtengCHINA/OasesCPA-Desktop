@@ -25,7 +25,12 @@ final class ProbeEngineScriptTests: XCTestCase {
     }
 
     /// Runs `script` with /bin/bash, `OASES_SCRATCH` set to this case's directory.
-    private func run(_ script: URL, _ arguments: [String], path: String = "/usr/bin:/bin:/usr/sbin:/sbin") throws -> Result {
+    private func run(
+        _ script: URL,
+        _ arguments: [String],
+        path: String = "/usr/bin:/bin:/usr/sbin:/sbin",
+        environment extra: [String: String] = [:]
+    ) throws -> Result {
         let stdoutURL = caseDirectory.appendingPathComponent("stdout-\(UUID().uuidString.prefix(6)).txt")
         let stderrURL = caseDirectory.appendingPathComponent("stderr-\(UUID().uuidString.prefix(6)).txt")
         FileManager.default.createFile(atPath: stdoutURL.path, contents: Data())
@@ -40,6 +45,7 @@ final class ProbeEngineScriptTests: XCTestCase {
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = [script.path] + arguments
         process.environment = ["PATH": path, "OASES_SCRATCH": caseDirectory.path, "HOME": caseDirectory.path, "TMPDIR": caseDirectory.path]
+            .merging(extra) { _, new in new }
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = stdout
         process.standardError = stderr
@@ -104,6 +110,7 @@ final class ProbeEngineScriptTests: XCTestCase {
         XCTAssertEqual(argv.firstIndex(of: "-D").map { argv[$0 + 1] }, "-")
         XCTAssertTrue(argv.contains("http://127.0.0.1:23456/v0/management/config"), argv.joined(separator: " "))
         XCTAssertEqual(argv.firstIndex(of: "-X").map { argv[$0 + 1] }, "GET")
+        XCTAssertEqual(argv.firstIndex(of: "--noproxy").map { argv[$0 + 1] }, "*", "never through the caller's proxy")
         XCTAssertEqual(try String(contentsOf: stdinLog, encoding: .utf8), "header = \"Authorization: Bearer \(key)\"\n")
         XCTAssertFalse(result.stdout.contains(key) || result.stderr.contains(key))
     }
@@ -139,6 +146,56 @@ final class ProbeEngineScriptTests: XCTestCase {
         XCTAssertEqual(refused.status, 1, refused.stderr)
         XCTAssertFalse(FileManager.default.fileExists(atPath: work.appendingPathComponent("config.yaml").path), "nothing was written")
         XCTAssertEqual(try run(Self.startScript, ["start"]).status, 2, "no archive: usage error, never a download")
+    }
+
+    /// Every curl of the probe tooling bypasses the caller's proxy (the start script's
+    /// `/healthz` poll runs only with the real engine, so its text is checked).
+    func testEveryProbeCurlBypassesTheCallersProxy() throws {
+        for script in [Self.startScript, Self.curlScript] {
+            let text = try String(contentsOf: script, encoding: .utf8)
+            let calls = text.split(separator: "\n").filter { line in
+                let code = line.trimmingCharacters(in: .whitespaces)
+                return !code.hasPrefix("#") && (code.hasPrefix("curl ") || code.contains(" curl ") || code.contains("| curl "))
+            }
+            XCTAssertFalse(calls.isEmpty, script.lastPathComponent)
+            for call in calls {
+                XCTAssertTrue(call.contains("--noproxy '*'"), "\(script.lastPathComponent): \(call)")
+            }
+        }
+    }
+
+    /// `stop` escalates to SIGKILL when the probe engine ignores SIGTERM, and leaves nothing
+    /// running. The stand-in is an owned process (its command line holds the work directory)
+    /// that ignores TERM; the grace period is shortened to one second.
+    func testStopEscalatesToKillWhenTermIsIgnored() throws {
+        let work = caseDirectory.appendingPathComponent("probe-engine", isDirectory: true)
+        try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+        let stubborn = Process()
+        stubborn.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
+        stubborn.arguments = ["-e", "$SIG{TERM} = 'IGNORE'; open(my $f, '>', $ARGV[1]) or die; close($f); sleep 120;", work.appendingPathComponent("stand-in").path + "/", work.appendingPathComponent("ready").path]
+        stubborn.standardInput = FileHandle.nullDevice
+        try stubborn.run()
+        defer {
+            if stubborn.isRunning { kill(stubborn.processIdentifier, SIGKILL) }
+            stubborn.waitUntilExit()
+        }
+        for _ in 0..<200 where !FileManager.default.fileExists(atPath: work.appendingPathComponent("ready").path) {
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: work.appendingPathComponent("ready").path), "the stand-in ignores TERM from now on")
+        try Data("\(stubborn.processIdentifier)\n".utf8).write(to: work.appendingPathComponent("engine.pid"))
+        XCTAssertEqual(try run(Self.startScript, ["status"]).status, 0, "the stand-in counts as the probe engine")
+
+        let started = Date()
+        let stopped = try run(Self.startScript, ["stop"], environment: ["OASES_PROBE_STOP_GRACE_SECONDS": "1"])
+        XCTAssertEqual(stopped.status, 0, stopped.stderr)
+        XCTAssertTrue(stopped.stdout.contains("probe engine stopped"), stopped.stdout)
+        for _ in 0..<300 where stubborn.isRunning { Thread.sleep(forTimeInterval: 0.01) }
+        XCTAssertFalse(stubborn.isRunning, "nothing is left running")
+        XCTAssertEqual(stubborn.terminationReason, .uncaughtSignal)
+        XCTAssertEqual(stubborn.terminationStatus, SIGKILL, "TERM was ignored, KILL ended it")
+        XCTAssertGreaterThanOrEqual(Date().timeIntervalSince(started), 1, "KILL only after the grace period")
+        XCTAssertEqual(try run(Self.startScript, ["status"]).status, 3)
     }
 
     /// Opt-in (`OASES_PROBE_ENGINE_LIVE=1`, a probe engine started with start_probe_engine.sh):
