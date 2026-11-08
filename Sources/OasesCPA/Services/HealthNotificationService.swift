@@ -29,13 +29,33 @@ final class HealthNotificationService: NSObject, UNUserNotificationCenterDelegat
         await add(content: content, identifier: "oases-cpa-health-degraded")
     }
 
-    func notifyRecovered(target: String) async {
+    func notifyRecovered(target: String, topology: DeploymentTopology) async {
         guard await isAuthorized() else { return }
         let content = UNMutableNotificationContent()
         content.title = OasesLocalization.localized("Oases CPA：目标服务已恢复")
-        content.body = OasesLocalization.localizedFormat("%@：CLIProxyAPI、CPAMP 和连接通道已重新可用。", target)
+        content.body = Self.recoveredBody(target: target, topology: topology)
         content.sound = .default
         await add(content: content, identifier: "oases-cpa-health-recovered")
+    }
+
+    /// The gateway topology names the gateway too; a legacy deployment keeps the old text.
+    nonisolated static func recoveredBody(target: String, topology: DeploymentTopology, language: AppLanguage? = nil) -> String {
+        switch topology {
+        case .gateway:
+            OasesLocalization.localizedFormat("%@：CLIProxyAPI、CPAMP、Oases 网关和连接通道已重新可用。", language: language, target)
+        case .legacy:
+            OasesLocalization.localizedFormat("%@：CLIProxyAPI、CPAMP 和连接通道已重新可用。", language: language, target)
+        }
+    }
+
+    /// The degraded-state detail of a failed patrol, by topology.
+    nonisolated static func healthCheckFailedDetail(topology: DeploymentTopology, language: AppLanguage? = nil) -> String {
+        switch topology {
+        case .gateway:
+            OasesLocalization.localized("CLIProxyAPI、CPAMP 或 Oases 网关健康检查未通过。", language: language)
+        case .legacy:
+            OasesLocalization.localized("CLIProxyAPI 或 CPAMP 健康检查未通过。", language: language)
+        }
     }
 
     nonisolated func userNotificationCenter(

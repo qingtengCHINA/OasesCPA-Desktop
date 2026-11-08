@@ -26,6 +26,12 @@ struct RuntimeLifecycleService {
         endpoints.cpampBaseURL.appendingPathComponent("health")
     }
 
+    /// The gateway's unauthenticated `GET /healthz` on the admin port (interfaces §5); nil for
+    /// a legacy deployment, which has no gateway.
+    var gatewayHealthURL: URL? {
+        endpoints.gatewayAdminBaseURL?.appendingPathComponent("healthz")
+    }
+
     func startScriptForVerification(method: DeploymentMethod, installDirectory: String) -> String {
         startScript(method: method, installDirectory: installDirectory)
     }
@@ -44,9 +50,7 @@ struct RuntimeLifecycleService {
         installDirectory: String,
         cpaManagementKey: String
     ) async throws {
-        let cpaHealthy = await isHealthy(cpaManagementKey: cpaManagementKey)
-        let panelHealthy = await isPanelHealthy()
-        if cpaHealthy && panelHealthy {
+        if await allHealthy(cpaManagementKey: cpaManagementKey) {
             return
         }
 
@@ -91,10 +95,18 @@ struct RuntimeLifecycleService {
         try await waitForHealth(cpaManagementKey: cpaManagementKey)
     }
 
+    /// The 30 s patrol: the engine and CPA Manager Plus, plus the gateway in the gateway
+    /// topology (the endpoints of this value decide).
     func checkConnectionHealth(cpaManagementKey: String) async -> Bool {
+        await allHealthy(cpaManagementKey: cpaManagementKey)
+    }
+
+    private func allHealthy(cpaManagementKey: String) async -> Bool {
         let cpaHealthy = await isHealthy(cpaManagementKey: cpaManagementKey)
         let panelHealthy = await isPanelHealthy()
-        return cpaHealthy && panelHealthy
+        guard cpaHealthy, panelHealthy else { return false }
+        guard gatewayHealthURL != nil else { return true }
+        return await isGatewayHealthy()
     }
 
     func stop(
@@ -143,9 +155,7 @@ struct RuntimeLifecycleService {
 
     private func waitForHealth(cpaManagementKey: String) async throws {
         for _ in 0..<45 {
-            let cpaHealthy = await isHealthy(cpaManagementKey: cpaManagementKey)
-            let panelHealthy = await isPanelHealthy()
-            if cpaHealthy && panelHealthy {
+            if await allHealthy(cpaManagementKey: cpaManagementKey) {
                 return
             }
             try await Task.sleep(nanoseconds: 1_000_000_000)
@@ -160,6 +170,26 @@ struct RuntimeLifecycleService {
         do {
             let (_, response) = try await session.data(for: request)
             return (response as? HTTPURLResponse)?.statusCode == 200
+        } catch {
+            return false
+        }
+    }
+
+    /// `GET /healthz` without any credential (never the management key: the route is open, and
+    /// the key must not travel where it is not needed). Healthy is 200 with `"ok": true`. A 401
+    /// or any other status is simply unhealthy; nothing is retried here.
+    private func isGatewayHealthy() async -> Bool {
+        guard let url = gatewayHealthURL else { return false }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 2
+        request.httpShouldHandleCookies = false
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard (response as? HTTPURLResponse)?.statusCode == 200,
+                  let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                return false
+            }
+            return object["ok"] as? Bool == true
         } catch {
             return false
         }
@@ -199,33 +229,34 @@ struct RuntimeLifecycleService {
               "~/"*) ROOT="$HOME/${ROOT#\\~/}" ;;
             esac
             mkdir -p "$ROOT/logs"
-            managed_process() {
-              local pid="$1"
-              local expected_root="$2"
-              kill -0 "$pid" >/dev/null 2>&1 || return 1
-              local command
-              command="$(ps -p "$pid" -o command= 2>/dev/null || true)"
-              case "$command" in
-                *"$expected_root"*) return 0 ;;
-                *) return 1 ;;
-              esac
-            }
+            \(DeploymentScriptFragments.managedProcessList(topology: .gateway))
+            \(DeploymentScriptFragments.managedProcessStop())
             start_if_needed() {
               local script="$1"
               local pid_file="$2"
               local log_file="$3"
               local expected_root="$4"
-              if [ -f "$pid_file" ] && managed_process "$(cat "$pid_file")" "$expected_root"; then
+              if [ -f "$pid_file" ] && oases_pid_owned_by "$(cat "$pid_file" 2>/dev/null || true)" "$expected_root"; then
                 return
               fi
               rm -f "$pid_file"
               nohup "$script" >> "$log_file" 2>&1 &
-              printf '%s\n' "$!" > "$pid_file"
+              printf '%s\\n' "$!" > "$pid_file"
             }
-            start_if_needed "$ROOT/cli-proxy-api/run.sh" "$ROOT/cli-proxy-api.pid" "$ROOT/logs/cli-proxy-api.log" "$ROOT/cli-proxy-api"
-            start_if_needed "$ROOT/cpamp/run.sh" "$ROOT/cpa-manager-plus.pid" "$ROOT/logs/cpa-manager-plus.log" "$ROOT/cpamp"
+            \(nativeStartLines())
             """
         }
+    }
+
+    /// One `start_if_needed` per managed process in start order (engine, CPA Manager Plus,
+    /// then the gateway, which only starts when `gateway/run.sh` is there: a legacy 0.1.x
+    /// deployment has none).
+    private func nativeStartLines() -> String {
+        DeploymentScriptFragments.managedProcesses(topology: .gateway).map { process in
+            let line = "start_if_needed \"$ROOT/\(process.runScript)\" \"$ROOT/\(process.pidFile)\" \"$ROOT/\(process.logFile)\" \"$ROOT/\(process.ownedPath)\""
+            guard process.startsOnlyWhenInstalled else { return line }
+            return "if [ -x \"$ROOT/\(process.runScript)\" ]; then\n  \(line)\nfi"
+        }.joined(separator: "\n")
     }
 
     private func stopScript(method: DeploymentMethod, installDirectory: String) -> String {
@@ -250,37 +281,17 @@ struct RuntimeLifecycleService {
               "~") ROOT="$HOME" ;;
               "~/"*) ROOT="$HOME/${ROOT#\\~/}" ;;
             esac
-            managed_process() {
-              local pid="$1"
-              local expected_root="$2"
-              kill -0 "$pid" >/dev/null 2>&1 || return 1
-              local command
-              command="$(ps -p "$pid" -o command= 2>/dev/null || true)"
-              case "$command" in
-                *"$expected_root"*) return 0 ;;
-                *) return 1 ;;
-              esac
-            }
-            for pid_file in "$ROOT/cli-proxy-api.pid" "$ROOT/cpa-manager-plus.pid"; do
-              if [ -f "$pid_file" ]; then
-                pid="$(cat "$pid_file")"
-                case "$pid_file" in
-                  *"/cli-proxy-api.pid") expected_root="$ROOT/cli-proxy-api" ;;
-                  *"/cpa-manager-plus.pid") expected_root="$ROOT/cpamp" ;;
-                  *) expected_root="$ROOT" ;;
-                esac
-                if managed_process "$pid" "$expected_root"; then
-                  kill -TERM "$pid" >/dev/null 2>&1 || true
-                  for _ in $(seq 1 25); do
-                    managed_process "$pid" "$expected_root" || break
-                    sleep 0.2
-                  done
-                  if managed_process "$pid" "$expected_root"; then
-                    kill -KILL "$pid" >/dev/null 2>&1 || true
-                  fi
-                fi
-                rm -f "$pid_file"
-              fi
+            \(DeploymentScriptFragments.managedProcessList(topology: .gateway))
+            \(DeploymentScriptFragments.managedProcessStop())
+            # Gateway first (it waits up to 30 s for in-flight requests), then CPA Manager Plus
+            # and the engine (5 s each); only processes whose command line is under this root.
+            for pid_name in $OASES_MANAGED_STOP_ORDER; do
+              pid_file="$ROOT/$pid_name"
+              [ -f "$pid_file" ] || continue
+              pid="$(cat "$pid_file" 2>/dev/null || true)"
+              expected_root="$ROOT/$(oases_managed_owned_path "$pid_name")"
+              oases_stop_owned_pid "$pid" "$expected_root" "$pid_name"
+              rm -f "$pid_file"
             done
             """
         }

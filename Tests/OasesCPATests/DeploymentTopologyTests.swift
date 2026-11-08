@@ -109,7 +109,9 @@ final class DeploymentTopologyTests: XCTestCase {
 
     /// The session and the endpoints both come from the initializer (one source of endpoints).
     func testLifecycleHealthChecksGoThroughTheInjectedSession() async {
-        URLProtocolStub.install { request, _ in .json(200, "{}", for: request) }
+        URLProtocolStub.install { request, _ in
+            request.url?.path == "/healthz" ? .json(200, #"{"ok":true}"#, for: request) : .json(200, "{}", for: request)
+        }
         defer { URLProtocolStub.reset() }
         let healthy = await RuntimeLifecycleService(
             session: URLProtocolStub.makeSession(),
@@ -119,6 +121,7 @@ final class DeploymentTopologyTests: XCTestCase {
         let urls = Set(URLProtocolStub.recordedRequests.compactMap { $0.0.url?.absoluteString })
         XCTAssertTrue(urls.contains("http://127.0.0.1:18316/v0/management/config"), "\(urls)")
         XCTAssertTrue(urls.contains("http://127.0.0.1:18317/health"), "\(urls)")
+        XCTAssertTrue(urls.contains("http://127.0.0.1:18320/healthz"), "\(urls)")
     }
 
     func testWelcomeDiagramNamesThe8317RowByTopology() {

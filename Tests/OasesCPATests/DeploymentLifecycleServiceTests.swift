@@ -199,7 +199,10 @@ final class DeploymentLifecycleServiceTests: XCTestCase {
         writeManagedRoot(at: root)
         try write("\(process.processIdentifier)\n", to: root.appendingPathComponent("cli-proxy-api.pid"))
 
-        let result = try run(script: DeploymentRemovalService().scriptForVerification(method: .native, installDirectory: root.path))
+        let result = try run(
+            script: DeploymentRemovalService().scriptForVerification(method: .native, installDirectory: root.path),
+            environment: ["HOME": try makeDirectory().path]
+        )
         XCTAssertEqual(result.status, 0, result.stderr)
         XCTAssertTrue(result.stdout.contains("OASES_CPA_REMOVED=1"))
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.path))
@@ -220,7 +223,7 @@ final class DeploymentLifecycleServiceTests: XCTestCase {
         let removalScript = DeploymentRemovalService().scriptForVerification(method: .docker, installDirectory: root.path)
         let result = try run(
             script: removalScript,
-            environment: ["PATH": "\(bin.path):/usr/bin:/bin"]
+            environment: ["PATH": "\(bin.path):/usr/bin:/bin", "HOME": try makeDirectory().path]
         )
         XCTAssertEqual(result.status, 0, result.stderr)
         XCTAssertTrue(result.stdout.contains("OASES_CPA_REMOVED=1"))
@@ -363,7 +366,8 @@ final class DeploymentLifecycleServiceTests: XCTestCase {
 
     @discardableResult
     private func temporaryRoot() -> URL {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("oases-cpa-lifecycle-\(UUID().uuidString)", isDirectory: true)
+        // Under $OASES_SCRATCH (M6: the removal script ends in rm -rf of its root).
+        let root = FakeArtifacts.scratchRoot.appendingPathComponent("oases-cpa-lifecycle-\(UUID().uuidString)", isDirectory: true)
         try! FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         temporaryDirectories.append(root)
         return root

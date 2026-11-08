@@ -176,42 +176,26 @@ struct DeploymentControlService {
           return 1
         }
 
-        process_matches_root() {
-          PID_TO_CHECK="$1"
-          EXPECTED_PATH="$2"
-          case "$PID_TO_CHECK" in ''|*[!0-9]*) return 1 ;; esac
-          kill -0 "$PID_TO_CHECK" >/dev/null 2>&1 || return 1
-          COMMAND_LINE="$(ps -p "$PID_TO_CHECK" -o command= 2>/dev/null || true)"
-          case "$COMMAND_LINE" in *"$EXPECTED_PATH"*) return 0 ;; *) return 1 ;; esac
-        }
+        \(DeploymentScriptFragments.managedProcessList(topology: .gateway))
+        \(DeploymentScriptFragments.managedProcessStop())
 
+        # Gateway first (up to 30 s grace), then CPA Manager Plus and the engine.
         stop_native_processes() {
-          for PID_FILE in "$ROOT/cli-proxy-api.pid" "$ROOT/cpa-manager-plus.pid"; do
+          for PID_NAME in $OASES_MANAGED_STOP_ORDER; do
+            PID_FILE="$ROOT/$PID_NAME"
             [ -e "$PID_FILE" ] || continue
             [ -f "$PID_FILE" ] && [ ! -L "$PID_FILE" ] || fail '受管进程 PID 文件无效，未停止任何未经验证的进程。'
             PID_TO_STOP="$(cat "$PID_FILE")"
-            case "$PID_FILE" in
-              *'/cli-proxy-api.pid') EXPECTED_PATH="$ROOT/cli-proxy-api" ;;
-              *'/cpa-manager-plus.pid') EXPECTED_PATH="$ROOT/cpamp" ;;
-              *) continue ;;
-            esac
-            if process_matches_root "$PID_TO_STOP" "$EXPECTED_PATH"; then
-              kill -TERM "$PID_TO_STOP" >/dev/null 2>&1 || true
-              for _ in $(seq 1 25); do
-                process_matches_root "$PID_TO_STOP" "$EXPECTED_PATH" || break
-                sleep 0.2
-              done
-              if process_matches_root "$PID_TO_STOP" "$EXPECTED_PATH"; then
-                kill -KILL "$PID_TO_STOP" >/dev/null 2>&1 || true
-              fi
-            fi
+            EXPECTED_PATH="$ROOT/$(oases_managed_owned_path "$PID_NAME")"
+            oases_stop_owned_pid "$PID_TO_STOP" "$EXPECTED_PATH" "$PID_NAME"
           done
         }
 
         preflight_cancel_targets() {
           case "$METHOD" in
             native)
-              for PID_FILE in "$ROOT/cli-proxy-api.pid" "$ROOT/cpa-manager-plus.pid"; do
+              for PID_NAME in $OASES_MANAGED_PID_FILES; do
+                PID_FILE="$ROOT/$PID_NAME"
                 [ -e "$PID_FILE" ] || continue
                 [ -f "$PID_FILE" ] && [ ! -L "$PID_FILE" ] || fail '受管进程 PID 文件无效，未发送任何信号。'
                 PID_TO_VALIDATE="$(cat "$PID_FILE")"

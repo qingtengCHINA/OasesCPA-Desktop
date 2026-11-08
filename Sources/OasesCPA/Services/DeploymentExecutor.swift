@@ -292,6 +292,7 @@ struct DeploymentExecutor {
         fi
 
         \(DeploymentScriptFragments.managedProcessList(topology: .gateway))
+        \(DeploymentScriptFragments.managedProcessStop())
 
         RECOVERY_NOTE=""
         LEGACY_OWNERSHIP_MARKER_PRESENT=0
@@ -304,25 +305,14 @@ struct DeploymentExecutor {
           AUTO_BACKUP_NAME="auto-recovery-$(date -u '+%Y%m%dT%H%M%SZ')-$$"
           AUTO_BACKUP_ROOT="$INSTALL_ROOT/backups/$AUTO_BACKUP_NAME"
           recover_stale_attempt() {
-            managed_process() {
-              local pid="$1"
-              local expected_root="$2"
-              kill -0 "$pid" >/dev/null 2>&1 || return 1
-              local command
-              command="$(ps -p "$pid" -o command= 2>/dev/null || true)"
-              case "$command" in
-                *"$expected_root"*) return 0 ;;
-                *) return 1 ;;
-              esac
-            }
+            # Stop what the failed attempt left running (gateway first, with its grace) before
+            # its directories, gateway-data included, are moved into the backup.
             for pid_name in $OASES_MANAGED_STOP_ORDER; do
               pid_file="$INSTALL_ROOT/$pid_name"
               if [ -f "$pid_file" ]; then
                 pid="$(cat "$pid_file" 2>/dev/null || true)"
                 expected_root="$INSTALL_ROOT/$(oases_managed_owned_path "$pid_name")"
-                if [ -n "$pid" ] && managed_process "$pid" "$expected_root"; then
-                  kill "$pid" >/dev/null 2>&1 || true
-                fi
+                oases_stop_owned_pid "$pid" "$expected_root" "$pid_name"
               fi
             done
 

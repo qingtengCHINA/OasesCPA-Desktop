@@ -18,6 +18,18 @@ struct DeploymentProbe: Sendable {
     let hasRecoverableCredentials: Bool
     let hasNativeRuntime: Bool
     let hasDockerRuntime: Bool
+    /// `gateway/run.sh` exists and is executable.
+    var hasGatewayRuntime: Bool = false
+    /// Versions of the managed components (`engine`, `cpamp`, `node`, `gateway`) from
+    /// `.oases-cpa-versions`, or, for a 0.1.x deployment without that file, engine and CPA
+    /// Manager Plus from the package names in their `run.sh`. Only non-empty values.
+    var installedVersions: [String: String] = [:]
+
+    /// The layout found on the target: `gateway` only with an executable `gateway/run.sh` AND a
+    /// recorded gateway version; everything else is the legacy 0.1.x layout.
+    var topology: DeploymentTopology {
+        hasGatewayRuntime && installedVersions["gateway"]?.isEmpty == false ? .gateway : .legacy
+    }
 
     func canAdopt(method: DeploymentMethod) -> Bool {
         guard hasManagedInstallation, hasRecoverableCredentials else { return false }
@@ -273,6 +285,17 @@ struct DeploymentProbeService {
         else
           printf 'managed_docker_runtime=no\\n'
         fi
+        if [ -x "$INSTALL_DIR/gateway/run.sh" ] && [ ! -L "$INSTALL_DIR/gateway/run.sh" ]; then
+          printf 'managed_gateway_runtime=yes\\n'
+        else
+          printf 'managed_gateway_runtime=no\\n'
+        fi
+        \(DeploymentScriptFragments.readInstalledVersions())
+        oases_read_installed_versions "$INSTALL_DIR"
+        printf 'version_engine=%s\\n' "$INSTALLED_ENGINE"
+        printf 'version_cpamp=%s\\n' "$INSTALLED_CPAMP"
+        printf 'version_node=%s\\n' "$INSTALLED_NODE"
+        printf 'version_gateway=%s\\n' "$INSTALLED_GATEWAY"
         """
     }
 
@@ -284,6 +307,12 @@ struct DeploymentProbeService {
             values[String(parts[0])] = String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
+        var versions: [String: String] = [:]
+        for component in ["engine", "cpamp", "node", "gateway"] {
+            if let value = values["version_\(component)"], Self.isVersionText(value) {
+                versions[component] = value
+            }
+        }
         return DeploymentProbe(
             operatingSystem: values["os"] ?? "unknown",
             architecture: values["arch"] ?? "unknown",
@@ -301,8 +330,17 @@ struct DeploymentProbeService {
             hasManagedInstallation: Self.parseBoolean(values["managed_install"]),
             hasRecoverableCredentials: Self.parseBoolean(values["managed_credentials"]),
             hasNativeRuntime: Self.parseBoolean(values["managed_native_runtime"]),
-            hasDockerRuntime: Self.parseBoolean(values["managed_docker_runtime"])
+            hasDockerRuntime: Self.parseBoolean(values["managed_docker_runtime"]),
+            hasGatewayRuntime: Self.parseBoolean(values["managed_gateway_runtime"]),
+            installedVersions: versions
         )
+    }
+
+    /// A version as the versions file and the package names carry it (`v8.0.51`,
+    /// `1.14.10+oases.26`, `0.1.0-dev`); anything else from the target is ignored.
+    private static func isVersionText(_ value: String) -> Bool {
+        !value.isEmpty && value.count <= 64
+            && value.range(of: "^[0-9A-Za-z][0-9A-Za-z.+_-]*$", options: .regularExpression) != nil
     }
 
     private static func parseBoolean(_ value: String?) -> Bool {

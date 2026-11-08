@@ -1851,7 +1851,7 @@
 "%@（%@）" = "%@（%@）";
 "%@；保持运行时 App 会继续重试，手动停止后不会自动启动" = "%@；保持运行时 App 会继续重试，手动停止后不会自动启动";
 "重新查看欢迎引导…" = "重新查看欢迎引导…";
-"目标目录 logs/deployment.log、CLIProxyAPI 与 CPAMP 运行日志" = "目标目录 logs/deployment.log、CLIProxyAPI 与 CPAMP 运行日志";
+"目标目录 logs/deployment.log、CLIProxyAPI、CPAMP 与 Oases 网关运行日志" = "目标目录 logs/deployment.log、CLIProxyAPI、CPAMP 与 Oases 网关运行日志";
 "目标目录的部署日志与 docker compose logs" = "目标目录的部署日志与 docker compose logs";
 "检测到现有部署，但运行时文件不完整；请查看日志后使用修复功能。" = "检测到现有部署，但运行时文件不完整；请查看日志后使用修复功能。";
 "检测到现有部署，但管理凭据不完整；请查看日志后使用修复功能。" = "检测到现有部署，但管理凭据不完整；请查看日志后使用修复功能。";
@@ -2174,3 +2174,5 @@
 "部署 Oases 网关" = "部署 Oases 网关";
 "解压应用内置的网关包，初始化网关数据目录与内部引擎 Key" = "解压应用内置的网关包，初始化网关数据目录与内部引擎 Key";
 "验证引擎、CPA Manager Plus 与网关的本机健康检查" = "验证引擎、CPA Manager Plus 与网关的本机健康检查";
+"%@：CLIProxyAPI、CPAMP、Oases 网关和连接通道已重新可用。" = "%@：CLIProxyAPI、CPAMP、Oases 网关和连接通道已重新可用。";
+"CLIProxyAPI、CPAMP 或 Oases 网关健康检查未通过。" = "CLIProxyAPI、CPAMP 或 Oases 网关健康检查未通过。";

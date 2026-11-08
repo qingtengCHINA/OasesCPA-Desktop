@@ -315,7 +315,8 @@ struct FakeArtifacts {
 
     private static let fakeCurl = #"""
     #!/bin/bash
-    { printf 'curl'; for arg in "$@"; do printf ' %s' "$arg"; done; printf '\n'; } >> "$OASES_FAKE_ARGV_LOG"
+    line='curl'; for arg in "$@"; do line="$line $arg"; done
+    printf '%s\n' "$line" >> "$OASES_FAKE_ARGV_LOG"
     out=""
     url=""
     read_stdin=0
@@ -343,7 +344,8 @@ struct FakeArtifacts {
 
     private static let fakeNode = #"""
     #!/bin/bash
-    { printf 'node'; for arg in "$@"; do printf ' %s' "$arg"; done; printf '\n'; } >> "$OASES_FAKE_ARGV_LOG"
+    line='node'; for arg in "$@"; do line="$line $arg"; done
+    printf '%s\n' "$line" >> "$OASES_FAKE_ARGV_LOG"
     if [ "${1:-}" = "--version" ]; then
       printf '%s\n' "${FAKE_NODE_VERSION:-v24.99.0}"
       exit 0

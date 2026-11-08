@@ -41,6 +41,15 @@ enum KeychainStore {
         return try operation()
     }
 
+    /// The same for asynchronous store-level tests (main actor, so no other test swaps it).
+    @MainActor
+    static func withInMemoryKeychainForTesting<T>(_ operation: () async throws -> T) async rethrows -> T {
+        let previous = testBackend
+        testBackend = TestBackend()
+        defer { testBackend = previous }
+        return try await operation()
+    }
+
     /// nil outside tests; a backend inside `withInMemoryKeychainForTesting`; otherwise a test
     /// process gets an error instead of the real Keychain.
     private static func testBackendOrRefusal() throws -> TestBackend? {

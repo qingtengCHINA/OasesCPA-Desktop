@@ -25,6 +25,12 @@ struct DeploymentManagedProcess: Equatable, Sendable {
     let logFile: String
     let runScript: String
     let ownedPath: String
+    /// How long a stop waits after SIGTERM before SIGKILL. The gateway lets in-flight requests
+    /// finish for up to 25 s (`SHUTDOWN_GRACE_MS`) and then writes its usage ledger, so it gets
+    /// 30 s; SIGKILL would lose the last usage records (Server `docs/upgrade.md`).
+    let termGraceSeconds: Int
+    /// Started only when its run script exists (a legacy 0.1.x deployment has no gateway).
+    let startsOnlyWhenInstalled: Bool
 }
 
 /// Bash fragments shared by the install, upgrade, rollback and Docker scripts. Every fragment
@@ -42,14 +48,18 @@ enum DeploymentScriptFragments {
                 pidFile: "cli-proxy-api.pid",
                 logFile: "logs/cli-proxy-api.log",
                 runScript: "cli-proxy-api/run.sh",
-                ownedPath: "cli-proxy-api"
+                ownedPath: "cli-proxy-api",
+                termGraceSeconds: 5,
+                startsOnlyWhenInstalled: false
             ),
             DeploymentManagedProcess(
                 name: "cpa-manager-plus",
                 pidFile: "cpa-manager-plus.pid",
                 logFile: "logs/cpa-manager-plus.log",
                 runScript: "cpamp/run.sh",
-                ownedPath: "cpamp"
+                ownedPath: "cpamp",
+                termGraceSeconds: 5,
+                startsOnlyWhenInstalled: false
             ),
         ]
         if topology == .gateway {
@@ -58,18 +68,22 @@ enum DeploymentScriptFragments {
                 pidFile: "gateway.pid",
                 logFile: "logs/gateway.log",
                 runScript: "gateway/run.sh",
-                ownedPath: "gateway"
+                ownedPath: "gateway",
+                termGraceSeconds: 30,
+                startsOnlyWhenInstalled: true
             ))
         }
         return processes
     }
 
     /// Bash: `OASES_MANAGED_PID_FILES` (start order), `OASES_MANAGED_STOP_ORDER` (gateway
-    /// first), `OASES_MANAGED_LOG_FILES`, and `oases_managed_owned_path <pid file>`, which prints
-    /// the directory (relative to the root) a process of that pid file runs from.
+    /// first), `OASES_MANAGED_LOG_FILES`, `oases_managed_owned_path <pid file>`, which prints
+    /// the directory (relative to the root) a process of that pid file runs from, and
+    /// `oases_managed_term_ticks <pid file>`, the SIGTERM grace in 0.2 s steps.
     static func managedProcessList(topology: DeploymentTopology) -> String {
         let processes = managedProcesses(topology: topology)
         let cases = processes.map { "    \($0.pidFile)) printf '%s' '\($0.ownedPath)' ;;" }.joined(separator: "\n")
+        let ticks = processes.map { "    \($0.pidFile)) printf '%s' '\($0.termGraceSeconds * 5)' ;;" }.joined(separator: "\n")
         return """
         OASES_MANAGED_PID_FILES="\(processes.map(\.pidFile).joined(separator: " "))"
         OASES_MANAGED_STOP_ORDER="\(processes.reversed().map(\.pidFile).joined(separator: " "))"
@@ -80,8 +94,71 @@ enum DeploymentScriptFragments {
             *) return 1 ;;
           esac
         }
+        oases_managed_term_ticks() {
+          case "$1" in
+        \(ticks)
+            *) printf '%s' '25' ;;
+          esac
+        }
         """
     }
+
+    /// Bash: `oases_pid_owned_by <pid> <path>` succeeds when the pid is a number, the process
+    /// lives, and its `ps` command line contains the absolute path (how a pid file is proven to
+    /// belong to this deployment; a stale pid of another program is never signalled), and
+    /// `oases_stop_owned_pid <pid> <path> <pid file>` sends it SIGTERM, waits its grace
+    /// (`oases_managed_term_ticks`, so `managedProcessList` must come first) and only then
+    /// SIGKILL. Not owned: nothing is sent. `oases_managed_process_alive_under <root>` succeeds
+    /// while any process runs from a managed directory of that root (with or without a pid
+    /// file), the last check before a root is removed.
+    static func managedProcessStop() -> String {
+        """
+        oases_pid_owned_by() {
+          local owned_pid="$1" owned_path="$2" owned_command
+          case "$owned_pid" in ''|*[!0-9]*) return 1 ;; esac
+          [ "$owned_pid" -gt 1 ] || return 1
+          kill -0 "$owned_pid" >/dev/null 2>&1 || return 1
+          owned_command="$(ps -p "$owned_pid" -o command= 2>/dev/null || true)"
+          case "$owned_command" in
+            *"$owned_path"*) return 0 ;;
+            *) return 1 ;;
+          esac
+        }
+        oases_stop_owned_pid() {
+          local stop_pid="$1" stop_path="$2" stop_ticks
+          oases_pid_owned_by "$stop_pid" "$stop_path" || return 0
+          kill -TERM "$stop_pid" >/dev/null 2>&1 || true
+          stop_ticks="$(oases_managed_term_ticks "$3")"
+          while [ "$stop_ticks" -gt 0 ]; do
+            oases_pid_owned_by "$stop_pid" "$stop_path" || return 0
+            sleep 0.2
+            stop_ticks=$((stop_ticks - 1))
+          done
+          if oases_pid_owned_by "$stop_pid" "$stop_path"; then
+            kill -KILL "$stop_pid" >/dev/null 2>&1 || true
+            stop_ticks=10
+            while [ "$stop_ticks" -gt 0 ] && oases_pid_owned_by "$stop_pid" "$stop_path"; do
+              sleep 0.2
+              stop_ticks=$((stop_ticks - 1))
+            done
+          fi
+          return 0
+        }
+        oases_managed_process_alive_under() {
+          local alive_root="$1" alive_list alive_line alive_owned
+          alive_list="$(ps -axo command= 2>/dev/null || true)"
+          while IFS= read -r alive_line; do
+            for alive_owned in \(managedProcesses(topology: .gateway).map(\.ownedPath).joined(separator: " ")); do
+              case "$alive_line" in
+                *"$alive_root/$alive_owned/"*) return 0 ;;
+              esac
+            done
+          done <<< "$alive_list"
+          return 1
+        }
+        """
+    }
+
 
     // MARK: - Keys
 

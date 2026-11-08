@@ -44,7 +44,7 @@ struct DeploymentLogService {
         }
 
         let source = request.method == .native
-            ? OasesLocalization.localized("目标目录 logs/deployment.log、CLIProxyAPI 与 CPAMP 运行日志")
+            ? OasesLocalization.localized("目标目录 logs/deployment.log、CLIProxyAPI、CPAMP 与 Oases 网关运行日志")
             : OasesLocalization.localized("目标目录的部署日志与 docker compose logs")
         return DeploymentLogSnapshot(source: source, text: output.trimmingCharacters(in: .whitespacesAndNewlines))
     }
@@ -70,6 +70,7 @@ struct DeploymentLogService {
               ROOT="${ROOT%/}"
             fi
 
+            \(DeploymentScriptFragments.managedProcessList(topology: .gateway))
             found_evidence=no
             for state_file in "$ROOT/.oases-cpa-installing" "$ROOT/.oases-cpa-failed"; do
               if [ -f "$state_file" ]; then
@@ -78,7 +79,8 @@ struct DeploymentLogService {
                 cat "$state_file" 2>&1 || true
               fi
             done
-            for log_file in "$ROOT/logs/deployment.log" "$ROOT/logs/cli-proxy-api.log" "$ROOT/logs/cpa-manager-plus.log"; do
+            for log_name in logs/deployment.log $OASES_MANAGED_LOG_FILES; do
+              log_file="$ROOT/$log_name"
               if [ -f "$log_file" ]; then
                 found_evidence=yes
                 printf '\\n===== %s =====\\n' "$log_file"

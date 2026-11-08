@@ -1852,7 +1852,7 @@
 "%@（%@）" = "%@ (%@)";
 "%@；保持运行时 App 会继续重试，手动停止后不会自动启动" = "%@. While the App stays running, it will keep retrying. A service you stop manually will not restart automatically.";
 "重新查看欢迎引导…" = "Show Welcome Guide…";
-"目标目录 logs/deployment.log、CLIProxyAPI 与 CPAMP 运行日志" = "Deployment, CLIProxyAPI, and CPAMP logs in the target directory";
+"目标目录 logs/deployment.log、CLIProxyAPI、CPAMP 与 Oases 网关运行日志" = "Deployment, CLIProxyAPI, CPAMP, and Oases gateway logs in the target directory";
 "目标目录的部署日志与 docker compose logs" = "Deployment and Docker Compose logs in the target directory";
 "检测到现有部署，但运行时文件不完整；请查看日志后使用修复功能。" = "An existing deployment was found, but its runtime files are incomplete. Review the logs, then use the repair option.";
 "检测到现有部署，但管理凭据不完整；请查看日志后使用修复功能。" = "An existing deployment was found, but its management credentials are incomplete. Review the logs, then use the repair option.";
@@ -2181,3 +2181,5 @@
 "部署 Oases 网关" = "Deploy the Oases gateway";
 "解压应用内置的网关包，初始化网关数据目录与内部引擎 Key" = "Unpack the gateway package the app carries and set up the gateway data directory and the internal engine key";
 "验证引擎、CPA Manager Plus 与网关的本机健康检查" = "Verify the local health checks of the engine, CPA Manager Plus and the gateway";
+"%@：CLIProxyAPI、CPAMP、Oases 网关和连接通道已重新可用。" = "%@: CLIProxyAPI, CPAMP, the Oases gateway, and connection channels are available again.";
+"CLIProxyAPI、CPAMP 或 Oases 网关健康检查未通过。" = "CLIProxyAPI, CPAMP, or Oases gateway health check failed.";

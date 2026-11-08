@@ -106,9 +106,13 @@ struct ExistingDeploymentAdoptionService {
             )
         }
 
+        let fingerprint = values["OASES_PACK_ENGINE_KEY_SHA256"].flatMap { value in
+            value.range(of: "^[0-9a-f]{64}$", options: .regularExpression) == nil ? nil : value
+        }
         return DeploymentExecutionResult(
             cpaManagementKey: managementKey,
-            cpampAdminKey: adminKey
+            cpampAdminKey: adminKey,
+            packEngineKeyFingerprint: fingerprint
         )
     }
 
@@ -150,6 +154,21 @@ struct ExistingDeploymentAdoptionService {
 
         emit_secret 'OASES_CPA_MANAGEMENT_KEY_B64' "$ROOT/secrets/cpa-management-key"
         emit_secret 'OASES_CPAMP_ADMIN_KEY_B64' "$ROOT/secrets/cpamp-admin-key"
+        # The gateway's internal engine key never leaves the target: only its SHA-256 (the key
+        # goes to the hash tool on stdin, never in an argument).
+        PACK_KEY_FILE="$ROOT/secrets/pack-engine-key"
+        if [ -f "$PACK_KEY_FILE" ] && [ ! -L "$PACK_KEY_FILE" ] && [ -s "$PACK_KEY_FILE" ]; then
+          if command -v shasum >/dev/null 2>&1; then
+            PACK_KEY_SHA256="$(tr -d '\\n' < "$PACK_KEY_FILE" | shasum -a 256 | awk '{print $1}')"
+          elif command -v sha256sum >/dev/null 2>&1; then
+            PACK_KEY_SHA256="$(tr -d '\\n' < "$PACK_KEY_FILE" | sha256sum | awk '{print $1}')"
+          else
+            PACK_KEY_SHA256=""
+          fi
+          case "$PACK_KEY_SHA256" in
+            ????????????????????????????????????????????????????????????????) printf 'OASES_PACK_ENGINE_KEY_SHA256=%s\\n' "$PACK_KEY_SHA256" ;;
+          esac
+        fi
         """
     }
 

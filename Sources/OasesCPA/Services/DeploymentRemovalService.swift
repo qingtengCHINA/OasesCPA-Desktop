@@ -49,6 +49,9 @@ struct DeploymentRemovalService {
         [ "$ROOT" != "/" ] || fail '为保护系统文件，不能卸载文件系统根目录。'
         [ "$ROOT" != "$HOME" ] || fail '为保护用户文件，不能卸载用户主目录。'
         [ -d "$ROOT" ] && [ ! -L "$ROOT" ] || fail '目标目录不存在，或目标目录是符号链接。'
+        # Processes may have been started through a path with a symlinked parent (on macOS
+        # /var is /private/var): ownership is checked against the given and the physical path.
+        ROOT_AS_GIVEN="$ROOT"
         ROOT="$(cd "$ROOT" && pwd -P)"
         HOME_PHYSICAL="$(cd "$HOME" && pwd -P)"
         [ -n "$ROOT" ] && [ "$ROOT" != "/" ] || fail '为保护系统文件，不能卸载文件系统根目录。'
@@ -70,46 +73,35 @@ struct DeploymentRemovalService {
           fi
         fi
 
-        process_matches_path() {
-          PID_TO_CHECK="$1"
-          EXPECTED_PATH="$2"
-          case "$PID_TO_CHECK" in ''|*[!0-9]*) return 1 ;; esac
-          kill -0 "$PID_TO_CHECK" >/dev/null 2>&1 || return 1
-          COMMAND_LINE="$(ps -p "$PID_TO_CHECK" -o command= 2>/dev/null || true)"
-          case "$COMMAND_LINE" in *"$EXPECTED_PATH"*) return 0 ;; *) return 1 ;; esac
-        }
+        \(DeploymentScriptFragments.managedProcessList(topology: .gateway))
+        \(DeploymentScriptFragments.managedProcessStop())
 
-        stop_native_pid() {
-          PID_TO_STOP="$1"
-          EXPECTED_PATH="$2"
-          process_matches_path "$PID_TO_STOP" "$EXPECTED_PATH" || return 0
-          kill -TERM "$PID_TO_STOP" >/dev/null 2>&1 || true
-          for _ in $(seq 1 25); do
-            process_matches_path "$PID_TO_STOP" "$EXPECTED_PATH" || return 0
-            sleep 0.2
-          done
-          if process_matches_path "$PID_TO_STOP" "$EXPECTED_PATH"; then
-            kill -KILL "$PID_TO_STOP" >/dev/null 2>&1 || true
-          fi
-        }
-
+        # All three processes stop (gateway first, up to 30 s) before anything is deleted: the
+        # root is never removed under a live gateway that is still writing gateway-data.
         stop_native_processes() {
-          for PID_FILE in "$ROOT/cli-proxy-api.pid" "$ROOT/cpa-manager-plus.pid"; do
+          for PID_NAME in $OASES_MANAGED_STOP_ORDER; do
+            PID_FILE="$ROOT/$PID_NAME"
             [ -e "$PID_FILE" ] || continue
             [ -f "$PID_FILE" ] && [ ! -L "$PID_FILE" ] || fail '受管进程 PID 文件无效，已拒绝删除。'
             PID_TO_STOP="$(cat "$PID_FILE")"
             case "$PID_TO_STOP" in ''|*[!0-9]*) fail '受管进程 PID 不是纯数字，已拒绝删除。' ;; esac
-            case "$PID_FILE" in
-              *'/cli-proxy-api.pid') EXPECTED_PATH="$ROOT/cli-proxy-api" ;;
-              *'/cpa-manager-plus.pid') EXPECTED_PATH="$ROOT/cpamp" ;;
-              *) fail '发现未知受管 PID 文件，已拒绝删除。' ;;
-            esac
-            stop_native_pid "$PID_TO_STOP" "$EXPECTED_PATH"
+            OWNED_PATH="$(oases_managed_owned_path "$PID_NAME")"
+            for EXPECTED_PATH in "$ROOT/$OWNED_PATH" "$ROOT_AS_GIVEN/$OWNED_PATH"; do
+              oases_stop_owned_pid "$PID_TO_STOP" "$EXPECTED_PATH" "$PID_NAME"
+              if oases_pid_owned_by "$PID_TO_STOP" "$EXPECTED_PATH"; then
+                fail '受管进程仍在运行，已拒绝删除。'
+              fi
+            done
           done
         }
 
         if [ "$METHOD" = 'native' ]; then
           stop_native_processes
+          for CHECK_ROOT in "$ROOT" "$ROOT_AS_GIVEN"; do
+            if oases_managed_process_alive_under "$CHECK_ROOT"; then
+              fail '目标目录中仍有 Oases CPA 进程在运行（没有可信的 PID 文件）；请先停止服务，再删除整个部署目录。'
+            fi
+          done
         elif [ "$METHOD" = 'docker' ]; then
           if [ -f "$ROOT/compose.yaml" ] || [ -f "$ROOT/compose.yml" ]; then
             [ ! -L "$ROOT/compose.yaml" ] 2>/dev/null || fail 'Compose 配置是符号链接，已拒绝删除。'

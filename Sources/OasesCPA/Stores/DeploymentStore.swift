@@ -110,6 +110,8 @@ final class DeploymentStore: ObservableObject {
     /// probe of the default install directory, no automatic adoption, and no 30 s patrol (which
     /// calls `ensureRunning`). Explicit user actions still work.
     let automaticActivityEnabled: Bool
+    /// What the store runs against targets (`.live` in the app, fakes in store-level tests).
+    private let services: DeploymentStoreServices
 
     /// Whether this process may run automatic deployment activity at all. A test process is
     /// recognised in two ways: the Xcode test host sets `XCTestConfigurationFilePath`, and
@@ -196,10 +198,16 @@ final class DeploymentStore: ObservableObject {
         tunnelProcessOwner.stop()
     }
 
-    /// - Parameter autoProbe: run automatic deployment activity (see `automaticActivityEnabled`);
-    ///   defaults to what the process allows. Tests pass `false`.
-    init(autoProbe: Bool = DeploymentStore.automaticActivityAllowed) {
+    /// - Parameters:
+    ///   - autoProbe: run automatic deployment activity (see `automaticActivityEnabled`);
+    ///     defaults to what the process allows. Tests pass `false`.
+    ///   - services: the target-side operations; tests inject fakes.
+    init(
+        autoProbe: Bool = DeploymentStore.automaticActivityAllowed,
+        services: DeploymentStoreServices = .live
+    ) {
         automaticActivityEnabled = autoProbe
+        self.services = services
         savedProfiles = DeploymentProfileStore.loadAll()
         if let profile = DeploymentProfileStore.load() {
             activeProfileID = profile.id
@@ -535,13 +543,17 @@ final class DeploymentStore: ObservableObject {
                         retryAction: .probe
                     )
                 }
-                let result = try await DeploymentProbeService().probe(
-                    target: target,
-                    host: host,
-                    user: user,
-                    port: port,
-                    privateKeyPath: keyPath,
-                    installDirectory: directory
+                guard let services = self?.services else { return }
+                let result = try await services.probe(
+                    DeploymentExecutionRequest(
+                        target: target,
+                        method: method,
+                        host: host,
+                        user: user,
+                        port: port,
+                        privateKeyPath: keyPath,
+                        installDirectory: directory
+                    )
                 )
                 guard let self, self.probeRequestID == requestID else { return }
                 self.probe = result
@@ -563,7 +575,7 @@ final class DeploymentStore: ObservableObject {
                         self.statusMessage = OasesLocalization.localized("检测到现有部署；此次运行已停用自动接管与后台巡检。")
                         return
                     }
-                    self.adoptExistingDeployment(request: self.currentExecutionRequest, requestID: requestID)
+                    self.adoptExistingDeployment(request: self.currentExecutionRequest, requestID: requestID, probe: result)
                     return
                 }
                 self.stage = .ready
@@ -680,10 +692,8 @@ final class DeploymentStore: ObservableObject {
                         retryAction: .deploymentPlan
                     )
                 }
-                let result = try await DeploymentExecutor().execute(
-                    request: request,
-                    controlToken: controlToken
-                )
+                guard let services = self?.services else { return }
+                let result = try await services.execute(request, controlToken)
                 guard let self,
                       self.deploymentOperationID == operationID,
                       !self.isCancellingDeployment,
@@ -699,7 +709,7 @@ final class DeploymentStore: ObservableObject {
                 )
                 // A native install lays out the gateway topology (engine on 18316, gateway on
                 // 8317/18320): the tunnel and the health checks below must use it.
-                self.topology = request.method == .native ? .gateway : .legacy
+                self.topology = Self.topologyAfterInstall(method: request.method)
                 self.packEngineKeyFingerprint = result.packEngineKeyFingerprint
                 self.profileIsInstalled = true
                 self.wantsRunning = true
@@ -711,7 +721,7 @@ final class DeploymentStore: ObservableObject {
                 if request.target == .ssh {
                     try await self.startTunnel(for: request)
                 }
-                try await RuntimeLifecycleService(endpoints: endpoints).waitForConnectionHealth(
+                try await services.lifecycle(endpoints).waitForConnectionHealth(
                     cpaManagementKey: result.cpaManagementKey
                 )
 
@@ -883,7 +893,7 @@ final class DeploymentStore: ObservableObject {
                 }
 
                 if !cancellationCompleted, self.profileIsInstalled {
-                    try await RuntimeLifecycleService(endpoints: endpoints).stop(
+                    try await services.lifecycle(endpoints).stop(
                         target: request.target,
                         method: request.method,
                         host: request.host,
@@ -1178,13 +1188,13 @@ final class DeploymentStore: ObservableObject {
                     guard let store = self else { return }
                     try await store.ensureSSHHostKeyTrust(for: request, retryAction: nil)
                 }
-                let service = DeploymentMaintenanceService()
+                guard let services = self?.services else { return }
                 let result: DeploymentMaintenanceResult
                 switch action {
                 case .upgrade:
-                    result = try await service.upgrade(request: request)
+                    result = try await services.upgrade(request)
                 case .rollback:
-                    result = try await service.rollback(request: request)
+                    result = try await services.rollback(request)
                 }
 
                 guard let self else { return }
@@ -1192,7 +1202,7 @@ final class DeploymentStore: ObservableObject {
                     try await self.startTunnel(for: request)
                 }
                 let managementKey = self.managementKey
-                try await RuntimeLifecycleService(endpoints: endpoints).waitForConnectionHealth(
+                try await services.lifecycle(endpoints).waitForConnectionHealth(
                     cpaManagementKey: managementKey
                 )
                 self.isMaintaining = false
@@ -1253,7 +1263,7 @@ final class DeploymentStore: ObservableObject {
         )
         activeOperationRequest = request
 
-        let lifecycleEndpoints = endpoints
+        let lifecycle = services.lifecycle(endpoints)
         Task { [weak self] in
             defer { self?.activeOperationRequest = nil }
             do {
@@ -1261,7 +1271,7 @@ final class DeploymentStore: ObservableObject {
                     guard let store = self else { return }
                     try await store.ensureSSHHostKeyTrust(for: request, retryAction: nil)
                 }
-                try await RuntimeLifecycleService(endpoints: lifecycleEndpoints).stop(
+                try await lifecycle.stop(
                     target: target,
                     method: method,
                     host: host,
@@ -1314,7 +1324,7 @@ final class DeploymentStore: ObservableObject {
         deploymentError = nil
         statusMessage = shouldStop ? OasesLocalization.localized("正在停止服务并解除当前目标绑定…") : OasesLocalization.localized("正在解除当前目标绑定…")
 
-        let lifecycleEndpoints = endpoints
+        let lifecycle = services.lifecycle(endpoints)
         Task { [weak self] in
             defer { self?.activeOperationRequest = nil }
             do {
@@ -1323,7 +1333,7 @@ final class DeploymentStore: ObservableObject {
                     try await store.ensureSSHHostKeyTrust(for: request, retryAction: nil)
                 }
                 if shouldStop {
-                    try await RuntimeLifecycleService(endpoints: lifecycleEndpoints).stop(
+                    try await lifecycle.stop(
                         target: request.target,
                         method: request.method,
                         host: request.host,
@@ -1625,7 +1635,24 @@ final class DeploymentStore: ObservableObject {
         savedProfiles = DeploymentProfileStore.loadAll()
     }
 
-    private func adoptExistingDeployment(request: DeploymentExecutionRequest, requestID: UUID) {
+    /// The layout a fresh install of `method` creates: native deploys the gateway, Docker only
+    /// the upstream engine and CPA Manager Plus.
+    nonisolated static func topologyAfterInstall(method: DeploymentMethod) -> DeploymentTopology {
+        method == .native ? .gateway : .legacy
+    }
+
+#if DEBUG
+    /// Adopts the deployment the last probe found, as the automatic path would (tests run with
+    /// automatic activity off and inject fake services).
+    func adoptProbedDeploymentForTesting() {
+        guard let probe else { return }
+        adoptExistingDeployment(request: currentExecutionRequest, requestID: probeRequestID, probe: probe)
+    }
+#endif
+
+    /// - Parameter probe: what the probe found; its topology decides the tunnel ports and the
+    ///   health checks (a 0.1.x deployment stays legacy, a gateway deployment gets 18316/18320).
+    private func adoptExistingDeployment(request: DeploymentExecutionRequest, requestID: UUID, probe: DeploymentProbe) {
         guard !isDeploying else { return }
         activeOperationRequest = request
         isDeploying = true
@@ -1639,13 +1666,15 @@ final class DeploymentStore: ObservableObject {
             defer { self.activeOperationRequest = nil }
             do {
                 try await self.ensureSSHHostKeyTrust(for: request, retryAction: .probe)
-                let credentials = try await ExistingDeploymentAdoptionService().readCredentials(request: request)
+                let credentials = try await self.services.readExistingCredentials(request)
                 guard self.probeRequestID == requestID else { return }
+                self.topology = probe.topology
+                self.packEngineKeyFingerprint = credentials.packEngineKeyFingerprint
 
                 if request.target == .ssh {
                     try await self.startTunnel(for: request)
                 }
-                try await RuntimeLifecycleService(endpoints: endpoints).ensureRunning(
+                try await services.lifecycle(endpoints).ensureRunning(
                     target: request.target,
                     method: request.method,
                     host: request.host,
@@ -1769,15 +1798,15 @@ final class DeploymentStore: ObservableObject {
     }
 
     private func loadWantsRunningPreference() -> Bool {
-        if let value = UserDefaults.standard.object(forKey: wantsRunningPreferenceKey()) as? Bool {
+        if let value = DeploymentProfileStore.defaults.object(forKey: wantsRunningPreferenceKey()) as? Bool {
             return value
         }
-        return UserDefaults.standard.object(forKey: "oases.cpa.runtime.wants-running") as? Bool ?? true
+        return DeploymentProfileStore.defaults.object(forKey: "oases.cpa.runtime.wants-running") as? Bool ?? true
     }
 
     private func setWantsRunningPreference(_ value: Bool) {
-        UserDefaults.standard.set(value, forKey: wantsRunningPreferenceKey())
-        UserDefaults.standard.set(value, forKey: "oases.cpa.runtime.wants-running")
+        DeploymentProfileStore.defaults.set(value, forKey: wantsRunningPreferenceKey())
+        DeploymentProfileStore.defaults.set(value, forKey: "oases.cpa.runtime.wants-running")
     }
 
     private func resetHealthState() {
@@ -1801,7 +1830,7 @@ final class DeploymentStore: ObservableObject {
             : (remoteHost.isEmpty ? OasesLocalization.localized("远程 SSH / VPS") : remoteHost)
         if state == .degraded, healthNotificationsEnabled, !healthIssueNotificationSent {
             healthIssueNotificationSent = true
-        let detail = error ?? OasesLocalization.localized("CLIProxyAPI 或 CPAMP 健康检查未通过。")
+            let detail = error ?? HealthNotificationService.healthCheckFailedDetail(topology: topology)
             Task {
                 await HealthNotificationService.shared.notifyDegraded(target: target, detail: detail)
             }
@@ -1809,8 +1838,9 @@ final class DeploymentStore: ObservableObject {
             let shouldNotify = healthNotificationsEnabled && healthIssueNotificationSent
             healthIssueNotificationSent = false
             if shouldNotify {
+                let topology = self.topology
                 Task {
-                    await HealthNotificationService.shared.notifyRecovered(target: target)
+                    await HealthNotificationService.shared.notifyRecovered(target: target, topology: topology)
                 }
             }
         }
@@ -1848,7 +1878,7 @@ final class DeploymentStore: ObservableObject {
         setHealthState(.checking)
         let request = currentExecutionRequest
         let managementKey = self.managementKey
-        let isHealthy = await RuntimeLifecycleService(endpoints: endpoints).checkConnectionHealth(
+        let isHealthy = await services.lifecycle(endpoints).checkConnectionHealth(
             cpaManagementKey: managementKey
         )
         guard !Task.isCancelled, profileIsInstalled, wantsRunning else { return }
@@ -1864,7 +1894,7 @@ final class DeploymentStore: ObservableObject {
             return
         }
 
-        setHealthState(.degraded, error: OasesLocalization.localized("CLIProxyAPI 或 CPAMP 健康检查未通过。"))
+        setHealthState(.degraded, error: HealthNotificationService.healthCheckFailedDetail(topology: topology))
         await attemptAutomaticRecovery(for: request, managementKey: managementKey)
     }
 
@@ -1890,7 +1920,7 @@ final class DeploymentStore: ObservableObject {
             if request.target == .ssh {
                 try await startTunnel(for: request)
             }
-            try await RuntimeLifecycleService(endpoints: endpoints).ensureRunning(
+            try await services.lifecycle(endpoints).ensureRunning(
                 target: request.target,
                 method: request.method,
                 host: request.host,
@@ -1917,11 +1947,27 @@ final class DeploymentStore: ObservableObject {
         }
     }
 
+    /// Re-reads the target's layout before attaching (an upgrade from another copy of the app
+    /// may have moved a legacy deployment to the gateway topology). Read-only and best effort:
+    /// a failed probe keeps the saved topology.
+    private func refreshTopologyFromProbe(for request: DeploymentExecutionRequest) async {
+        if request.target == .ssh {
+            guard (try? await ensureSSHHostKeyTrust(for: request, retryAction: .reconnect)) != nil else { return }
+        }
+        guard let probe = try? await services.probe(request), probe.hasManagedInstallation,
+              probe.testedInstallDirectory == request.installDirectory,
+              probe.topology != topology else { return }
+        topology = probe.topology
+        saveProfile()
+    }
+
     private func restoreConnection() async {
         guard profileIsInstalled, wantsRunning else { return }
         let request = currentExecutionRequest
         let managementKey = self.managementKey
         setHealthState(.checking)
+        await refreshTopologyFromProbe(for: request)
+        guard profileIsInstalled, wantsRunning else { return }
         do {
             if request.target == .ssh {
                 try await startTunnel(for: request)
@@ -1929,7 +1975,7 @@ final class DeploymentStore: ObservableObject {
             guard !managementKey.isEmpty else {
                 throw DeploymentExecutionError.missingResult
             }
-            let runtime = RuntimeLifecycleService(endpoints: endpoints)
+            let runtime = services.lifecycle(endpoints)
             try await runtime.ensureRunning(
                 target: request.target,
                 method: request.method,

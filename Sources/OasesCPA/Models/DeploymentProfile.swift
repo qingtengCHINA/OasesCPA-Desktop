@@ -122,9 +122,29 @@ enum DeploymentProfileStore {
     private static let profilesKey = "oases.cpa.deployment.profiles"
     private static let activeProfileKey = "oases.cpa.deployment.active-profile"
 
+#if DEBUG
+    nonisolated(unsafe) private static var defaultsOverride: UserDefaults?
+
+    /// Runs `operation` with profiles and run preferences in `suite` instead of the standard
+    /// defaults (store-level tests never write the process's real profile list).
+    @MainActor
+    static func withDefaultsForTesting<T>(_ suite: UserDefaults, _ operation: () async throws -> T) async rethrows -> T {
+        let previous = defaultsOverride
+        defaultsOverride = suite
+        defer { defaultsOverride = previous }
+        return try await operation()
+    }
+
+    /// Where profiles and run preferences live.
+    static var defaults: UserDefaults { defaultsOverride ?? .standard }
+#else
+    /// Where profiles and run preferences live.
+    static var defaults: UserDefaults { .standard }
+#endif
+
     static func load() -> DeploymentProfile? {
         let profiles = loadAll()
-        if let activeIDString = UserDefaults.standard.string(forKey: activeProfileKey),
+        if let activeIDString = defaults.string(forKey: activeProfileKey),
            let activeID = UUID(uuidString: activeIDString),
            let active = profiles.first(where: { $0.id == activeID }) {
             return active
@@ -157,12 +177,12 @@ enum DeploymentProfileStore {
     }
 
     static func loadAll() -> [DeploymentProfile] {
-        if let data = UserDefaults.standard.data(forKey: profilesKey),
+        if let data = defaults.data(forKey: profilesKey),
            let profiles = try? JSONDecoder().decode([DeploymentProfile].self, from: data) {
             return profiles
         }
 
-        guard let data = UserDefaults.standard.data(forKey: defaultsKey),
+        guard let data = defaults.data(forKey: defaultsKey),
               let legacy = try? JSONDecoder().decode(DeploymentProfile.self, from: data) else {
             return []
         }
@@ -174,12 +194,12 @@ enum DeploymentProfileStore {
 
     static func saveAll(_ profiles: [DeploymentProfile]) {
         guard let data = try? JSONEncoder().encode(profiles) else { return }
-        UserDefaults.standard.set(data, forKey: profilesKey)
-        UserDefaults.standard.removeObject(forKey: defaultsKey)
+        defaults.set(data, forKey: profilesKey)
+        defaults.removeObject(forKey: defaultsKey)
     }
 
     static func setActive(_ id: UUID) {
-        UserDefaults.standard.set(id.uuidString, forKey: activeProfileKey)
+        defaults.set(id.uuidString, forKey: activeProfileKey)
     }
 
     static func remove(_ id: UUID) {
@@ -189,14 +209,14 @@ enum DeploymentProfileStore {
             return
         }
         saveAll(profiles)
-        if let activeID = UUID(uuidString: UserDefaults.standard.string(forKey: activeProfileKey) ?? ""), activeID == id {
+        if let activeID = UUID(uuidString: defaults.string(forKey: activeProfileKey) ?? ""), activeID == id {
             setActive(profiles[0].id)
         }
     }
 
     static func clear() {
-        UserDefaults.standard.removeObject(forKey: defaultsKey)
-        UserDefaults.standard.removeObject(forKey: profilesKey)
-        UserDefaults.standard.removeObject(forKey: activeProfileKey)
+        defaults.removeObject(forKey: defaultsKey)
+        defaults.removeObject(forKey: profilesKey)
+        defaults.removeObject(forKey: activeProfileKey)
     }
 }

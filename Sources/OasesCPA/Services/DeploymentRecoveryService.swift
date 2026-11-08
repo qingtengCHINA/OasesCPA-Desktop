@@ -85,35 +85,14 @@ struct DeploymentRecoveryService {
               exit 18
             fi
 
-            managed_process() {
-              local pid="$1"
-              local expected_root="$2"
-              kill -0 "$pid" >/dev/null 2>&1 || return 1
-              local command
-              command="$(ps -p "$pid" -o command= 2>/dev/null || true)"
-              case "$command" in
-                *"$expected_root"*) return 0 ;;
-                *) return 1 ;;
-              esac
-            }
-            for pid_file in "$ROOT/cli-proxy-api.pid" "$ROOT/cpa-manager-plus.pid"; do
+            \(DeploymentScriptFragments.managedProcessList(topology: .gateway))
+            \(DeploymentScriptFragments.managedProcessStop())
+            # Gateway first (up to 30 s grace), then CPA Manager Plus and the engine.
+            for pid_name in $OASES_MANAGED_STOP_ORDER; do
+              pid_file="$ROOT/$pid_name"
               if [ -f "$pid_file" ]; then
-                pid="$(cat "$pid_file")"
-                case "$pid_file" in
-                  *"/cli-proxy-api.pid") expected_root="$ROOT/cli-proxy-api" ;;
-                  *"/cpa-manager-plus.pid") expected_root="$ROOT/cpamp" ;;
-                  *) expected_root="$ROOT" ;;
-                esac
-                if managed_process "$pid" "$expected_root"; then
-                  kill -TERM "$pid" >/dev/null 2>&1 || true
-                  for _ in $(seq 1 25); do
-                    managed_process "$pid" "$expected_root" || break
-                    sleep 0.2
-                  done
-                  if managed_process "$pid" "$expected_root"; then
-                    kill -KILL "$pid" >/dev/null 2>&1 || true
-                  fi
-                fi
+                pid="$(cat "$pid_file" 2>/dev/null || true)"
+                oases_stop_owned_pid "$pid" "$ROOT/$(oases_managed_owned_path "$pid_name")" "$pid_name"
               fi
             done
 
@@ -122,16 +101,20 @@ struct DeploymentRecoveryService {
             mkdir -p "$BACKUP_ROOT"
             move_if_present() {
               local item="$1"
-              if [ -e "$ROOT/$item" ]; then
+              if [ -e "$ROOT/$item" ] || [ -L "$ROOT/$item" ]; then
                 mv "$ROOT/$item" "$BACKUP_ROOT/$item"
               fi
             }
             move_if_present "cli-proxy-api"
             move_if_present "cpamp"
+            move_if_present "node"
+            move_if_present "gateway"
+            move_if_present "gateway-data"
             move_if_present "logs"
             move_if_present "secrets"
-            move_if_present "cli-proxy-api.pid"
-            move_if_present "cpa-manager-plus.pid"
+            for pid_name in $OASES_MANAGED_PID_FILES; do
+              move_if_present "$pid_name"
+            done
             move_if_present ".oases-cpa-installing"
             move_if_present ".oases-cpa-failed"
             move_if_present ".oases-cpa-installed"

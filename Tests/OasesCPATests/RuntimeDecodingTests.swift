@@ -965,10 +965,14 @@ final class RuntimeDecodingTests: XCTestCase {
         let native = lifecycle.stopScriptForVerification(method: .native, installDirectory: "~/.oases-cpa")
         let docker = lifecycle.stopScriptForVerification(method: .docker, installDirectory: "~/.oases-cpa")
 
-        XCTAssertTrue(native.contains("kill -TERM \"$pid\""))
-        XCTAssertTrue(native.contains("kill -KILL \"$pid\""))
-        XCTAssertTrue(native.contains("ps -p \"$pid\" -o command="))
-        XCTAssertTrue(native.contains("expected_root=\"$ROOT/cli-proxy-api\""))
+        // The shared stop helper (managedProcessStop): TERM, the grace, then KILL, only for a
+        // pid whose command line is under the root.
+        let stopHelper = DeploymentScriptFragments.managedProcessStop()
+        XCTAssertTrue(stopHelper.contains("kill -TERM \"$stop_pid\""))
+        XCTAssertTrue(stopHelper.contains("kill -KILL \"$stop_pid\""))
+        XCTAssertTrue(stopHelper.contains("ps -p \"$owned_pid\" -o command="))
+        XCTAssertTrue(native.contains(stopHelper))
+        XCTAssertTrue(native.contains("expected_root=\"$ROOT/$(oases_managed_owned_path \"$pid_name\")\""))
         XCTAssertTrue(native.contains("rm -f \"$pid_file\""))
         XCTAssertTrue(docker.contains("docker compose stop"))
         XCTAssertFalse(native.contains("rm -rf"))
@@ -979,11 +983,8 @@ final class RuntimeDecodingTests: XCTestCase {
             installDirectory: "~/.oases-cpa",
             backupName: "failed-test"
         )
-        XCTAssertTrue(recovery.contains("managed_process()"))
-        XCTAssertTrue(recovery.contains("kill -TERM \"$pid\""))
-        XCTAssertTrue(recovery.contains("kill -KILL \"$pid\""))
-        XCTAssertTrue(recovery.contains("ps -p \"$pid\" -o command="))
-        XCTAssertTrue(recovery.contains("expected_root=\"$ROOT/cli-proxy-api\""))
+        XCTAssertTrue(recovery.contains(stopHelper))
+        XCTAssertTrue(recovery.contains("oases_stop_owned_pid \"$pid\" \"$ROOT/$(oases_managed_owned_path \"$pid_name\")\" \"$pid_name\""))
     }
 
     func testNativeLifecycleDoesNotKillAnUnrelatedProcessFromAStalePIDFile() throws {
