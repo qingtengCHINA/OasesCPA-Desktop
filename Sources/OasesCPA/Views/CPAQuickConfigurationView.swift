@@ -201,6 +201,19 @@ struct CPAQuickConfigurationView: View {
 
     @ViewBuilder
     private func control(for field: RuntimeCPAQuickConfigField) -> some View {
+        if field.isReadOnly {
+            // Shown only: the engine keeps these rules as a table per channel.
+            Text(OasesLocalization.localizedFormat("%lld 条规则", integerValue(for: field)))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .accessibilityLabel(OasesLocalization.localizedFormat("%@：%lld 条规则，只读", field.title, integerValue(for: field)))
+        } else {
+            editableControl(for: field)
+        }
+    }
+
+    @ViewBuilder
+    private func editableControl(for field: RuntimeCPAQuickConfigField) -> some View {
         switch field.valueKind {
         case .bool:
             Toggle(

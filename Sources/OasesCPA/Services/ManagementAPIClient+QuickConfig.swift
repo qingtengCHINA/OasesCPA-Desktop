@@ -6,15 +6,38 @@ struct ManagementAPIQuickConfigResult: Sendable {
     let errorMessage: String?
 }
 
+/// Why a setting was not written: it is read-only, or the config file has a shape the app does
+/// not change automatically.
+enum QuickConfigWriteError: LocalizedError, Equatable {
+    case readOnly(RuntimeCPAQuickConfigField)
+    /// The file uses CLIProxyAPI v8's nested layout (`config-version: 8`): the setting is not a
+    /// top-level key there and the app does not write that layout.
+    case nestedLayout
+
+    var errorDescription: String? {
+        switch self {
+        case .readOnly:
+            OasesLocalization.localized("这项设置只能在配置文件编辑器中修改。")
+        case .nestedLayout:
+            OasesLocalization.localized("配置文件使用了 v8 的新分组布局，这项设置无法自动修改，请在配置文件编辑器中手动修改。")
+        }
+    }
+}
+
 extension ManagementAPIClient {
     /// Reads one of CLIProxyAPI's specialized management settings.
     /// The endpoint returns an object whose key is the final management key,
-    /// for example `{"strategy":"round-robin"}`.
+    /// for example `{"strategy":"round-robin"}`. A config-file setting is read from
+    /// `config.yaml` (absent: the engine's default).
     func quickConfigurationValue(
         for field: RuntimeCPAQuickConfigField,
         baseURL: URL,
         managementKey: String
     ) async throws -> RuntimeCPAQuickConfigValue {
+        if case .yaml = field.transport {
+            let yaml = try await configYAMLText(baseURL: baseURL, managementKey: managementKey)
+            return try Self.quickConfigurationValue(of: field, inYAML: yaml)
+        }
         let url = try quickConfigurationURL(for: field, baseURL: baseURL)
         let data = try await quickConfigurationData(
             url: url,
@@ -25,14 +48,27 @@ extension ManagementAPIClient {
         return try RuntimeCPAQuickConfigValue.decode(from: data, for: field)
     }
 
-    /// Updates one setting using the exact CLIProxyAPI contract:
-    /// `PATCH /v0/management/{key}` with `{ "value": ... }`.
+    /// Updates one setting. Endpoint settings use the exact CLIProxyAPI contract:
+    /// `PATCH /v0/management/{key}` with `{ "value": ... }`. A config-file setting reads
+    /// `config.yaml`, changes that one scalar (`CPAConfigYAMLPatcher`) and writes the file back
+    /// (`PUT /v0/management/config.yaml`; the engine reloads it). The engine has no ETag or
+    /// compare-and-set for the file (measured on v8.0.51): a change another client makes between
+    /// the read and the write is overwritten, so the window is kept to one read and one write.
     func updateQuickConfigurationValue(
         _ value: RuntimeCPAQuickConfigValue,
         for field: RuntimeCPAQuickConfigField,
         baseURL: URL,
         managementKey: String
     ) async throws {
+        guard !field.isReadOnly else { throw QuickConfigWriteError.readOnly(field) }
+        if case .yaml(let path) = field.transport {
+            let yaml = try await configYAMLText(baseURL: baseURL, managementKey: managementKey)
+            try Self.refuseNestedLayout(yaml)
+            let patched = try CPAConfigYAMLPatcher.setting(value.yamlScalar, at: path, in: yaml)
+            guard patched != yaml else { return }
+            try await saveConfigYAML(Data(patched.utf8), baseURL: baseURL, managementKey: managementKey)
+            return
+        }
         let url = try quickConfigurationURL(for: field, baseURL: baseURL)
         let body = try Self.quickConfigurationPatchBody(value)
         _ = try await quickConfigurationData(
@@ -43,54 +79,90 @@ extension ManagementAPIClient {
         )
     }
 
-    /// Loads every field concurrently. A provider can expose an older
-    /// management API with only some of these endpoints, so errors are kept
-    /// per field instead of failing the whole workbench.
+    /// Loads every field. Endpoint fields are read concurrently; the config-file fields come
+    /// from ONE read of `config.yaml`. A provider can expose an older management API with only
+    /// some of these endpoints, so errors are kept per field instead of failing the whole
+    /// workbench.
     func loadQuickConfiguration(
         baseURL: URL,
         managementKey: String
     ) async -> RuntimeCPAQuickConfigLoadResult {
-        await withTaskGroup(of: ManagementAPIQuickConfigResult.self) { group in
-            for field in RuntimeCPAQuickConfigField.allCases {
+        let client = self
+        let endpointFields = RuntimeCPAQuickConfigField.allCases.filter { $0.transport == .endpoint }
+        let yamlFields = RuntimeCPAQuickConfigField.allCases.filter { $0.transport != .endpoint }
+        var results = await withTaskGroup(of: ManagementAPIQuickConfigResult.self) { group in
+            for field in endpointFields {
                 group.addTask {
                     do {
-                        let value = try await ManagementAPIClient().quickConfigurationValue(
+                        let value = try await client.quickConfigurationValue(
                             for: field,
                             baseURL: baseURL,
                             managementKey: managementKey
                         )
-                        return ManagementAPIQuickConfigResult(
-                            field: field,
-                            value: value,
-                            errorMessage: nil
-                        )
+                        return ManagementAPIQuickConfigResult(field: field, value: value, errorMessage: nil)
                     } catch {
-                        return ManagementAPIQuickConfigResult(
-                            field: field,
-                            value: nil,
-                            errorMessage: error.localizedDescription
-                        )
+                        return ManagementAPIQuickConfigResult(field: field, value: nil, errorMessage: error.localizedDescription)
                     }
                 }
             }
+            var collected: [ManagementAPIQuickConfigResult] = []
+            for await result in group { collected.append(result) }
+            return collected
+        }
 
-            var configuration = RuntimeCPAQuickConfiguration.default
-            var errors: [RuntimeCPAQuickConfigField: String] = [:]
-
-            for await result in group {
-                if let value = result.value {
-                    configuration[result.field] = value
+        if !yamlFields.isEmpty {
+            do {
+                let yaml = try await configYAMLText(baseURL: baseURL, managementKey: managementKey)
+                for field in yamlFields {
+                    do {
+                        let value = try Self.quickConfigurationValue(of: field, inYAML: yaml)
+                        results.append(ManagementAPIQuickConfigResult(field: field, value: value, errorMessage: nil))
+                    } catch {
+                        results.append(ManagementAPIQuickConfigResult(field: field, value: nil, errorMessage: error.localizedDescription))
+                    }
                 }
-                if let errorMessage = result.errorMessage {
-                    errors[result.field] = errorMessage
+            } catch {
+                for field in yamlFields {
+                    results.append(ManagementAPIQuickConfigResult(field: field, value: nil, errorMessage: error.localizedDescription))
                 }
             }
-
-            return RuntimeCPAQuickConfigLoadResult(
-                configuration: configuration,
-                errors: errors
-            )
         }
+
+        var configuration = RuntimeCPAQuickConfiguration.default
+        var errors: [RuntimeCPAQuickConfigField: String] = [:]
+        for result in results {
+            if let value = result.value {
+                configuration[result.field] = value
+            }
+            if let errorMessage = result.errorMessage {
+                errors[result.field] = errorMessage
+            }
+        }
+        return RuntimeCPAQuickConfigLoadResult(configuration: configuration, errors: errors)
+    }
+
+    /// A config-file field's value in `yaml`; absent or null is the engine's default.
+    static func quickConfigurationValue(of field: RuntimeCPAQuickConfigField, inYAML yaml: String) throws -> RuntimeCPAQuickConfigValue {
+        guard case .yaml(let path) = field.transport else { throw ManagementAPIError.invalidResponse }
+        try refuseNestedLayout(yaml)
+        let scalar = try CPAConfigYAMLPatcher.value(at: path, in: yaml)
+        return try RuntimeCPAQuickConfigValue.fromYAMLScalar(scalar, kind: field.valueKind)
+            ?? RuntimeCPAQuickConfiguration.default[field]
+    }
+
+    /// CLIProxyAPI v8's nested layout (`config-version: 8` or later) keeps these settings in
+    /// groups; the deployments use the legacy top-level layout (R14), and the app never writes
+    /// the nested one.
+    static func refuseNestedLayout(_ yaml: String) throws {
+        if let version = try? CPAConfigYAMLPatcher.value(at: ["config-version"], in: yaml), let number = Int(version), number >= 8 {
+            throw QuickConfigWriteError.nestedLayout
+        }
+    }
+
+    private func configYAMLText(baseURL: URL, managementKey: String) async throws -> String {
+        let data = try await configYAML(baseURL: baseURL, managementKey: managementKey)
+        guard let text = String(data: data, encoding: .utf8) else { throw ManagementAPIError.invalidResponse }
+        return text
     }
 
     static func quickConfigurationPatchBody(

@@ -140,4 +140,43 @@ final class ProbeEngineScriptTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: work.appendingPathComponent("config.yaml").path), "nothing was written")
         XCTAssertEqual(try run(Self.startScript, ["start"]).status, 2, "no archive: usage error, never a download")
     }
+
+    /// Opt-in (`OASES_PROBE_ENGINE_LIVE=1`, a probe engine started with start_probe_engine.sh):
+    /// the quick configuration against the real engine. Reads the key from the probe's 0600
+    /// file; changes disable-cooling, response-compression and max-retry-credentials and puts
+    /// them back.
+    func testQuickConfigurationAgainstTheLiveProbeEngine() async throws {
+        guard ProcessInfo.processInfo.environment["OASES_PROBE_ENGINE_LIVE"] == "1" else {
+            throw XCTSkip("set OASES_PROBE_ENGINE_LIVE=1 with a running probe engine")
+        }
+        let work = FakeArtifacts.scratchRoot.appendingPathComponent("probe-engine", isDirectory: true)
+        let key = try String(contentsOf: work.appendingPathComponent("management-key"), encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+        let port = try String(contentsOf: work.appendingPathComponent("port"), encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)"))
+        let client = ManagementAPIClient()
+        let before = await client.loadQuickConfiguration(baseURL: base, managementKey: key)
+        for field in [RuntimeCPAQuickConfigField.disableCooling, .responseCompression, .maxRetryCredentials, .oauthRequestScopedErrors] {
+            XCTAssertNil(before.errors[field], "\(field.rawValue): \(before.errors[field] ?? "")")
+        }
+        let original = before.configuration
+        try await client.updateQuickConfigurationValue(.bool(!original.disableCooling), for: .disableCooling, baseURL: base, managementKey: key)
+        try await client.updateQuickConfigurationValue(.bool(!original.responseCompression), for: .responseCompression, baseURL: base, managementKey: key)
+        try await client.updateQuickConfigurationValue(.integer(original.maxRetryCredentials + 1), for: .maxRetryCredentials, baseURL: base, managementKey: key)
+        try await Task.sleep(nanoseconds: 1_500_000_000)
+        let changed = await client.loadQuickConfiguration(baseURL: base, managementKey: key).configuration
+        XCTAssertEqual(changed.disableCooling, !original.disableCooling)
+        XCTAssertEqual(changed.responseCompression, !original.responseCompression)
+        XCTAssertEqual(changed.maxRetryCredentials, original.maxRetryCredentials + 1)
+        // The engine's own view (GET /v0/management/config) agrees: it reloaded the file.
+        var request = URLRequest(url: base.appendingPathComponent("v0/management/config"))
+        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        let (data, _) = try await URLSession(configuration: .ephemeral).data(for: request)
+        let config = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(config["disable-cooling"] as? Bool, !original.disableCooling)
+        XCTAssertEqual((config["response-compression"] as? [String: Any])?["enabled"] as? Bool, !original.responseCompression)
+        // Back to how it was.
+        try await client.updateQuickConfigurationValue(.bool(original.disableCooling), for: .disableCooling, baseURL: base, managementKey: key)
+        try await client.updateQuickConfigurationValue(.bool(original.responseCompression), for: .responseCompression, baseURL: base, managementKey: key)
+        try await client.updateQuickConfigurationValue(.integer(original.maxRetryCredentials), for: .maxRetryCredentials, baseURL: base, managementKey: key)
+    }
 }

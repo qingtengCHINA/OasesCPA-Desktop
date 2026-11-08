@@ -27,8 +27,67 @@ Run 2026-11-08, macOS arm64.
 
 ## Results
 
-Filled by the tasks that measure (Tasks 19-21); a row that could not be measured says "not
-measured" and why.
-
 | Endpoint | Request | Status | Response headers or body shape | Conclusion |
 |---|---|---|---|---|
+| `/v0/management/config` | `GET` | 200 | JSON object of the whole config without `host`, `port` and `remote-management`; has `disable-cooling` (bool), `response-compression` (`{"enabled": bool, "min-bytes": int}`), `max-retry-credentials` (int); `oauth-request-scoped-errors` absent while empty | Read-only view; the whole-list writes (Task 14) keep using it. |
+| `/v0/management/max-retry-credentials` | `GET` | 200 | `{"max-retry-credentials": 0}` | Endpoint exists. |
+| `/v0/management/max-retry-credentials` | `PUT` and `PATCH` `{"value": 2}` | 200 | `{"status": "ok"}`; GET then answers 2 | The app's `{"value": …}` PATCH applies (Task 19: `.endpoint`, integer). |
+| `/v0/management/max-retry-credentials` | `PUT {"value": "x"}` | 400 | `{"error": "invalid body"}` | A wrong type is refused. |
+| `/v0/management/max-retry-credentials` | `PUT {"value": -1}` | 200 | GET then answers 0 | Negative values are stored as 0 (0 = try every credential). |
+| `/v0/management/oauth-request-scoped-errors` | `GET` | 200 | `{"oauth-request-scoped-errors": null}`, or `{"oauth-request-scoped-errors": {"<channel>": [{"status": 400, "match": […], "action": "stop"}]}}` | NOT a switch: a map of channels to rule lists. |
+| `/v0/management/oauth-request-scoped-errors` | `PATCH {"channel": "codex", "rules": [...]}` | 200 | `{"status": "ok"}` | Per-channel replace. |
+| `/v0/management/oauth-request-scoped-errors` | `PUT {"value": true}` | 200 | GET then answers `null` | DANGER: a `{"value": …}` PUT is accepted and REMOVES every rule. |
+| `/v0/management/oauth-request-scoped-errors` | `PATCH {"value": false}` | 400 | `{"error": "invalid channel"}` | The app's quick-config PATCH shape does not apply. |
+| `/v0/management/oauth-request-scoped-errors` | `PUT {"codex": [...]}`; `DELETE ?channel=codex` | 200 / 200 | `{"status": "ok"}` | Whole-map replace; per-channel delete. |
+| `/v0/management/disable-cooling` | `GET`, `PUT {"value": true}` | 404 | empty body | No endpoint: written through `config.yaml`. |
+| `/v0/management/response-compression`, `…/response-compression/enabled` | `GET` | 404 | empty body | No endpoint: written through `config.yaml`. |
+| `/v0/management/config.yaml` | `GET` | 200 | `Content-Type: application/yaml; charset=utf-8`, `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `Content-Length`; NO `ETag` and no `Last-Modified` (CORS `Access-Control-Expose-Headers` lists `ETag`, but none is sent) | No version token to send back (Task 20: keep "If-Match only when an ETag was received"; with v8.0.51 none is). |
+| `/v0/management/config.yaml` | `GET` with `If-None-Match: "x"` | 200 | full body | Conditional reads are not supported. |
+| `/v0/management/config.yaml` | `PUT` (unchanged file) with `If-Match: "bogus-etag"` | 200 | `{"changed": ["config"], "ok": true}` | `If-Match` is IGNORED: no compare-and-set; a read-modify-write can overwrite a concurrent change. |
+| `/v0/management/config.yaml` | `PUT` without `If-Match` | 200 | `{"changed": ["config"], "ok": true}` | The current `saveConfigYAML` request shape works. |
+| `/v0/management/config.yaml` | `PUT` invalid YAML (`host: [`) | 400 | `{"error": "invalid_yaml", "message": "yaml: line 1: …"}` | Invalid files are refused, nothing applied. |
+| `/v0/management/config.yaml` | `PUT` with `disable-cooling: true # probe` and `response-compression.enabled: true` changed by lines | 200 | `GET /config` then shows `disable-cooling: true` and `response-compression.enabled: true`; the file read back is byte-for-byte the one written (comment kept) | The engine reloads the file and reads the LEGACY top-level keys; Task 19's line patch works. |
+| `/v0/management/max-retry-credentials` | `PATCH {"value": 2}` after a file write | 200 | the file read back differs only in `max-retry-credentials: 2` (other lines and comments kept) | An endpoint write rewrites `config.yaml` too, so file writes must not run beside endpoint writes (the app writes file fields after the endpoint fields). |
+| quick configuration (app code) | `ProbeEngineScriptTests.testQuickConfigurationAgainstTheLiveProbeEngine` (`OASES_PROBE_ENGINE_LIVE=1`) | — | the app's client read all four new fields without errors, changed disable-cooling, response-compression and max-retry-credentials, `GET /config` agreed, and the values were restored | Task 19 verified against the real engine. |
+
+Observations on the engine's own file handling:
+
+- At start (and on later writes) the engine appends blocks it knows to `config.yaml`
+  (`credential-concurrency`, `credential-in-flight`, `discovery`,
+  `redis-usage-queue-retention-seconds`, `disable-cooling`, `request-retry`,
+  `max-retry-credentials`, `ws-auth`) and writes `oauth-request-scoped-errors: {}` in flow
+  style. The patcher leaves flow values of other keys alone and refuses flow style only for the
+  key it changes. The engine-written file is a test fixture
+  (`CPAConfigYAMLPatcherTests.testEngineWrittenConfigChangesOneLine`).
+- v8.0.51's `config.example.yaml` documents a nested layout (`config-version: 8`, groups such
+  as `server:` and `routing:`). The app does not write that layout (R14); a file with
+  `config-version` 8 or later makes the two file fields refuse with "use the configuration file
+  editor".
+
+## Open items
+
+- **CPA Manager Plus prices usage events by `coalesce(nullif(resolved_model, ''), model)`**
+  (`usageevent/aggregate.go`, `usagepricing/repository.go` in v1.14.10).
+- **What a pinned request records (measured on the real engine, gateway not in the path):** a
+  client key and one openai-compatibility provider with prefix `pin-mock` pointing at a
+  loopback mock upstream; `POST /v1/chat/completions` with `model: "pin-mock/probe-model"`
+  answered 200, and `/v1/models` listed both `probe-model` and `pin-mock/probe-model`. The
+  record in `GET /v0/management/usage-queue` has `model: "probe-model"` (the public name),
+  `alias: "pin-mock/probe-model"` (what the client sent), `response_model: "probe-model"`,
+  `provider: "openai-compatible-mock"`, `executor_type: "OpenAICompatExecutor"`, and NO
+  `resolved_model` field.
+- **Derived, not run:** CPA Manager Plus v1.14.10 (`usage/event.go`) stores
+  `requested_model ← alias`, `resolved_model ← resolved_model, else model`, and `model ←
+  requested_model`. For the record above that gives `model = pin-mock/probe-model` and
+  `resolved_model = probe-model`, so the price of a pinned request is looked up under the
+  public name, and the event list shows the `pin-…/` name (the app's model detail queries both
+  spellings and shows public names). UNVERIFIED end to end: CPA Manager Plus and the gateway
+  were not run against the probe engine; Task 23's drill should record the `resolved_model` of
+  a real pinned request through the gateway.
+- **Privacy:** the engine's usage-queue records carry the client API key in plaintext
+  (`api_key`) and the upstream credential in `source`; CPA Manager Plus masks `source` when it
+  imports. `GET /v0/management/config` leaves out `remote-management`.
+- **Not measured yet:** the request-error log endpoints (`/v0/management/request-error-logs`,
+  Task 21) and the remaining Task 20 requests are left for those tasks; until they are
+  measured, Task 21 lists and downloads only through the routes in `server_management.go` and
+  tolerates unknown fields.

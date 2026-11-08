@@ -2515,3 +2515,17 @@
 "%@ 的供应商" = "Provider for %@";
 "%@ 的指定方式" = "Pin mode for %@";
 "%@ 的更多操作" = "More actions for %@";
+"每轮最多尝试的凭据数" = "Credentials per retry round";
+"关闭冷却" = "Disable cooldown";
+"OAuth 请求错误规则" = "OAuth request error rules";
+"压缩响应" = "Compress responses";
+"每一轮重试最多换几个不同的凭据；0 表示尝试全部可用凭据。" = "How many different credentials each retry round may try; 0 tries every available credential.";
+"失败后不让账号或模型进入冷却等待；单个供应商或凭据自己的设置优先。写入配置文件。" = "Accounts and models are not put into a cooldown after failures; a provider's or credential's own setting takes precedence. Written to the configuration file.";
+"按通道把上游错误归类的规则（引擎中是规则表，不是开关）。这里只显示条数，请在配置文件编辑器中修改。" = "Rules that classify upstream errors per channel (a rule table in the engine, not a switch). Only the count is shown here; edit them in the configuration file editor.";
+"客户端支持 gzip 或 zstd 时压缩返回内容（含流式）；引擎默认开启。写入配置文件。" = "Compresses responses (streams included) when the client accepts gzip or zstd; on by default in the engine. Written to the configuration file.";
+"这项设置只能在配置文件编辑器中修改。" = "This setting can only be changed in the configuration file editor.";
+"配置文件使用了 v8 的新分组布局，这项设置无法自动修改，请在配置文件编辑器中手动修改。" = "The configuration file uses the grouped v8 layout; this setting cannot be changed automatically. Change it in the configuration file editor.";
+"配置文件里 %@ 的写法无法自动修改（重复的键或不是普通的键值结构），请在配置文件编辑器中手动修改。" = "%@ in the configuration file cannot be changed automatically (a duplicate key or not a plain key-value entry). Change it in the configuration file editor.";
+"配置文件里 %@ 使用了单行（流式）写法，无法自动修改，请在配置文件编辑器中手动修改。" = "%@ in the configuration file uses the one-line (flow) style and cannot be changed automatically. Change it in the configuration file editor.";
+"%lld 条规则" = "%lld rules";
+"%@：%lld 条规则，只读" = "%@: %lld rules, read-only";
