@@ -355,7 +355,7 @@ struct UsageAnalyticsWorkbenchView: View {
                         HStack {
                             Text(point.label.isEmpty ? formatDate(point.bucketMs) : point.label)
                                 .frame(width: 150, alignment: .leading)
-                            Text("\(point.calls) 次")
+                            Text(OasesLocalization.localizedFormat("%lld 次", point.calls))
                             Text(formatTokens(point.totalTokens))
                             Text(RuntimeUsageAnalyticsPresentation.percentage(point.successRate))
                                 .foregroundStyle(point.failure > 0 ? Color.oasesOrange : Color.oasesGreen)
@@ -473,7 +473,7 @@ struct UsageAnalyticsWorkbenchView: View {
                 Text(title.isEmpty ? OasesLocalization.localized("未标记") : title)
                     .font(.callout.weight(.semibold))
                     .lineLimit(1)
-                Text("\(calls) 次 · \(formatTokens(tokens)) Token")
+                Text(OasesLocalization.localizedFormat("%lld 次 · %@ Token", calls, formatTokens(tokens)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

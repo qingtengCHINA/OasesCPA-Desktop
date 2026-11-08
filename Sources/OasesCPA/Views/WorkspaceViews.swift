@@ -592,8 +592,8 @@ struct MonitoringView: View {
             }
             .font(.callout.weight(.medium))
         }
-        .padding(14)
-        .oasesCard(cornerRadius: 14)
+        .padding(Oases.Space.m)
+        .oasesCard()
     }
 
     private func filterField(_ title: String, text: Binding<String>, suggestions: [String]) -> some View {
@@ -773,7 +773,7 @@ struct MonitoringEventRow: View {
                     DisclosureGroup {
                         VStack(alignment: .leading, spacing: Oases.Space.xs) {
                             ForEach(event.rawFields) { field in
-                                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                HStack(alignment: .firstTextBaseline, spacing: Oases.Space.sm) {
                                     Text(verbatim: field.key)
                                         .font(.system(.caption, design: .monospaced))
                                         .foregroundStyle(.secondary)

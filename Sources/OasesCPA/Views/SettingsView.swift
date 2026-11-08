@@ -273,10 +273,10 @@ struct SettingsView: View {
                 if let authorName = appAuthor.name {
                     if let authorURL = appAuthor.url {
                         Link(destination: authorURL) {
-                            Label("作者 · \(authorName)", systemImage: "person.crop.circle")
+                            Label(OasesLocalization.localizedFormat("作者 · %@", authorName), systemImage: "person.crop.circle")
                         }
                     } else {
-                        Label("作者 · \(authorName)", systemImage: "person.crop.circle")
+                        Label(OasesLocalization.localizedFormat("作者 · %@", authorName), systemImage: "person.crop.circle")
                     }
                 }
 

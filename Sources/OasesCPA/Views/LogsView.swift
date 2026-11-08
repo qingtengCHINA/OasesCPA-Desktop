@@ -156,7 +156,7 @@ struct LogsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(20)
+        .padding(Oases.Space.l)
         .oasesCard()
     }
 

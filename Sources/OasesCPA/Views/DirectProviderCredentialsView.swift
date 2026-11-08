@@ -226,7 +226,7 @@ private struct DirectProviderCredentialRow: View {
                         Text("独立代理")
                     }
                     if let priority = credential.priority {
-                        Text("优先级 \(priority)")
+                        Text(OasesLocalization.localizedFormat("优先级 %lld", priority))
                     }
                     if credential.disableCooling {
                         Text("已禁用冷却")
@@ -235,7 +235,7 @@ private struct DirectProviderCredentialRow: View {
                         Text("Headers \(credential.headers.count)")
                     }
                     if !credential.models.isEmpty {
-                        Text("模型映射 \(credential.models.count)")
+                        Text(OasesLocalization.localizedFormat("模型映射 %lld", credential.models.count))
                     }
                     if !credential.authIndex.isEmpty {
                         Text(OasesLocalization.localizedFormat("认证索引 %@", credential.authIndex))

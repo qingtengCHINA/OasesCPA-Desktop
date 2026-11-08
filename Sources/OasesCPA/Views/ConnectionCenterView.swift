@@ -1132,9 +1132,12 @@ private struct SSHHostKeyConfirmationDialog: ViewModifier {
         } message: {
             if let confirmation = deploymentStore.pendingSSHHostKeyConfirmation {
                 let changeDescription = confirmation.reason == .changed
-                    ? "当前记录：\(confirmation.previousFingerprint ?? "未知")；替换必须再次明确确认。"
-                    : "这是该主机的首次记录。"
-                Text("主机：\(confirmation.host):\(confirmation.port)\n算法：\(confirmation.algorithm)\nSHA-256：\(confirmation.fingerprint)\n\(changeDescription)")
+                    ? OasesLocalization.localizedFormat("当前记录：%@；替换必须再次明确确认。", confirmation.previousFingerprint ?? OasesLocalization.localized("未知"))
+                    : OasesLocalization.localized("这是该主机的首次记录。")
+                Text(OasesLocalization.localizedFormat(
+                    "主机：%@:%lld\n算法：%@\nSHA-256：%@\n%@",
+                    confirmation.host, confirmation.port, confirmation.algorithm, confirmation.fingerprint, changeDescription
+                ))
             } else {
                 Text("未发现待确认的 SSH 主机指纹。")
             }

@@ -62,7 +62,7 @@ struct InspectionView: View {
             InspectionResultDetailSheet(result: result)
         }
         .alert(
-            pendingConfirmation?.title ?? "确认操作",
+            pendingConfirmation?.title ?? OasesLocalization.localized("确认操作"),
             isPresented: Binding(
                 get: { pendingConfirmation != nil },
                 set: { if !$0 { pendingConfirmation = nil } }
@@ -85,7 +85,7 @@ struct InspectionView: View {
         )) {
             Button("好", role: .cancel) {}
         } message: {
-            Text(actionError ?? "未知错误")
+            Text(actionError ?? OasesLocalization.localized("未知错误"))
         }
     }
 
@@ -598,7 +598,7 @@ private struct InspectionRunRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(
-            OasesLocalization.localizedFormat("%@，运行 #%lld，%@", run.statusTitle, run.id, run.startedAt?.formatted(date: .abbreviated, time: .shortened) ?? "时间未知")
+            OasesLocalization.localizedFormat("%@，运行 #%lld，%@", run.statusTitle, run.id, run.startedAt?.formatted(date: .abbreviated, time: .shortened) ?? OasesLocalization.localized("时间未知"))
         )
     }
 
@@ -705,7 +705,7 @@ private struct InspectionRunDetailView: View {
             InspectionMetric(
                 title: "认证文件",
                 value: detail.run.totalFiles.formatted(),
-                caption: "本次纳入巡检",
+                caption: OasesLocalization.localized("本次纳入巡检"),
                 tint: .oasesBlue,
                 icon: "doc.on.doc"
             )
@@ -719,14 +719,14 @@ private struct InspectionRunDetailView: View {
             InspectionMetric(
                 title: "需处理",
                 value: detail.run.actionCount.formatted(),
-                caption: "建议或重新授权",
+                caption: OasesLocalization.localized("建议或重新授权"),
                 tint: detail.run.actionCount > 0 ? .oasesOrange : .oasesGreen,
                 icon: "exclamationmark.shield"
             )
             InspectionMetric(
                 title: "日志",
                 value: detail.logs.count.formatted(),
-                caption: detail.run.finishedAt.map { OasesLocalization.localizedFormat("完成 %@", dateText(Int64($0.timeIntervalSince1970 * 1_000))) } ?? "持续更新",
+                caption: detail.run.finishedAt.map { OasesLocalization.localizedFormat("完成 %@", dateText(Int64($0.timeIntervalSince1970 * 1_000))) } ?? OasesLocalization.localized("持续更新"),
                 tint: .oasesPurple,
                 icon: "text.alignleft"
             )
@@ -868,7 +868,7 @@ private struct InspectionRunDetailView: View {
     }
 
     private func dateText(_ value: Int64) -> String {
-        guard value > 0 else { return "暂无" }
+        guard value > 0 else { return OasesLocalization.localized("暂无") }
         return Date(timeIntervalSince1970: TimeInterval(value) / 1_000)
             .formatted(date: .abbreviated, time: .shortened)
     }
@@ -1019,7 +1019,7 @@ private struct InspectionResultCard: View {
                         if let progress = window.progress {
                             ProgressView(value: progress)
                                 .tint(quotaTint(for: progress))
-                            Text(window.usedPercent.map { "\($0.formatted(.number.precision(.fractionLength(0))))%" } ?? "暂无")
+                            Text(window.usedPercent.map { "\($0.formatted(.number.precision(.fractionLength(0))))%" } ?? OasesLocalization.localized("暂无"))
                                 .font(.caption.monospacedDigit())
                                 .frame(width: 44, alignment: .trailing)
                         } else {
@@ -1043,7 +1043,7 @@ private struct InspectionResultCard: View {
                     .frame(minWidth: 94, alignment: .leading)
                 ProgressView(value: progress)
                     .tint(quotaTint(for: progress))
-                Text(result.usedPercent.map { "\($0.formatted(.number.precision(.fractionLength(0))))%" } ?? "暂无")
+                Text(result.usedPercent.map { "\($0.formatted(.number.precision(.fractionLength(0))))%" } ?? OasesLocalization.localized("暂无"))
                     .font(.caption.monospacedDigit())
                     .frame(width: 44, alignment: .trailing)
             }
@@ -1135,7 +1135,7 @@ private struct InspectionLogRow: View {
                     Text(entry.levelTitle)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(levelTint)
-                    Text(entry.createdAt?.formatted(date: .omitted, time: .standard) ?? "时间未知")
+                    Text(entry.createdAt?.formatted(date: .omitted, time: .standard) ?? OasesLocalization.localized("时间未知"))
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -1200,7 +1200,7 @@ private struct InspectionResultDetailSheet: View {
                         InspectionSheetRow(title: "认证索引", value: result.authIndex)
                         InspectionSheetRow(title: "账号 ID", value: result.accountID)
                         InspectionSheetRow(title: "认证状态", value: result.stateTitle)
-                        InspectionSheetRow(title: "HTTP 状态", value: result.statusCode.map { "HTTP \($0)" } ?? "暂无")
+                        InspectionSheetRow(title: "HTTP 状态", value: result.statusCode.map { "HTTP \($0)" } ?? OasesLocalization.localized("暂无"))
                         InspectionSheetRow(title: "建议动作", value: result.actionTitle)
                         InspectionSheetRow(title: "动作状态", value: result.actionStatusTitle)
                         InspectionSheetRow(title: "原因", value: result.actionReason)
@@ -1243,7 +1243,7 @@ private struct InspectionSheetRow: View {
 
     var body: some View {
         if !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            LabeledContent(title) {
+            LabeledContent(LocalizedStringKey(title)) {
                 Text(value)
                     .multilineTextAlignment(.trailing)
                     .textSelection(.enabled)

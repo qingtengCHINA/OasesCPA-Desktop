@@ -146,7 +146,7 @@ struct ConfigurationView: View {
             titleVisibility: .visible
         ) {
             if let pendingSection = store.pendingSection {
-                Button("舍弃更改并前往 \(pendingSection.title)", role: .destructive) {
+                Button(OasesLocalization.localizedFormat("舍弃更改并前往 %@", pendingSection.title), role: .destructive) {
                     discardAllDrafts()
                     store.discardConfigurationChangesAndContinue()
                 }
@@ -163,7 +163,7 @@ struct ConfigurationView: View {
             titleVisibility: .visible
         ) {
             if let pendingWorkspaceMode {
-                Button("舍弃更改并前往 \(pendingWorkspaceMode.title)", role: .destructive) {
+                Button(OasesLocalization.localizedFormat("舍弃更改并前往 %@", pendingWorkspaceMode.title), role: .destructive) {
                     discardAllDrafts()
                     selectedWorkspaceMode = pendingWorkspaceMode
                     self.pendingWorkspaceMode = nil

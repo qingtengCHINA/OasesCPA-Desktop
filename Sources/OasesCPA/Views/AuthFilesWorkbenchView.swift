@@ -91,7 +91,7 @@ struct AuthFilesWorkbenchView: View {
             isPresented: $deleteSelectionConfirmationPresented,
             titleVisibility: .visible
         ) {
-            Button("删除 \(workbench.selectedIDs.count) 个文件", role: .destructive) {
+            Button(OasesLocalization.localizedFormat("删除 %lld 个文件", workbench.selectedIDs.count), role: .destructive) {
                 Task { await deleteSelected() }
             }
             Button("取消", role: .cancel) {}
@@ -283,12 +283,12 @@ struct AuthFilesWorkbenchView: View {
             .buttonStyle(.bordered)
             .disabled(workbench.filteredFiles.isEmpty)
 
-            Text("显示 \(workbench.filteredFiles.count) / \(workbench.total ?? workbench.files.count) 个")
+            Text(OasesLocalization.localizedFormat("显示 %lld / %lld 个", workbench.filteredFiles.count, workbench.total ?? workbench.files.count))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
             if !workbench.selectedIDs.isEmpty {
-                Text("已选 \(workbench.selectedIDs.count) 个")
+                Text(OasesLocalization.localizedFormat("已选 %lld 个", workbench.selectedIDs.count))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.accentColor)
                 Button("删除所选", systemImage: "trash", role: .destructive) {

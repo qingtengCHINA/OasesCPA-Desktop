@@ -79,17 +79,30 @@ final class LocalizationResourceTests: XCTestCase {
         }
     }
 
+    /// The kind each argument (by position) is converted with. Comparing these maps, not counts
+    /// per kind, catches an English value whose plain specifiers come in another order than the
+    /// key's (`%@ … %lld` against `%lld … %@`): the arguments are passed in the key's order, so a
+    /// different order needs positional specifiers (`%2$lld … %1$@`).
+    static func argumentKinds(_ text: String) -> [Int: OasesFormat.Specifier.Kind] {
+        var kinds: [Int: OasesFormat.Specifier.Kind] = [:]
+        for specifier in OasesFormat.specifiers(in: text) where kinds[specifier.argument] == nil {
+            kinds[specifier.argument] = specifier.kind
+        }
+        return kinds
+    }
+
+    func testArgumentOrderCheckRejectsReorderedPlainSpecifiers() {
+        let key = "用户 %@ 调用 %lld 次"
+        XCTAssertNotEqual(Self.argumentKinds("%lld calls by %@"), Self.argumentKinds(key), "plain specifiers in another order")
+        XCTAssertEqual(Self.argumentKinds("%2$lld calls by %1$@"), Self.argumentKinds(key), "positional specifiers keep the order")
+        XCTAssertEqual(Self.argumentKinds("User %@ called %lld times"), Self.argumentKinds(key))
+        XCTAssertNotEqual(Self.argumentKinds("User %@"), Self.argumentKinds(key), "a missing argument")
+    }
+
     func testFormatSpecifiersMatchBetweenKeyAndValues() throws {
         let chinese = try dictionary("zh-Hans")
         let english = try dictionary("en")
-        func kinds(_ text: String) -> [OasesFormat.Specifier.Kind: Int] {
-            var counts: [OasesFormat.Specifier.Kind: Int] = [:]
-            var positions = Set<Int>()
-            for specifier in OasesFormat.specifiers(in: text) where positions.insert(specifier.argument).inserted {
-                counts[specifier.kind, default: 0] += 1
-            }
-            return counts
-        }
+        func kinds(_ text: String) -> [Int: OasesFormat.Specifier.Kind] { Self.argumentKinds(text) }
         for (key, value) in chinese {
             let expected = kinds(key)
             XCTAssertEqual(kinds(value), expected, "zh-Hans value of \(key)")
@@ -129,6 +142,44 @@ final class LocalizationResourceTests: XCTestCase {
             }
         }
         XCTAssertGreaterThan(checked, 300)
+    }
+
+    /// A SwiftUI `Text("… \\(value) …")` literal is looked up under a key SwiftUI builds from
+    /// the interpolation's types, which these files do not hold, so the Chinese text showed in
+    /// English too. Interpolated Chinese literals go through `OasesLocalization.localizedFormat`.
+    func testNoSwiftUILiteralInterpolatesChineseText() throws {
+        let sources = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/OasesCPA")
+        let literal = try NSRegularExpression(pattern: #"\b(?:Text|Label|Button|LabeledContent|Toggle|Section)\("((?:[^"\\]|\\.)*)""#)
+        let chinese = try NSRegularExpression(pattern: #"\p{Han}"#)
+        let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
+        var offenders: [String] = []
+        for case let file as URL in enumerator where file.pathExtension == "swift" {
+            let text = try String(contentsOf: file, encoding: .utf8)
+            for match in literal.matches(in: text, range: NSRange(text.startIndex..<text.endIndex, in: text)) {
+                guard let range = Range(match.range(at: 1), in: text) else { continue }
+                let body = String(text[range])
+                guard body.contains("\\("),
+                      chinese.firstMatch(in: body, range: NSRange(body.startIndex..<body.endIndex, in: body)) != nil else { continue }
+                offenders.append("\(file.lastPathComponent): \(body)")
+            }
+        }
+        XCTAssertEqual(offenders, [])
+    }
+
+    /// The credential health page's fallbacks and captions are looked up (they reached the
+    /// English UI as Chinese text).
+    func testInspectionPageHasNoRawChineseFallbacks() throws {
+        let file = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/OasesCPA/Views/CredentialHealthInspectionView.swift")
+        let text = try String(contentsOf: file, encoding: .utf8)
+        let raw = try NSRegularExpression(pattern: #"(?:\?\? |caption: |guard value > 0 else \{ return )"[^"]*\p{Han}"#)
+        let matches = raw.matches(in: text, range: NSRange(text.startIndex..<text.endIndex, in: text)).compactMap {
+            Range($0.range, in: text).map { String(text[$0]) }
+        }
+        XCTAssertEqual(matches, [])
     }
 
     func testInterpolatedTitleResolvesInEnglish() {

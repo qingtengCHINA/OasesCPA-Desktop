@@ -120,7 +120,7 @@ struct CPAQuickConfigurationView: View {
     private var partialErrorCard: some View {
         Label {
             VStack(alignment: .leading, spacing: 4) {
-                Text("有 \(store.fieldErrors.count) 项设置读取失败")
+                Text(OasesLocalization.localizedFormat("有 %lld 项设置读取失败", store.fieldErrors.count))
                     .font(.headline)
                 Text("这通常表示目标版本暂不支持该端点；其他设置仍然可以保存。")
                     .font(.caption)

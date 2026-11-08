@@ -231,12 +231,12 @@ struct SystemInfoView: View {
                 systemImage: "cpu"
             )
             if !groups.isEmpty {
-                Text("\(groups.count) 个提供商 / 家族分组")
+                Text(OasesLocalization.localizedFormat("%lld 个提供商 / 家族分组", groups.count))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             if let copiedModelID {
-                Label("已复制 \(copiedModelID)", systemImage: "checkmark")
+                Label(OasesLocalization.localizedFormat("已复制 %@", copiedModelID), systemImage: "checkmark")
                     .font(.caption)
                     .foregroundStyle(Color.oasesGreen)
                     .lineLimit(1)
