@@ -73,12 +73,12 @@ final class LanguageSnapshotTests: XCTestCase {
                 HStack(spacing: 12) {
                     TextField("搜索名称、Provider、邮箱、项目或备注", text: .constant(""))
                         .textFieldStyle(.roundedBorder)
-                    AuthFilesWorkbenchFilterPickers(workbench: workbench)
+                    AuthFilesFilterBar(workbench: workbench)
                 }
                 VStack(alignment: .leading, spacing: 10) {
                     TextField("搜索名称、Provider、邮箱、项目或备注", text: .constant(""))
                         .textFieldStyle(.roundedBorder)
-                    AuthFilesWorkbenchFilterPickers(workbench: workbench)
+                    AuthFilesFilterBar(workbench: workbench)
                 }
             }
             .padding(16)
@@ -91,7 +91,7 @@ final class LanguageSnapshotTests: XCTestCase {
                 directory: outputDirectory
             )
             // The pickers keep their ideal width: their labels are never squeezed.
-            let pickers = NSHostingView(rootView: AuthFilesWorkbenchFilterPickers(workbench: workbench).environment(\.locale, language.locale))
+            let pickers = NSHostingView(rootView: AuthFilesFilterBar(workbench: workbench).environment(\.locale, language.locale))
             XCTAssertGreaterThan(pickers.fittingSize.width, 200, "\(language)")
         }
     }

@@ -284,6 +284,17 @@ final class PageSnapshotTests: XCTestCase {
         }
     }
 
+    func testAuthFilesPage() throws {
+        try renderAll("authfiles-loaded", size: CGSize(width: 1_100, height: 380)) {
+            AuthFilesSample()
+        }
+        try renderAll("authfiles-filterbar", size: CGSize(width: 640, height: 60)) {
+            AuthFilesFilterBar(workbench: AuthFilesWorkbenchStore())
+                .padding(Oases.Space.sm)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
     func testModelsPage() throws {
         try renderAll("models-loaded", size: CGSize(width: 1_000, height: 380)) {
             ModelsSample()
@@ -378,6 +389,37 @@ private struct ProvidersSample: View {
                 .padding(Oases.Space.page)
         } pane: {
             ProviderInspector(provider: Self.providers[0])
+        }
+    }
+}
+
+private struct AuthFilesSample: View {
+    static let files: [AuthFilesWorkbenchFile] = try! JSONDecoder().decode([AuthFilesWorkbenchFile].self, from: Data(#"""
+    [{"name":"codex-main.json","provider":"codex","email":"main@example.com","plan":"plus","priority":10,"status":"active"},
+     {"name":"claude-team.json","provider":"claude","email":"team@example.com","plan":"team","status":"error","status_message":"token expired"},
+     {"name":"gemini-cli-project.json","provider":"gemini-cli","project_id":"demo-project","disabled":true}]
+    """#.utf8))
+    @State private var selection: Set<AuthFilesWorkbenchFile.ID> = [AuthFilesSample.files[1].id]
+    @State private var sortOrder: [KeyPathComparator<AuthFilesWorkbenchFile>] = []
+
+    var body: some View {
+        DetailPaneSplit(showsPane: true, paneTitle: "认证文件详情", onClose: {}) {
+            VStack(spacing: 0) {
+                HStack {
+                    Text(OasesLocalization.localizedFormat("已选 %lld 个", selection.count))
+                    Button("启用所选") {}
+                    Button("停用所选") {}
+                    Button("删除…") {}
+                    Spacer()
+                }
+                .padding(.horizontal, Oases.Space.page)
+                .padding(.vertical, Oases.Space.s)
+                .background(Oases.Color.wash)
+                Divider()
+                AuthFilesTable(files: Self.files, evidence: [:], selection: $selection, sortOrder: $sortOrder)
+            }
+        } pane: {
+            AuthFileInspector(file: Self.files[1], evidence: nil, hasRuntimeFile: true)
         }
     }
 }

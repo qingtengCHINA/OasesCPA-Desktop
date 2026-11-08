@@ -391,7 +391,7 @@
 "启用文件日志" = "Enable file logging";
 "启用此插件" = "Enable this plugin";
 "启用满足恢复条件的认证文件" = "Enable certified files that meet recovery conditions";
-"启用认证文件" = "Enable certification file";
+"启用认证文件" = "Enable Auth File";
 "启用请求监控" = "Enable request monitoring";
 "命中" = "Hits";
 "商店条目" = "Store Entry";
@@ -2026,7 +2026,7 @@
 "CPA Manager Plus 不可用，暂时无法显示调用统计。" = "CPA Manager Plus is not available; call statistics cannot be shown right now.";
 "网关拒绝了这个顺序，请刷新后再试。" = "The gateway refused this order; refresh and try again.";
 "优先级 %lld" = "Priority %lld";
-"登录账号" = "Signed-in accounts";
+"登录账号" = "Account";
 "单独测试" = "Test This One";
 "第 %lld 位：%@" = "Position %lld: %@";
 "上移" = "Move Up";
@@ -2659,3 +2659,17 @@
 "目标服务不可用或自动恢复时发送 macOS 通知；首次启用需要在系统设置中允许。" = "Sends a macOS notification when the target service goes down or recovers; allow it in System Settings the first time.";
 "新版本的 DMG 会下载到“下载”文件夹并自动打开。" = "A new version is downloaded as a DMG to the Downloads folder and opened.";
 "Oases CPA 独立开发，不隶属 CLIProxyAPI 或 CPA Manager Plus。" = "Oases CPA is developed independently and is not affiliated with CLIProxyAPI or CPA Manager Plus.";
+"导入…" = "Import…";
+"删除全部认证文件…" = "Delete All Auth Files…";
+"取消选择" = "Deselect All";
+"没有匹配的认证文件。" = "No auth files match.";
+"编辑管理字段…" = "Edit Management Fields…";
+"导入 JSON 认证文件" = "Import a JSON auth file";
+"记录于 %@" = "Recorded %@";
+"启用所选" = "Enable";
+"停用所选" = "Disable";
+"额度" = "Quota";
+"认证文件详情" = "Auth File Details";
+"还没有认证文件" = "No Auth Files Yet";
+"用“导入…”添加 JSON，或在“OAuth”中授权。" = "Add a JSON file with “Import…”, or sign in under “OAuth”.";
+"正在读取认证文件…" = "Reading auth files…";

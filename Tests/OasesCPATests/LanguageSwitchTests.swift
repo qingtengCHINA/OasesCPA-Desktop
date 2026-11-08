@@ -124,7 +124,6 @@ final class LanguageSwitchTests: XCTestCase {
         collect(SectionGroup.self, "SectionGroup.title") { $0.title }
         collect(OasesAppearance.self, "OasesAppearance.title") { $0.title }
         collect(AuthFilesWorkbenchSort.self, "AuthFilesWorkbenchSort.title") { $0.title }
-        collect(AuthFilesWorkbenchDisplayMode.self, "AuthFilesWorkbenchDisplayMode.title") { $0.title }
         collect(AuthFilesWorkbenchAttentionFilter.self, "AuthFilesWorkbenchAttentionFilter.title") { $0.title }
         collect(DeploymentTargetKind.self, "DeploymentTargetKind.title") { $0.title }
         collect(DeploymentMethod.self, "DeploymentMethod.title") { $0.title }
