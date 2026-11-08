@@ -12,11 +12,14 @@ final class HealthNotificationService: NSObject, UNUserNotificationCenterDelegat
         center.delegate = self
     }
 
+    /// The completion-handler forms of the notification center calls are used on purpose: the
+    /// async ones send the non-Sendable center and request across isolation, which Swift 6.1
+    /// (Xcode 16) rejects.
     func requestAuthorization() async -> Bool {
-        do {
-            return try await center.requestAuthorization(options: [.alert, .sound])
-        } catch {
-            return false
+        await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+                continuation.resume(returning: granted)
+            }
         }
     }
 
@@ -92,6 +95,8 @@ final class HealthNotificationService: NSObject, UNUserNotificationCenterDelegat
     private func add(content: UNMutableNotificationContent, identifier: String) async {
         center.removeDeliveredNotifications(withIdentifiers: [identifier])
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
-        try? await center.add(request)
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            center.add(request) { _ in continuation.resume() }
+        }
     }
 }
