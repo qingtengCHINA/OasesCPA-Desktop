@@ -157,7 +157,6 @@ enum ConnectionPageState: Equatable, Sendable {
 /// 连接与部署 (design 5a): one grouped Form. The top section depends on the state; then the
 /// maintenance links, "高级" and "诊断" disclosure groups, and the destructive removal last.
 struct ConnectionCenterView: View {
-    @EnvironmentObject private var appStore: AppStore
     @EnvironmentObject private var deploymentStore: DeploymentStore
     @State private var isImportingKey = false
     @State private var confirmStop = false
@@ -205,13 +204,6 @@ struct ConnectionCenterView: View {
         .formStyle(.grouped)
         .frame(maxWidth: 680)
         .frame(maxWidth: .infinity)
-        // A gateway page's "备份并升级…" routes here (`AppStore.requestDeploymentUpgrade`). The
-        // legacy state above already shows the one upgrade button with its promise and backup
-        // location, so the request is only consumed: nothing runs without this page's own click.
-        .onAppear { appStore.deploymentUpgradeRequested = false }
-        .onChange(of: appStore.deploymentUpgradeRequested) { _, requested in
-            if requested { appStore.deploymentUpgradeRequested = false }
-        }
         .fileImporter(isPresented: $isImportingKey, allowedContentTypes: [.item], allowsMultipleSelection: false) { result in
             if case .success(let urls) = result, let url = urls.first {
                 deploymentStore.importSSHKey(from: url)
@@ -452,7 +444,7 @@ struct ConnectionCenterView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(deploymentStore.isDeploying || deploymentStore.isMaintaining)
         }
-        sentence("这是旧版 0.1.x 部署，网关功能需要升级。升级会先自动备份，你的 AI 提供商、认证文件、API Key 和用量数据都会保留；如果升级没有完成，会自动恢复到原来的部署。")
+        sentence("这是旧版 0.1.x 部署，网关功能需要升级。升级会先停止服务，再自动备份；你的 AI 提供商、认证文件、API Key 和用量数据都会保留，如果升级没有完成，会自动恢复到原来的部署。")
         sentence(verbatim: OasesLocalization.localizedFormat("备份会保存在 %@ 中。", deploymentStore.installDirectory + "/backups"))
         if let failure = deploymentStore.lastMaintenanceFailure {
             maintenanceFailureRows(failure)

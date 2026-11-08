@@ -2627,7 +2627,7 @@
 "最近检查" = "Last check";
 "接入地址" = "Endpoint";
 "备份并升级" = "Back Up and Upgrade";
-"这是旧版 0.1.x 部署，网关功能需要升级。升级会先自动备份，你的 AI 提供商、认证文件、API Key 和用量数据都会保留；如果升级没有完成，会自动恢复到原来的部署。" = "This is an Oases CPA 0.1.x deployment; the gateway features need the upgrade. The upgrade backs everything up first: your AI providers, auth files, API keys and usage data are kept. If it doesn't finish, the previous deployment is restored automatically.";
+"这是旧版 0.1.x 部署，网关功能需要升级。升级会先停止服务，再自动备份；你的 AI 提供商、认证文件、API Key 和用量数据都会保留，如果升级没有完成，会自动恢复到原来的部署。" = "This is an Oases CPA 0.1.x deployment; the gateway features need the upgrade. The upgrade first stops the services, then backs everything up; your AI providers, auth files, API keys and usage data are kept, and if it doesn't finish, the previous deployment is restored automatically.";
 "备份会保存在 %@ 中。" = "The backup is saved in %@.";
 "上次维护没有完成；日志里有详细原因。" = "The last maintenance didn't finish. The log has the details.";
 "查看日志" = "Show Log";
@@ -2635,7 +2635,7 @@
 "已保存这个部署；连接后才会读取钥匙串里的管理凭据。" = "This deployment is saved. Its management credentials are read from the Keychain only when you connect.";
 "服务没有响应。App 会每 30 秒自动重试，也可以现在重试；部署文件没有被修改。" = "The services aren't responding. The app tries again every 30 seconds, or you can try now. The deployment files weren't changed.";
 "彻底删除没有完成：没有通过安全校验的目录不会被删除，文件保持原样。" = "The removal didn't finish: a folder that fails the safety checks is never deleted, and the files are unchanged.";
-"安装没有完成" = "The Installation Didn't Finish";
+"安装没有完成" = "The installation didn't finish";
 "回滚到上一版…" = "Roll Back to the Previous Version…";
 "最近备份" = "Latest backup";
 "在访达中显示安装目录" = "Show Install Folder in Finder";
@@ -2661,7 +2661,7 @@
 "另一个维护操作正在进行，完成后才能安装。" = "Another maintenance operation is running. You can install when it finishes.";
 "正在检查这台 Mac…" = "Checking this Mac…";
 "正在安装…" = "Installing…";
-"网关已就绪" = "Gateway Is Ready";
+"网关已就绪" = "Gateway is ready";
 "把下面的地址填到客户端的 Base URL：" = "Put this address in your client's Base URL:";
 "接下来" = "Next";
 "已添加 %lld 个提供商。" = "%lld providers added.";
@@ -2670,7 +2670,7 @@
 "给 Cursor、Claude Code 等客户端使用（可选）。" = "For clients such as Cursor or Claude Code (optional).";
 "进入控制台" = "Go to Dashboard";
 "升级到完整版" = "Upgrade to the Full Edition";
-"检测到旧版 Oases CPA 0.1.x 部署。升级会先自动备份，你的 AI 提供商、认证文件、API Key 和用量数据都会保留；如果升级没有完成，会自动恢复到原来的部署。" = "An Oases CPA 0.1.x deployment was found. The upgrade backs everything up first: your AI providers, auth files, API keys and usage data are kept. If the upgrade doesn't finish, the previous deployment is restored automatically.";
+"检测到旧版 Oases CPA 0.1.x 部署。升级会先停止服务，再自动备份；你的 AI 提供商、认证文件、API Key 和用量数据都会保留，如果升级没有完成，会自动恢复到原来的部署。" = "An Oases CPA 0.1.x deployment was found. The upgrade first stops the services, then backs everything up; your AI providers, auth files, API keys and usage data are kept, and if the upgrade doesn't finish, the previous deployment is restored automatically.";
 "暂不升级，继续使用旧版" = "Not now, keep using the old version";
 "另一个维护操作正在进行，完成后才能升级。" = "Another maintenance operation is running. You can upgrade when it finishes.";
 "升级进度" = "Upgrade progress";
@@ -2678,10 +2678,10 @@
 "正在升级…" = "Upgrading…";
 "升级没有完成，自动恢复也不完整。" = "The upgrade didn't finish, and the automatic restore is incomplete.";
 "升级没有完成，已恢复到原来的部署。" = "The upgrade didn't finish. Your previous deployment has been restored.";
-"升级没有完成。" = "The upgrade didn't finish.";
-"没有升级" = "Not Upgraded";
+"升级没有完成" = "The upgrade didn't finish";
+"没有升级" = "Not upgraded";
 "原部署现在的状态需要确认；日志里有详细原因。" = "The state of the previous deployment needs checking. The log has the details.";
-"升级完成" = "Upgrade Complete";
+"升级完成" = "Upgrade complete";
 "接入地址没有变化，客户端不用改。" = "The endpoint hasn't changed; your clients need no changes.";
 "已有远程服务器？连接 VPS…" = "Have a remote server? Connect a VPS…";
 "跟随系统（%@）" = "System (%@)";
@@ -2773,7 +2773,7 @@
 "还没有 API Key" = "No API Keys Yet";
 "客户端（Cursor、Claude Code 等）需要一个 Key 才能调用网关。" = "Clients such as Cursor and Claude Code need a key to call the gateway.";
 "打开连接与部署" = "Open Connect & Deploy";
-"备份并升级…" = "Back Up and Upgrade…";
+"前往升级" = "Go to Upgrade";
 "先在“连接与部署”接入本机或 SSH / VPS 目标，这一页才有数据。" = "Connect this Mac or an SSH / VPS target in Connect & Deploy first; this page shows its data then.";
 "网关拒绝了当前管理密钥，App 已停止自动请求。确认密钥无误后重新验证。" = "The gateway rejected the current management key, so the app stopped sending requests. Check the key, then verify again.";
 "Key" = "Key";

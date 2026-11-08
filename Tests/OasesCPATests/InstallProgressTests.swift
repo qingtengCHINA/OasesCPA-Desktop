@@ -49,6 +49,12 @@ final class InstallProgressTests: XCTestCase {
         XCTAssertEqual(UpgradeChecklist.rows(phase: .failed(stage: "migration-keys")).map(\.status), [.done, .done, .done, .failed, .pending, .pending])
         XCTAssertEqual(UpgradeChecklist.rows(phase: .failed(stage: "ports")).map(\.status), [.failed, .pending, .pending, .pending, .pending, .pending])
         for stage in UpgradeFailure.stages { XCTAssertNotNil(UpgradeChecklist.rowID(forStage: stage), stage) }
+        // M5: the script stops the services before it backs up; the checklist and the copy say so.
+        XCTAssertEqual(Array(UpgradeChecklist.rowIDs.prefix(2)), ["stop", "backup"])
+        XCTAssertTrue(OasesLocalization.localized(
+            "检测到旧版 Oases CPA 0.1.x 部署。升级会先停止服务，再自动备份；你的 AI 提供商、认证文件、API Key 和用量数据都会保留，如果升级没有完成，会自动恢复到原来的部署。",
+            language: .english
+        ).contains("first stops the services, then backs everything up"))
     }
 
     // MARK: - Progress reader

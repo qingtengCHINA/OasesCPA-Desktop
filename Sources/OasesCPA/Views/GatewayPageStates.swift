@@ -18,13 +18,13 @@ struct GatewayUnavailableView: View {
                 action: { appStore.selectSection(.environments) }
             )
         case .needsUpgrade:
-            // The upgrade itself (confirmation, backup, progress) lives on 连接与部署; this button
-            // only takes the user there and asks that page to start it.
+            // The upgrade itself (its one button, the backup promise, progress) lives on
+            // 连接与部署; this button only takes the user there.
             GatewayStateLine(
                 systemImage: "arrow.up.circle",
                 message: "这是旧版 0.1.x 部署，网关功能需要升级。",
-                actionTitle: "备份并升级…",
-                action: { appStore.requestDeploymentUpgrade() }
+                actionTitle: "前往升级",
+                action: { appStore.selectSection(.environments) }
             )
         case .dockerUnsupported:
             GatewayStateLine(

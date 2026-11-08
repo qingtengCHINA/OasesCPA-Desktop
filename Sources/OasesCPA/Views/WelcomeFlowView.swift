@@ -498,7 +498,7 @@ struct WelcomeFlowView: View {
                 Text("升级到完整版")
                     .font(.title.weight(.semibold))
                     .accessibilityAddTraits(.isHeader)
-                Text("检测到旧版 Oases CPA 0.1.x 部署。升级会先自动备份，你的 AI 提供商、认证文件、API Key 和用量数据都会保留；如果升级没有完成，会自动恢复到原来的部署。")
+                Text("检测到旧版 Oases CPA 0.1.x 部署。升级会先停止服务，再自动备份；你的 AI 提供商、认证文件、API Key 和用量数据都会保留，如果升级没有完成，会自动恢复到原来的部署。")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(OasesLocalization.localizedFormat("备份会保存在 %@ 中。", deploymentStore.installDirectory + "/backups"))
@@ -587,12 +587,12 @@ struct WelcomeFlowView: View {
             case (_, .yes):
                 return OasesLocalization.localized("升级没有完成，已恢复到原来的部署。")
             default:
-                return OasesLocalization.localized("升级没有完成。")
+                return OasesLocalization.localized("升级没有完成")
             }
         case .refused:
             return OasesLocalization.localized("没有升级")
         case .other, nil:
-            return OasesLocalization.localized("升级没有完成。")
+            return OasesLocalization.localized("升级没有完成")
         }
     }
 
