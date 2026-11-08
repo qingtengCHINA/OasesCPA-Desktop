@@ -166,6 +166,7 @@
 		BC1992E50841A47F1FCBA08E /* StatusPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC15A57CE6C8174C1C25EDDF /* StatusPill.swift */; };
 		BDF0BAF232B44517559A8309 /* ModelsWorkbenchStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0FC0EAA1F2A57E6DECED08 /* ModelsWorkbenchStore.swift */; };
 		BF0AA7A796AAEAC3651001B5 /* RuntimeCPAConfigDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32097B6ACA91DBEB2CF65AC1 /* RuntimeCPAConfigDocument.swift */; };
+		C06C362DEFC799F50399D9CF /* AcceptanceDrillTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CAAF834442D105C717DA345 /* AcceptanceDrillTests.swift */; };
 		C2B95728199B18888ADB55B4 /* PublicModelNameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9CBB8A48C414F8730AF08EB /* PublicModelNameTests.swift */; };
 		C37804DFB01BBE0D7A33B756 /* DeploymentControlService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF58C12FC15E4DB0EA341B9C /* DeploymentControlService.swift */; };
 		C3E0250F5EC0A60CF48A38D5 /* RuntimeMonitoringEventsContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7B7E5A270BB6F778F048E5C /* RuntimeMonitoringEventsContractTests.swift */; };
@@ -363,6 +364,7 @@
 		82FB39834AAFC71C09B23AE1 /* RuntimeProviderConnectivityContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeProviderConnectivityContractTests.swift; sourceTree = "<group>"; };
 		88ACA43FD65BA9A4EB0D4E1E /* oases-gateway_0.1.0.tar.gz */ = {isa = PBXFileReference; lastKnownFileType = archive.gzip; path = "oases-gateway_0.1.0.tar.gz"; sourceTree = "<group>"; };
 		899E3E90EC64DBD707CEEBC5 /* QuotaResetStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuotaResetStateTests.swift; sourceTree = "<group>"; };
+		8CAAF834442D105C717DA345 /* AcceptanceDrillTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcceptanceDrillTests.swift; sourceTree = "<group>"; };
 		8CF336F8485AE7F05F2E297F /* GatewaySearchModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatewaySearchModels.swift; sourceTree = "<group>"; };
 		8D64271014E6EA0A31503ECB /* ExpiryPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpiryPicker.swift; sourceTree = "<group>"; };
 		8DB6D6EC97D882F1031902F4 /* RuntimeLogModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeLogModels.swift; sourceTree = "<group>"; };
@@ -546,6 +548,7 @@
 		190E0C04BF61A33C9786A01E /* OasesCPATests */ = {
 			isa = PBXGroup;
 			children = (
+				8CAAF834442D105C717DA345 /* AcceptanceDrillTests.swift */,
 				2A08962309C315022E2D5588 /* AppExperienceTests.swift */,
 				9744B2D4B993F7690CC815BC /* AppUpdateServiceTests.swift */,
 				917E8179E65B7B7D3AE365D5 /* AuthFilesWorkbenchTests.swift */,
@@ -1085,6 +1088,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C06C362DEFC799F50399D9CF /* AcceptanceDrillTests.swift in Sources */,
 				A0893B418E3E185783BF9CF1 /* AppExperienceTests.swift in Sources */,
 				A70FA8E72CC84E7D233EDD22 /* AppUpdateServiceTests.swift in Sources */,
 				24626C59C0673DA8BF458641 /* AuthFilesWorkbenchTests.swift in Sources */,
