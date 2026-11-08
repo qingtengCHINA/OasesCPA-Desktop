@@ -460,6 +460,7 @@ struct DeploymentMaintenanceService {
         \(DeploymentScriptFragments.engineRunScript())
         \(DeploymentScriptFragments.cpampRunScript())
         \(DeploymentScriptFragments.gatewayRunScript())
+        \(DeploymentScriptFragments.archivePathCheck())
         \(DeploymentScriptFragments.installNode())
         \(DeploymentScriptFragments.installGateway())
         \(DeploymentScriptFragments.securePrivateDirectories())
@@ -507,7 +508,8 @@ struct DeploymentMaintenanceService {
         else
           PREVIOUS_TOPOLOGY="legacy"
         fi
-        \(nativeTargetTopologyDecision())
+        # Every native upgrade ends in the gateway topology; a legacy 0.1.x deployment is
+        # migrated (nativeTopologyStep).
 
         BACKUP_NAME="upgrade-$(date -u '+%Y%m%d-%H%M%S')"
         if [ -e "$ROOT/backups/$BACKUP_NAME" ]; then BACKUP_NAME="$BACKUP_NAME-$$"; fi
@@ -574,7 +576,6 @@ struct DeploymentMaintenanceService {
         if [ -f "$ROOT/gateway/run.sh" ]; then cp -p "$ROOT/gateway/run.sh" "$BACKUP_ROOT/gateway-run.sh"; fi
         if [ -L "$ROOT/gateway/current" ]; then readlink "$ROOT/gateway/current" > "$BACKUP_ROOT/gateway-current"; fi
         if [ -L "$ROOT/node/current" ]; then readlink "$ROOT/node/current" > "$BACKUP_ROOT/node-current"; fi
-        printf '%s\\n' "$PREVIOUS_TOPOLOGY" > "$BACKUP_ROOT/topology"
         if [ -d "$ROOT/gateway-data" ] && [ ! -L "$ROOT/gateway-data" ]; then
           cp -Rp "$ROOT/gateway-data" "$BACKUP_ROOT/gateway-data"
           : > "$BACKUP_ROOT/gateway-data.saved"
@@ -641,13 +642,8 @@ struct DeploymentMaintenanceService {
 
         # --- Start (engine, CPA Manager Plus, gateway) and wait. ---
         oases_start_all
-        if [ "$TARGET_TOPOLOGY" = gateway ]; then
-          oases_wait_services gateway "$GATEWAY_VERSION" || exit 26
-          oases_write_versions "$ROOT" "$CLI_VERSION_TAG" "$CPAMP_VERSION_TAG" "$NODE_VERSION_TAG" "$GATEWAY_VERSION"
-        else
-          oases_wait_services legacy || exit 26
-          oases_write_versions "$ROOT" "$CLI_VERSION_TAG" "$CPAMP_VERSION_TAG"
-        fi
+        oases_wait_services gateway "$GATEWAY_VERSION" || exit 26
+        oases_write_versions "$ROOT" "$CLI_VERSION_TAG" "$CPAMP_VERSION_TAG" "$NODE_VERSION_TAG" "$GATEWAY_VERSION"
 
         # --- Keep the two newest previous versions of Node and the gateway. ---
         PRUNE_ROOT="$ROOT/backups/pruned-$(date -u '+%Y%m%d-%H%M%S')"
@@ -682,20 +678,8 @@ struct DeploymentMaintenanceService {
           printf 'OASES_PACK_ENGINE_KEY_SHA256=%s\\n' "$PACK_ENGINE_KEY_SHA256"
         fi
         printf 'OASES_CPA_BACKUP=%s\\n' "$BACKUP_ROOT"
-        printf 'OASES_CPA_TOPOLOGY=%s\\n' "$TARGET_TOPOLOGY"
-        if [ "$TARGET_TOPOLOGY" = gateway ]; then
-          printf 'OASES_CPA_MAINTENANCE_DETAIL=%s\\n' '已升级 CLIProxyAPI、CPA Manager Plus、Node 与 Oases 网关；配置、认证文件和数据保持不变，升级前的版本与网关数据已备份。'
-        else
-          printf 'OASES_CPA_MAINTENANCE_DETAIL=%s\\n' '已升级 CLIProxyAPI 与 CPA Manager Plus；原配置、认证文件和 CPAMP 数据保持不变。'
-        fi
-        """
-    }
-
-    /// Sets `TARGET_TOPOLOGY`: every native upgrade ends in the gateway topology; a legacy
-    /// 0.1.x deployment is migrated (`nativeTopologyStep`).
-    private func nativeTargetTopologyDecision() -> String {
-        """
-        TARGET_TOPOLOGY="gateway"
+        printf 'OASES_CPA_TOPOLOGY=%s\\n' gateway
+        printf 'OASES_CPA_MAINTENANCE_DETAIL=%s\\n' '已升级 CLIProxyAPI、CPA Manager Plus、Node 与 Oases 网关；配置、认证文件和数据保持不变，升级前的版本与网关数据已备份。'
         """
     }
 
@@ -704,14 +688,12 @@ struct DeploymentMaintenanceService {
     /// the idempotent bootstrap; then, for a legacy 0.1.x deployment, the migration.
     private func nativeTopologyStep() -> String {
         """
-        if [ "$TARGET_TOPOLOGY" = gateway ]; then
-          oases_install_node "$ROOT"
-          oases_install_gateway "$ROOT"
-          oases_write_gateway_run "$ROOT" "$CLI_VERSION_TAG" "$CPAMP_VERSION_TAG" "$GATEWAY_API_PORT" "$GATEWAY_ADMIN_PORT" "$ENGINE_PORT"
-          oases_secure_private_directories "$ROOT"
-          oases_run_bootstrap "$ROOT"
-        fi
-        if [ "$PREVIOUS_TOPOLOGY" = legacy ] && [ "$TARGET_TOPOLOGY" = gateway ]; then
+        oases_install_node "$ROOT"
+        oases_install_gateway "$ROOT"
+        oases_write_gateway_run "$ROOT" "$CLI_VERSION_TAG" "$CPAMP_VERSION_TAG" "$GATEWAY_API_PORT" "$GATEWAY_ADMIN_PORT" "$ENGINE_PORT"
+        oases_secure_private_directories "$ROOT"
+        oases_run_bootstrap "$ROOT"
+        if [ "$PREVIOUS_TOPOLOGY" = legacy ]; then
           \(legacyMigrationStep())
         fi
         """
@@ -896,9 +878,9 @@ struct DeploymentMaintenanceService {
             target="$ROOT/backups/incomplete-${BACKUP_NAME#upgrade-}"
             if [ -e "$target" ] || [ -L "$target" ]; then target="$target-$(date -u '+%Y%m%dT%H%M%SZ')-$$"; fi
             if mv "$BACKUP_ROOT" "$target"; then
-              printf '升级在备份完成前失败；未完成的备份已移到 backups/%s，服务没有改动。\n' "$(basename "$target")" >&2
+              printf '升级在备份完成前失败；未完成的备份已移到 backups/%s，服务没有改动。\\n' "$(basename "$target")" >&2
             else
-              printf '%s\n' '升级在备份完成前失败；未完成的备份未能移走，它缺少完成标记，回滚不会使用它。' >&2
+              printf '%s\\n' '升级在备份完成前失败；未完成的备份未能移走，它缺少完成标记，回滚不会使用它。' >&2
             fi
           fi
           exit "$status"

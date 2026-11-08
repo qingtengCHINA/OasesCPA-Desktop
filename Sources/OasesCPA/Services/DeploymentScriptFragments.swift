@@ -344,19 +344,22 @@ enum DeploymentScriptFragments {
 
     /// `oases_archive_paths_are_relative <archive>`: fails when the listing of a tar.gz holds an
     /// absolute path or a `..` component (the rule of `script/vendor_gateway.sh`), checked
-    /// before anything is unpacked. Defined by both the Node and the gateway fragment.
-    private static let archivePathCheck = """
-    oases_archive_paths_are_relative() {
-      local listing
-      listing="$(tar -tzf "$1")" || return 1
-      # A here-string, not a pipe: with pipefail an early exit of grep -q could turn a
-      # match into a failure of the pipeline and so into "no match".
-      if grep -Eq '(^|/)\\.\\.(/|$)|^/' <<< "$listing"; then
-        return 1
-      fi
-      return 0
+    /// before anything is unpacked. Needed by `installNode()`, `installGateway()` and the
+    /// upgrade's engine and CPA Manager Plus archives; a script includes it once.
+    static func archivePathCheck() -> String {
+        """
+        oases_archive_paths_are_relative() {
+          local listing
+          listing="$(tar -tzf "$1")" || return 1
+          # A here-string, not a pipe: with pipefail an early exit of grep -q could turn a
+          # match into a failure of the pipeline and so into "no match".
+          if grep -Eq '(^|/)\\.\\.(/|$)|^/' <<< "$listing"; then
+            return 1
+          fi
+          return 0
+        }
+        """
     }
-    """
 
     /// `oases_wait_gateway_healthz <admin port> <version> <pid> <owned path> <attempts>
     /// <answers>` (needs `managedProcessStop`): polls the unauthenticated `GET /healthz` once a
@@ -389,14 +392,14 @@ enum DeploymentScriptFragments {
 
     /// `oases_install_node <root>` (segment J). Needs `NODE_VERSION_TAG`, `NODE_ASSET`,
     /// `NODE_PACKAGE`, `NODE_EXPECTED_SHA256` (`DeploymentPinSet.nativeSelectionScript()`),
-    /// `curl_retry` and `verify_fixed_archive`. Downloads the pinned package, checks its SHA-256,
-    /// requires the single top directory `<NODE_PACKAGE>/`, unpacks it without that directory to
-    /// `node/<tag>`, points `node/current` at it and requires `node --version` to print the tag.
+    /// `curl_retry`, `verify_fixed_archive` and `archivePathCheck()`. Downloads the pinned
+    /// package, checks its SHA-256, requires the single top directory `<NODE_PACKAGE>/`,
+    /// unpacks it without that directory to `node/<tag>`, points `node/current` at it and
+    /// requires `node --version` to print the tag.
     /// Never uses a Node that is already on the target. Sets `NODE_BIN`. Exit 18 for a failed
     /// download, 23 for every check.
     static func installNode() -> String {
         """
-        \(archivePathCheck)
         oases_install_node() {
           local root="$1"
           local node_dir="$root/node"
@@ -451,14 +454,14 @@ enum DeploymentScriptFragments {
 
     /// `oases_install_gateway <root>` (segment K, first half). Needs `GATEWAY_VERSION`,
     /// `GATEWAY_FILE`, `GATEWAY_EXPECTED_SHA256`, `GATEWAY_PAYLOAD_BASE64` (the package the app
-    /// carries, embedded in the script) and `verify_fixed_archive`. Decodes it with
-    /// `openssl base64 -d -A` (`base64 -d` is a debug switch on macOS 12 and older), checks the
+    /// carries, embedded in the script), `verify_fixed_archive` and `archivePathCheck()`.
+    /// Decodes it with `openssl base64 -d -A` (`base64 -d` is a debug switch on macOS 12 and
+    /// older), checks the
     /// SHA-256 and the single top directory `oases-gateway_<ver>/`, unpacks it without that
     /// directory to `gateway/<ver>` and points `gateway/current` at it. Every failure exits 24
     /// and leaves no `gateway/` directory behind on a fresh install.
     static func installGateway() -> String {
         """
-        \(archivePathCheck)
         oases_gateway_package_failed() {
           rm -f "$1/gateway/downloads/$GATEWAY_FILE.part"
           rm -rf "$1/gateway/.$GATEWAY_VERSION.partial.$$"

@@ -463,6 +463,7 @@ struct DeploymentExecutor {
         \(DeploymentScriptFragments.engineRunScript())
         \(DeploymentScriptFragments.cpampRunScript())
         \(DeploymentScriptFragments.gatewayRunScript())
+        \(DeploymentScriptFragments.archivePathCheck())
         \(DeploymentScriptFragments.installNode())
         \(DeploymentScriptFragments.installGateway())
         \(DeploymentScriptFragments.securePrivateDirectories())

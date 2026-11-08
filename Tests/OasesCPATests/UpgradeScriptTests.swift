@@ -367,7 +367,9 @@ final class UpgradeScriptTests: XCTestCase {
         let backup = try XCTUnwrap(upgradeBackups(root).last)
         XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("backups/\(backup)/versions.absent").path))
         XCTAssertEqual(text(root, "backups/\(backup)/cli-proxy-api-config.yaml"), originalConfig)
-        XCTAssertEqual(text(root, "backups/\(backup)/topology"), "legacy\n")
+        // A legacy backup is the one without gateway-current (nothing reads a topology file).
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("backups/\(backup)/gateway-current").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("backups/\(backup)/topology").path))
         XCTAssertNotNil(maintenance.parseResultForVerification(result.stdout).packEngineKeyFingerprint)
     }
 
@@ -449,6 +451,41 @@ final class UpgradeScriptTests: XCTestCase {
     }
 
     // MARK: - Tunnel after maintenance (10b)
+
+    /// Every native upgrade ends in the gateway topology: the script carries no legacy-target
+    /// branch, and each shared shell function is defined once in a script that includes both
+    /// the Node and the gateway fragment.
+    func testGeneratedScriptsDefineSharedFunctionsOnceAndHaveNoDeadTopologyBranch() {
+        let upgrade = maintenance.upgradeScriptForVerification(method: .native, installDirectory: "/x", gatewayPayloadBase64: "")
+        let install = DeploymentExecutor().scriptForVerification(method: .native, installDirectory: "/x", gatewayPayloadBase64: "")
+        for (name, script) in [("upgrade", upgrade), ("install", install)] {
+            XCTAssertEqual(script.components(separatedBy: "oases_archive_paths_are_relative() {").count - 1, 1, "\(name): defined once")
+            XCTAssertTrue(script.contains("oases_install_node()") && script.contains("oases_install_gateway()"), name)
+        }
+        XCTAssertFalse(upgrade.contains("TARGET_TOPOLOGY"), "no dead legacy-target branch")
+        XCTAssertFalse(upgrade.contains("/topology"), "no topology file nobody reads")
+        XCTAssertTrue(upgrade.contains("printf 'OASES_CPA_TOPOLOGY=%s\\n' gateway"))
+    }
+
+    /// A printf format string never spans a line break in the generated scripts (the file's
+    /// convention: `\\n` in the Swift source, `\n` in the script).
+    func testPrintfFormatsStayOnOneLine() {
+        let scripts = [
+            ("docker upgrade", maintenance.upgradeScriptForVerification(method: .docker, installDirectory: "/x", gatewayPayloadBase64: "")),
+            ("native upgrade", maintenance.upgradeScriptForVerification(method: .native, installDirectory: "/x", gatewayPayloadBase64: "")),
+            ("docker rollback", maintenance.rollbackScriptForVerification(method: .docker, installDirectory: "/x")),
+            ("native rollback", maintenance.rollbackScriptForVerification(method: .native, installDirectory: "/x"))
+        ]
+        let format = try? NSRegularExpression(pattern: #"^\s*printf '[^']*'"#)
+        for (name, script) in scripts {
+            for line in script.split(separator: "\n", omittingEmptySubsequences: false) {
+                let text = String(line)
+                guard text.trimmingCharacters(in: .whitespaces).hasPrefix("printf '") else { continue }
+                XCTAssertNotNil(format?.firstMatch(in: text, range: NSRange(text.startIndex..<text.endIndex, in: text)), "\(name): \(text)")
+            }
+        }
+        XCTAssertTrue(scripts[0].1.contains("printf '%s\\n' '升级在备份完成前失败；未完成的备份未能移走"))
+    }
 
     func testTopologyChangeAfterUpgradeRestartsTunnel() {
         XCTAssertEqual(DeploymentStore.tunnelAction(previous: .legacy, result: .gateway, target: .ssh), .restart(.gateway))

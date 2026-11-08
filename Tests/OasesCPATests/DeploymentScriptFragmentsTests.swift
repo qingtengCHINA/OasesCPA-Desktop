@@ -136,7 +136,7 @@ final class DeploymentScriptFragmentsTests: XCTestCase {
 
     func testInstallGatewayStripsTheTopDirectoryAndRefusesBadPackages() throws {
         let fake = try FakeArtifacts.make(caseName: "fragment-gateway")
-        let install = harness + "\n" + (try selection(fake)) + "\n" + DeploymentScriptFragments.installGateway() + "\n"
+        let install = harness + "\n" + (try selection(fake)) + "\n" + DeploymentScriptFragments.archivePathCheck() + "\n" + DeploymentScriptFragments.installGateway() + "\n"
         let root = fake.caseDirectory.appendingPathComponent("root")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let good = try fake.run(install + "oases_install_gateway '\(root.path)'\n")
@@ -150,7 +150,7 @@ final class DeploymentScriptFragmentsTests: XCTestCase {
         ] {
             let brokenRoot = broken.caseDirectory.appendingPathComponent("root")
             try FileManager.default.createDirectory(at: brokenRoot, withIntermediateDirectories: true)
-            let script = harness + "\n" + (try selection(broken)) + "\n" + DeploymentScriptFragments.installGateway() + "\n"
+            let script = harness + "\n" + (try selection(broken)) + "\n" + DeploymentScriptFragments.archivePathCheck() + "\n" + DeploymentScriptFragments.installGateway() + "\n"
             let refused = try broken.run(script + "oases_install_gateway '\(brokenRoot.path)'\n")
             XCTAssertEqual(refused.status, 24, refused.stderr)
             XCTAssertFalse(FileManager.default.fileExists(atPath: brokenRoot.appendingPathComponent("gateway").path))
@@ -159,7 +159,7 @@ final class DeploymentScriptFragmentsTests: XCTestCase {
         let garbage = try FakeArtifacts.make(caseName: "fragment-gateway-garbage")
         let garbageRoot = garbage.caseDirectory.appendingPathComponent("root")
         try FileManager.default.createDirectory(at: garbageRoot, withIntermediateDirectories: true)
-        let script = harness + "\n" + (try selection(garbage)) + "\nGATEWAY_PAYLOAD_BASE64='not base64 at all'\n" + DeploymentScriptFragments.installGateway() + "\n"
+        let script = harness + "\n" + (try selection(garbage)) + "\nGATEWAY_PAYLOAD_BASE64='not base64 at all'\n" + DeploymentScriptFragments.archivePathCheck() + "\n" + DeploymentScriptFragments.installGateway() + "\n"
         let refused = try garbage.run(script + "oases_install_gateway '\(garbageRoot.path)'\n")
         XCTAssertEqual(refused.status, 24)
         XCTAssertFalse(FileManager.default.fileExists(atPath: garbageRoot.appendingPathComponent("gateway").path))
@@ -167,7 +167,7 @@ final class DeploymentScriptFragmentsTests: XCTestCase {
 
     func testInstallNodeUsesThePinnedPackageAndChecksItsVersion() throws {
         let fake = try FakeArtifacts.make(caseName: "fragment-node")
-        let install = harness + "\n" + (try selection(fake)) + "\n" + DeploymentScriptFragments.installNode() + "\n"
+        let install = harness + "\n" + (try selection(fake)) + "\n" + DeploymentScriptFragments.archivePathCheck() + "\n" + DeploymentScriptFragments.installNode() + "\n"
         let root = fake.caseDirectory.appendingPathComponent("root")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let good = try fake.run(install + "oases_install_node '\(root.path)'\necho \"$NODE_BIN\"\n")
@@ -179,7 +179,7 @@ final class DeploymentScriptFragmentsTests: XCTestCase {
         let other = try FakeArtifacts.make(caseName: "fragment-node-version")
         let otherRoot = other.caseDirectory.appendingPathComponent("root")
         try FileManager.default.createDirectory(at: otherRoot, withIntermediateDirectories: true)
-        let script = harness + "\n" + (try selection(other)) + "\n" + DeploymentScriptFragments.installNode() + "\n"
+        let script = harness + "\n" + (try selection(other)) + "\n" + DeploymentScriptFragments.archivePathCheck() + "\n" + DeploymentScriptFragments.installNode() + "\n"
         let refused = try other.run(script + "oases_install_node '\(otherRoot.path)'\n", extraEnvironment: ["FAKE_NODE_VERSION": "v20.0.0"])
         XCTAssertEqual(refused.status, 23, refused.stderr)
     }

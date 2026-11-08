@@ -1202,12 +1202,10 @@ final class DeploymentStore: ObservableObject {
 
                 guard let self else { return }
                 // An upgrade of a 0.1.x deployment ends in the gateway topology, a rollback of
-                // it back in the legacy one: the tunnel and the health checks follow.
-                let previousTopology = self.topology
+                // it back in the legacy one: the tunnel and the health checks follow. For an SSH
+                // target `startTunnel` stops the old tunnel and forwards the ports of the
+                // topology just applied (`tunnelAction` states that rule).
                 self.applyMaintenanceResult(result)
-                if case .restart = Self.tunnelAction(previous: previousTopology, result: result.topology, target: request.target) {
-                    self.stopTunnel()
-                }
                 if request.target == .ssh {
                     try await self.startTunnel(for: request)
                 }
