@@ -112,6 +112,12 @@ final class ModelPacksStore: GatewayWorkbenchStore {
         revealedKeys = []
     }
 
+    /// Leaving the page forgets new keys too: their plaintext never outlives the page.
+    override func deactivate() {
+        revealedKeys = []
+        super.deactivate()
+    }
+
     func updateKey(_ patch: GatewayPackKeyPatch) async -> Bool {
         var problems: [String] = []
         if case .set(let reset) = patch.reset { problems += GatewayPackValidation.errors(reset: reset, now: clock()) }

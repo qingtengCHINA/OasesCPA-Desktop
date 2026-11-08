@@ -74,7 +74,12 @@ final class ModelPacksStoreTests: XCTestCase {
         XCTAssertEqual(body["total_tokens"] as? Int, 1000)
         store.dismissRevealedKeys()
         XCTAssertTrue(store.revealedKeys.isEmpty)
+
+        // Leaving the page with the sheet still up forgets them as well.
+        _ = await store.createKeys(batch)
+        XCTAssertFalse(store.revealedKeys.isEmpty)
         store.deactivate()
+        XCTAssertTrue(store.revealedKeys.isEmpty)
     }
 
     func testEngineKeyNotReadyShowsBanner() async throws {
