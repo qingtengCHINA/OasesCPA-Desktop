@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Sidebar groups, matching the web panel and the iOS companion:
+/// Sidebar groups of the app:
 /// 概览 / 账号 / 网关 / 配置 / 运维.
 enum SectionGroup: String, CaseIterable, Identifiable {
     case overview

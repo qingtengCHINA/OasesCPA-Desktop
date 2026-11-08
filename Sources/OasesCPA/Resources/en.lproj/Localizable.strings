@@ -295,7 +295,6 @@
 "会把 \(draft.normalizedModelID) 的手动基础价格写入当前目标 CPAMP。其它模型价格会在保存前重新读取后保留。" = "Will write \(draft.normalizedModelID)'s manual base price to the current target CPAMP. Other model prices will be retained after reloading before saving.";
 "估算花费" = "estimated cost";
 "作者" = "author";
-"作者 · QingTeng Studio" = "Author · QingTeng Studio";
 "你可以从本机开始，也可以稍后连接远程 SSH 服务器。" = "Start on this Mac. You can add a remote SSH server later.";
 "使用 24 小时制，多个时间可用逗号或空格分隔。" = "Using the 24-hour clock, multiple times can be separated by commas or spaces.";
 "使用当前目标的第一个调用 Key 读取 `/v1/models`；这不是静态或演示目录" = "Read `/v1/models` using the first invocation Key of the current target; this is not a static or demo directory";
@@ -2160,3 +2159,5 @@
 "已接入 · %@" = "Connected · %@";
 "作者 · %@" = "Author · %@";
 "检测到现有部署；此次运行已停用自动接管与后台巡检。" = "An existing deployment was found; automatic adoption and the background patrol are off for this run.";
+"DMG 验证失败。" = "DMG verification failed.";
+"更新包完整性验证失败。" = "The update package failed its integrity check.";

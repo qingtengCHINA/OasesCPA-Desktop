@@ -379,7 +379,7 @@ enum ProcessDMGToolError: LocalizedError {
     case outputLimitExceeded
 
     var errorDescription: String? {
-        "DMG 验证失败。"
+        OasesLocalization.localized("DMG 验证失败。")
     }
 }
 
@@ -477,7 +477,7 @@ enum DMGVerificationError: LocalizedError {
     case verificationAndDetachFailed(primary: Error, cleanup: Error)
 
     var errorDescription: String? {
-        "DMG 验证失败。"
+        OasesLocalization.localized("DMG 验证失败。")
     }
 }
 

@@ -1,9 +1,9 @@
 import AppKit
 import SwiftUI
 
-// Design tokens from the Oases CPA web panel (Vercel/Geist-like, near-monochrome), shared
-// with the iOS companion. Cards sit on a solid canvas with a 1 pt border; status colour
-// goes only on dots, icons and one key word. The sidebar keeps the system vibrancy.
+// Design tokens of Oases CPA (Vercel/Geist-like, near-monochrome). Cards sit on a solid
+// canvas with a 1 pt border; status colour goes only on dots, icons and one key word. The
+// sidebar keeps the system vibrancy.
 
 extension Color {
     /// Dynamic colour resolved per NSAppearance (light / dark), with optional alpha.
