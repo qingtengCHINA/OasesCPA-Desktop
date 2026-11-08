@@ -32,6 +32,14 @@ struct ConnectionCenterView: View {
 
                 deploymentCard
 
+                if MaintenanceLabels.showsUpgradeCallout(
+                    method: deploymentStore.deploymentMethod,
+                    topology: deploymentStore.topology,
+                    hasInstalledDeployment: deploymentStore.hasInstalledDeployment
+                ) {
+                    legacyUpgradeCard
+                }
+
                 DisclosureGroup(isExpanded: $showAdvancedOptions) {
                     advancedOptions
                         .padding(.top, 10)
@@ -856,6 +864,31 @@ struct ConnectionCenterView: View {
         .oasesCard()
     }
 
+    /// A legacy (0.1.x) native deployment has no gateway: the gateway pages tell the user to
+    /// upgrade, so the upgrade button is offered here on the main page and not only under
+    /// 高级选项 → 版本维护. It opens the same confirmation as the maintenance card.
+    private var legacyUpgradeCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            CardTitle(
+                title: "需要升级到完整版",
+                subtitle: "升级会先备份，可随时回滚；调用 API Key、模型列表、模型包等网关页面在升级后可用。",
+                icon: "arrow.up.circle"
+            )
+
+            Button(
+                MaintenanceLabels.upgradeButtonTitle(method: deploymentStore.deploymentMethod, topology: deploymentStore.topology),
+                systemImage: "arrow.down.circle"
+            ) {
+                confirmUpgrade = true
+            }
+            .buttonStyle(.oasesPrimary)
+            .controlSize(.large)
+            .disabled(deploymentStore.isDeploying || deploymentStore.isMaintaining)
+        }
+        .padding(20)
+        .oasesCard()
+    }
+
     private var maintenanceCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             CardTitle(
@@ -957,6 +990,12 @@ enum MaintenanceLabels {
     /// A legacy native deployment is upgraded to the full edition (the gateway joins).
     static func isMigration(method: DeploymentMethod, topology: DeploymentTopology) -> Bool {
         method == .native && topology == .legacy
+    }
+
+    /// The main page offers the upgrade itself (not only the collapsed 高级选项) for an installed
+    /// legacy native deployment, because every gateway page sends the user there.
+    static func showsUpgradeCallout(method: DeploymentMethod, topology: DeploymentTopology, hasInstalledDeployment: Bool) -> Bool {
+        hasInstalledDeployment && isMigration(method: method, topology: topology)
     }
 
     static func upgradeButtonTitle(method: DeploymentMethod, topology: DeploymentTopology, language: AppLanguage? = nil) -> String {

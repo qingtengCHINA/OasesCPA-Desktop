@@ -2550,3 +2550,4 @@
 "这次操作与网关当前的数据冲突，没有生效；请刷新后再试。" = "This request conflicts with the gateway's current data and had no effect. Refresh and try again.";
 "网关要求先为相关模型填写输入和输出价格，才能使用花费上限。" = "The gateway needs input and output prices for the models involved before a spending limit can be used.";
 "网关的数据暂时不可用（无法读取或写入），本次操作没有生效；请检查网关数据目录后重试。" = "The gateway's data is unavailable for now (it cannot be read or written), so nothing was changed. Check the gateway data directory and try again.";
+"升级会先备份，可随时回滚；调用 API Key、模型列表、模型包等网关页面在升级后可用。" = "The upgrade backs up first and can be rolled back; the gateway pages (API keys, models, model packs and more) are available afterwards.";

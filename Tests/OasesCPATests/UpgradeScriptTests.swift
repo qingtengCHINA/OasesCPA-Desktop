@@ -583,6 +583,14 @@ final class UpgradeScriptTests: XCTestCase {
         XCTAssertEqual(DeploymentStore.tunnelAction(previous: .legacy, result: .gateway, target: .local), .none, "no tunnel on this Mac")
     }
 
+    func testUpgradeCalloutIsShownOnlyForAnInstalledLegacyNativeDeployment() {
+        // The gateway pages send the user to the upgrade, so the main page must offer it.
+        XCTAssertTrue(MaintenanceLabels.showsUpgradeCallout(method: .native, topology: .legacy, hasInstalledDeployment: true))
+        XCTAssertFalse(MaintenanceLabels.showsUpgradeCallout(method: .native, topology: .legacy, hasInstalledDeployment: false), "nothing is installed yet")
+        XCTAssertFalse(MaintenanceLabels.showsUpgradeCallout(method: .native, topology: .gateway, hasInstalledDeployment: true), "already the full edition")
+        XCTAssertFalse(MaintenanceLabels.showsUpgradeCallout(method: .docker, topology: .legacy, hasInstalledDeployment: true), "Docker has no gateway")
+    }
+
     func testLegacyNativeUpgradeIsOfferedAsTheFullEditionAndDockerGetsTheNotice() {
         XCTAssertEqual(MaintenanceLabels.upgradeButtonTitle(method: .native, topology: .legacy, language: .simplifiedChinese), "升级到完整版（加入 Oases 网关）")
         XCTAssertEqual(MaintenanceLabels.upgradeButtonTitle(method: .native, topology: .legacy, language: .english), "Upgrade to the full edition (adds the Oases gateway)")
