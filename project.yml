@@ -20,10 +20,10 @@ configFiles:
   AppStore: Config/Base.xcconfig
 settings:
   base:
-    CURRENT_PROJECT_VERSION: "41"
+    CURRENT_PROJECT_VERSION: "42"
     DEVELOPMENT_LANGUAGE: zh-Hans
     MACOSX_DEPLOYMENT_TARGET: "14.0"
-    MARKETING_VERSION: "0.1.4"
+    MARKETING_VERSION: "0.1.5"
     PRODUCT_NAME: Oases CPA
     SWIFT_VERSION: "6.0"
     VERSIONING_SYSTEM: apple-generic
