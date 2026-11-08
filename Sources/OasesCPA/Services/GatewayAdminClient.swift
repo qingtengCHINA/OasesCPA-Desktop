@@ -2,7 +2,14 @@ import Foundation
 
 /// Request timeouts of the gateway admin API, in seconds.
 enum GatewayAdminTimeouts {
-    static let standard: TimeInterval = 10
+    /// The gateway answers every rejected key with a 401 after a global delay that grows per
+    /// failure up to `MAX_BACKOFF_MS` = 10 s (Server `gateway/server.mjs`, `authenticate`).
+    static let gatewayMaximumUnauthorizedDelay: TimeInterval = 10
+    /// The floor of every authenticated request: longer than the gateway's maximum 401 delay,
+    /// so a late 401 arrives as a 401 (and latches the key) instead of as a timeout that
+    /// would leave the stale key in use. Shorter timeouts from callers are raised to this.
+    static let minimumAuthenticated: TimeInterval = 15
+    static let standard: TimeInterval = minimumAuthenticated
     /// `GET /cpa-admin/permissions/api/models/providers` (reads the engine's provider list).
     static let modelProviders: TimeInterval = 30
     /// `POST /cpa-admin/permissions/api/models/reorder` (writes the engine configuration).
@@ -28,7 +35,9 @@ struct GatewayAdminClient: Sendable {
     let managementKey: String
     let session: URLSession
 
-    init(baseURL: URL, managementKey: String, session: URLSession = .shared) {
+    /// `session` defaults to `SecretBearingURLSession.shared`: responses carry raw client keys
+    /// and must never reach the on-disk URL cache.
+    init(baseURL: URL, managementKey: String, session: URLSession = SecretBearingURLSession.shared) {
         self.baseURL = baseURL
         self.managementKey = managementKey
         self.session = session
@@ -101,7 +110,11 @@ struct GatewayAdminClient: Sendable {
         components.queryItems = query.isEmpty ? nil : query
         guard let url = components.url else { throw GatewayAdminError.invalidResponse }
 
-        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeout)
+        var request = URLRequest(
+            url: url,
+            cachePolicy: .reloadIgnoringLocalCacheData,
+            timeoutInterval: max(timeout, GatewayAdminTimeouts.minimumAuthenticated)
+        )
         request.httpMethod = method
         request.httpShouldHandleCookies = false
         request.setValue(managementKey, forHTTPHeaderField: "x-management-key")

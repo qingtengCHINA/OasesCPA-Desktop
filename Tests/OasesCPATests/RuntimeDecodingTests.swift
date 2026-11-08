@@ -1669,10 +1669,20 @@ final class RuntimeDecodingTests: XCTestCase {
     }
 
     func testSSHConnectionUsesAnAppScopedKnownHostsFile() throws {
-        let arguments = try SSHConnectionService.connectionArguments(
-            port: "2222",
-            privateKeyPath: "/tmp/oases-cpa-test-key"
-        )
+        // Never the real file under Application Support: a scratch known_hosts for this test.
+        let temporary = FileManager.default.temporaryDirectory.path
+        let directory = URL(fileURLWithPath: temporary.hasPrefix("/var/") ? "/private\(temporary)" : temporary)
+            .appendingPathComponent("oases-cpa-known-hosts-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let scratchKnownHosts = directory.appendingPathComponent("known_hosts")
+
+        let (arguments, knownHostsPath) = try SSHConnectionService.withKnownHostsFileURLForTesting(scratchKnownHosts) {
+            (
+                try SSHConnectionService.connectionArguments(port: "2222", privateKeyPath: "/tmp/oases-cpa-test-key"),
+                try SSHConnectionService.prepareKnownHostsFile()
+            )
+        }
 
         XCTAssertEqual(
             arguments.filter { $0.hasPrefix("StrictHostKeyChecking=") },
@@ -1685,9 +1695,34 @@ final class RuntimeDecodingTests: XCTestCase {
         XCTAssertTrue(arguments.contains("-i"))
         XCTAssertTrue(arguments.contains("/tmp/oases-cpa-test-key"))
 
-        let knownHostsPath = try SSHConnectionService.prepareKnownHostsFile()
-        XCTAssertTrue(knownHostsPath.hasSuffix("Oases CPA/SSH/known_hosts"))
+        XCTAssertTrue(arguments.contains("UserKnownHostsFile=\(scratchKnownHosts.path)"))
+        XCTAssertEqual(knownHostsPath, scratchKnownHosts.path)
         XCTAssertTrue(FileManager.default.isReadableFile(atPath: knownHostsPath))
+
+        // The app's own location, computed by a pure helper that creates nothing.
+        let fakeSupport = directory.appendingPathComponent("not-created", isDirectory: true)
+        let defaultURL = SSHConnectionService.defaultKnownHostsFileURL(applicationSupport: fakeSupport)
+        XCTAssertTrue(defaultURL.path.hasSuffix("Oases CPA/SSH/known_hosts"))
+        XCTAssertTrue(defaultURL.path.hasPrefix(fakeSupport.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fakeSupport.path), "the helper must not create anything")
+    }
+
+    func testTestProcessesCannotReachTheRealKeychainOrKeysFolder() {
+        XCTAssertThrowsError(try KeychainStore.load(account: "oases-test-probe"))
+        XCTAssertThrowsError(try KeychainStore.save("x", account: "oases-test-probe"))
+        XCTAssertThrowsError(try KeychainStore.delete(account: "oases-test-probe"))
+        XCTAssertThrowsError(try SSHKeyMaterialStore.materialize(profileID: UUID()))
+        let value = KeychainStore.withInMemoryKeychainForTesting { () -> String? in
+            try? KeychainStore.save("v", account: "a")
+            return try? KeychainStore.load(account: "a")
+        }
+        XCTAssertEqual(value, "v")
+    }
+
+    func testTestProcessesCannotReachTheRealKnownHostsFile() {
+        // Without the scratch override every known_hosts operation refuses under XCTest.
+        XCTAssertThrowsError(try SSHConnectionService.prepareKnownHostsFile())
+        XCTAssertThrowsError(try SSHConnectionService.connectionArguments(port: "22", privateKeyPath: "/tmp/oases-cpa-test-key"))
     }
 
     func testSSHKeyMaterialIsScopedPerDeploymentProfile() throws {
@@ -1702,14 +1737,19 @@ final class RuntimeDecodingTests: XCTestCase {
         try Data("private-key-a".utf8).write(to: sourceA)
         try Data("private-key-b".utf8).write(to: sourceB)
 
-        defer {
-            try? SSHKeyMaterialStore.delete(profileID: profileA)
-            try? SSHKeyMaterialStore.delete(profileID: profileB)
-            try? FileManager.default.removeItem(at: root)
-        }
+        defer { try? FileManager.default.removeItem(at: root) }
 
-        let materializedA = try SSHKeyMaterialStore.save(from: sourceA, profileID: profileA)
-        let materializedB = try SSHKeyMaterialStore.save(from: sourceB, profileID: profileB)
+        // An in-memory Keychain and a scratch keys folder: never the user's real ones.
+        let keysDirectory = root.appendingPathComponent("Keys", isDirectory: true)
+        let (materializedA, materializedB) = try KeychainStore.withInMemoryKeychainForTesting {
+            try SSHKeyMaterialStore.withKeysDirectoryForTesting(keysDirectory) {
+                (
+                    try SSHKeyMaterialStore.save(from: sourceA, profileID: profileA),
+                    try SSHKeyMaterialStore.save(from: sourceB, profileID: profileB)
+                )
+            }
+        }
+        XCTAssertTrue(materializedA.hasPrefix(keysDirectory.path))
 
         XCTAssertNotEqual(materializedA, materializedB)
         XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: materializedA)), Data("private-key-a".utf8))

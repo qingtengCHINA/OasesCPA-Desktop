@@ -106,4 +106,14 @@ final class DeploymentTopologyTests: XCTestCase {
         )
         XCTAssertEqual(RuntimeLifecycleService().panelHealthURL.absoluteString, "http://127.0.0.1:18317/health")
     }
+
+    func testWelcomeDiagramNamesThe8317RowByTopology() {
+        // In the gateway topology 8317 /v1 is the Oases gateway, not CLIProxyAPI.
+        XCTAssertEqual(WelcomeRuntimeLabels.apiRowName(topology: .gateway, language: .simplifiedChinese), "Oases 网关")
+        XCTAssertEqual(WelcomeRuntimeLabels.apiRowName(topology: .gateway, language: .english), "Oases gateway")
+        XCTAssertEqual(WelcomeRuntimeLabels.apiRowName(topology: .legacy, language: .english), "CLIProxyAPI")
+        XCTAssertTrue(WelcomeRuntimeLabels.diagramAccessibilityLabel(topology: .gateway, language: .english).contains("Oases gateway"))
+        XCTAssertTrue(WelcomeRuntimeLabels.diagramAccessibilityLabel(topology: .gateway, language: .simplifiedChinese).contains("Oases 网关"))
+        XCTAssertFalse(WelcomeRuntimeLabels.diagramAccessibilityLabel(topology: .legacy, language: .english).contains("gateway"))
+    }
 }

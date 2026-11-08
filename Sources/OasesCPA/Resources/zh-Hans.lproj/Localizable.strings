@@ -1170,6 +1170,7 @@
 "默认目标" = "默认目标";
 "安全隧道" = "安全隧道";
 "控制面连接本机或 SSH，再管理 CLIProxyAPI 与 CPA Manager Plus" = "控制面连接本机或 SSH，再管理 CLIProxyAPI 与 CPA Manager Plus";
+"控制面连接本机或 SSH，再管理 Oases 网关、CLIProxyAPI 与 CPA Manager Plus" = "控制面连接本机或 SSH，再管理 Oases 网关、CLIProxyAPI 与 CPA Manager Plus";
 "正在下载并切换到最新运行时…" = "正在下载并切换到最新运行时…";
 "正在停止并备份失败部署…" = "正在停止并备份失败部署…";
 "正在停止服务并解除当前目标绑定…" = "正在停止服务并解除当前目标绑定…";

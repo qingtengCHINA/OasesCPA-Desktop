@@ -7,6 +7,8 @@ enum RuntimeOpenRouterOAuth {
     static let apiBaseURL = URL(string: "https://openrouter.ai/api/v1")!
     static let authorizationEndpoint = URL(string: "https://openrouter.ai/auth")!
     static let tokenEndpoint = URL(string: "https://openrouter.ai/api/v1/auth/keys")!
+    /// The token exchange returns an API key and the model list sends one: no disk cache.
+    static var session: URLSession { SecretBearingURLSession.shared }
 
     static func makeSession(callbackURL: URL) throws -> RuntimeOpenRouterOAuthSession {
         let codeVerifier = try secureRandomBase64URL(byteCount: 48)
@@ -123,7 +125,7 @@ enum RuntimeOpenRouterOAuth {
         codeVerifier: String
     ) async throws -> String {
         let request = try tokenExchangeRequest(code: code, codeVerifier: codeVerifier)
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw RuntimeOpenRouterOAuthError.invalidTokenResponse
         }
@@ -154,7 +156,7 @@ enum RuntimeOpenRouterOAuth {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await session.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,
                   (200..<300).contains(httpResponse.statusCode),
                   let payload = try JSONSerialization.jsonObject(with: data) as? [String: Any],

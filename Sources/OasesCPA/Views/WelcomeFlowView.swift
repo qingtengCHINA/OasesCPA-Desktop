@@ -389,7 +389,29 @@ private struct WelcomeStepCard: View {
     }
 }
 
+/// The welcome diagram's labels follow the deployment topology: in the gateway topology the
+/// `/v1` port 8317 belongs to the Oases gateway, in the legacy one to CLIProxyAPI.
+enum WelcomeRuntimeLabels {
+    static func apiRowName(topology: DeploymentTopology, language: AppLanguage? = nil) -> String {
+        switch topology {
+        case .gateway: OasesLocalization.localized("Oases 网关", language: language)
+        case .legacy: "CLIProxyAPI"
+        }
+    }
+
+    static func diagramAccessibilityLabel(topology: DeploymentTopology, language: AppLanguage? = nil) -> String {
+        switch topology {
+        case .gateway:
+            OasesLocalization.localized("控制面连接本机或 SSH，再管理 Oases 网关、CLIProxyAPI 与 CPA Manager Plus", language: language)
+        case .legacy:
+            OasesLocalization.localized("控制面连接本机或 SSH，再管理 CLIProxyAPI 与 CPA Manager Plus", language: language)
+        }
+    }
+}
+
 private struct WelcomeHeroDiagram: View {
+    @EnvironmentObject private var deploymentStore: DeploymentStore
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("ONE CONTROL PLANE")
@@ -429,7 +451,7 @@ private struct WelcomeHeroDiagram: View {
             }
 
             VStack(spacing: 8) {
-                WelcomeRuntimeRow(dot: Color.accentColor, name: "CLIProxyAPI", meta: ":\(DeploymentPorts.gatewayAPI) /v1")
+                WelcomeRuntimeRow(dot: Color.accentColor, name: WelcomeRuntimeLabels.apiRowName(topology: deploymentStore.topology), meta: ":\(DeploymentPorts.gatewayAPI) /v1")
                 WelcomeRuntimeRow(dot: Color.accentColor.opacity(0.55), name: "CPA Manager Plus", meta: "panel")
             }
             .padding(14)
@@ -452,7 +474,7 @@ private struct WelcomeHeroDiagram: View {
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("控制面连接本机或 SSH，再管理 CLIProxyAPI 与 CPA Manager Plus")
+        .accessibilityLabel(WelcomeRuntimeLabels.diagramAccessibilityLabel(topology: deploymentStore.topology))
     }
 }
 

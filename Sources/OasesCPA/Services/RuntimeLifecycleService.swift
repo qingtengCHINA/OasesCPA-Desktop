@@ -8,6 +8,9 @@ struct RuntimeLifecycleService {
         self.endpoints = endpoints
     }
 
+    /// The health checks send the management key and read the engine config: no disk cache.
+    var session: URLSession { SecretBearingURLSession.shared }
+
     /// The engine management endpoint the health check reads (needs the management key).
     var engineHealthURL: URL {
         endpoints.engineBaseURL.appendingPathComponent("v0/management/config")
@@ -150,7 +153,7 @@ struct RuntimeLifecycleService {
         request.timeoutInterval = 2
         request.setValue("Bearer \(cpaManagementKey)", forHTTPHeaderField: "Authorization")
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
+            let (_, response) = try await session.data(for: request)
             return (response as? HTTPURLResponse)?.statusCode == 200
         } catch {
             return false
@@ -161,7 +164,7 @@ struct RuntimeLifecycleService {
         var request = URLRequest(url: panelHealthURL)
         request.timeoutInterval = 2
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
+            let (_, response) = try await session.data(for: request)
             return (response as? HTTPURLResponse)?.statusCode == 200
         } catch {
             return false

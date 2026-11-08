@@ -1168,6 +1168,7 @@
 "默认目标" = "Default target";
 "安全隧道" = "Secure tunnel";
 "控制面连接本机或 SSH，再管理 CLIProxyAPI 与 CPA Manager Plus" = "Control plane connects this Mac or SSH, then manages CLIProxyAPI and CPA Manager Plus";
+"控制面连接本机或 SSH，再管理 Oases 网关、CLIProxyAPI 与 CPA Manager Plus" = "Control plane connects this Mac or SSH, then manages the Oases gateway, CLIProxyAPI and CPA Manager Plus";
 "正在下载并切换到最新运行时…" = "Downloading and switching to the latest runtime...";
 "正在停止并备份失败部署…" = "Stopping and backing up failed deployment...";
 "正在停止服务并解除当前目标绑定…" = "Stopping service and unbinding current target...";

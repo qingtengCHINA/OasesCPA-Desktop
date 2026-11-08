@@ -989,6 +989,11 @@ enum SSHConnectionService {
         if let knownHostsURLOverride {
             return knownHostsURLOverride
         }
+        // A test process must never create or change the user's real known_hosts: tests use
+        // `withKnownHostsFileURLForTesting`.
+        if NSClassFromString("XCTestCase") != nil {
+            throw cannotPrepare("测试进程不得使用真实的 known_hosts")
+        }
 #endif
         guard let applicationSupport = FileManager.default.urls(
             for: .applicationSupportDirectory,
@@ -996,7 +1001,12 @@ enum SSHConnectionService {
         ).first else {
             throw cannotPrepare("无法找到 Application Support")
         }
-        return applicationSupport
+        return defaultKnownHostsFileURL(applicationSupport: applicationSupport)
+    }
+
+    /// The app's known_hosts location under `applicationSupport`. Pure: creates nothing.
+    static func defaultKnownHostsFileURL(applicationSupport: URL) -> URL {
+        applicationSupport
             .appendingPathComponent("Oases CPA/SSH", isDirectory: true)
             .appendingPathComponent(knownHostsFileName)
     }

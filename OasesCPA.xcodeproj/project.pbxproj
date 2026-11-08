@@ -79,6 +79,7 @@
 		797D0B6205D8D517E08561BA /* GatewayJSONSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 721391F17DC591A503D8BC67 /* GatewayJSONSupport.swift */; };
 		7B8DA5FF93D9E61608BFAE15 /* DeploymentLogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F88AABC854BD8A2855DAE0 /* DeploymentLogService.swift */; };
 		7BBCBB18C6C8BEB7F1FE66BB /* RuntimePluginModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91B7FC7D28072493CABE5FD6 /* RuntimePluginModels.swift */; };
+		7DE0E5F5D336453E43B0AB18 /* SecretBearingSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4F1DDAC44615BCFB3903892 /* SecretBearingSessionTests.swift */; };
 		7EA65D7C42B59E67C961E616 /* RuntimeOAuthModelPolicyModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97043FB0E9A8BD83814BD981 /* RuntimeOAuthModelPolicyModels.swift */; };
 		8200104FB23A2B731223A5A8 /* RuntimeCodexInspectionPolicyContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F28B945413C5BCC09DF3E37F /* RuntimeCodexInspectionPolicyContractTests.swift */; };
 		82214473DF8E8880A26730F7 /* ManagementAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B6C1D4B3823F0C9ECE7E066 /* ManagementAPIClient.swift */; };
@@ -112,6 +113,7 @@
 		AEF1069B920171EFBA8A00C9 /* RuntimeAccountActionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EE173ADB3D34159BD7BD61C /* RuntimeAccountActionModels.swift */; };
 		AF2ECA4AA2FC899619C2BC91 /* RuntimeAccountActionContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8AE364A2E03BBDAE59507A6 /* RuntimeAccountActionContractTests.swift */; };
 		B1188B0C679960F680809A47 /* DeploymentRemovalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58BC4208AFF1F9E87C498150 /* DeploymentRemovalService.swift */; };
+		B14A10D2E60482DCF76E8E4F /* SecretBearingURLSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30A082173D7E9E88DF92376 /* SecretBearingURLSession.swift */; };
 		B6C1357D3897211FE5D83AD6 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F87D4FC3968ACD620E72376 /* DesignTokens.swift */; };
 		B859A5789AF89B11760B662F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1E75C1119AFD0C1E1A603FC /* Assets.xcassets */; };
 		BAFC42275C25E96BEE6077F8 /* RuntimeProviderConnectivityModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB6DC80408688F7932F78C36 /* RuntimeProviderConnectivityModels.swift */; };
@@ -316,6 +318,7 @@
 		DFD5192E6EAC97171DD3646C /* CPA-Manager-Plus-MIT.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "CPA-Manager-Plus-MIT.txt"; sourceTree = "<group>"; };
 		E0E9051221B13A58A3D47A13 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
 		E351E1FC4AF5DDC855E47964 /* RuntimeManagerConfigModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeManagerConfigModels.swift; sourceTree = "<group>"; };
+		E4F1DDAC44615BCFB3903892 /* SecretBearingSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretBearingSessionTests.swift; sourceTree = "<group>"; };
 		E567BCDCB556E1F634D895C3 /* RuntimeQuotaModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeQuotaModels.swift; sourceTree = "<group>"; };
 		E6563B04F362EAF3B5D7C155 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		E8BF90CF22F60DBD921ACED5 /* RuntimeMonitoringHeaderSnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeMonitoringHeaderSnapshotModels.swift; sourceTree = "<group>"; };
@@ -324,6 +327,7 @@
 		EFBC9BB20EA1E5E0618EB8A4 /* CredentialHealthInspectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialHealthInspectionView.swift; sourceTree = "<group>"; };
 		EFEFB4462B7CCE56B39AAD65 /* RuntimeMonitoringAccountHistoryContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeMonitoringAccountHistoryContractTests.swift; sourceTree = "<group>"; };
 		F28B945413C5BCC09DF3E37F /* RuntimeCodexInspectionPolicyContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeCodexInspectionPolicyContractTests.swift; sourceTree = "<group>"; };
+		F30A082173D7E9E88DF92376 /* SecretBearingURLSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretBearingURLSession.swift; sourceTree = "<group>"; };
 		F368A4FBC3439126FF23FC60 /* RuntimeSystemStatusModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeSystemStatusModels.swift; sourceTree = "<group>"; };
 		F4DC9EB0282FF80DBA7D2166 /* ConnectionCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionCenterView.swift; sourceTree = "<group>"; };
 		F615D068D4D20305340E278E /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
@@ -439,6 +443,7 @@
 				6745A70A7AB963310176A92A /* RuntimePluginStoreContractTests.swift */,
 				82FB39834AAFC71C09B23AE1 /* RuntimeProviderConnectivityContractTests.swift */,
 				80C6000AD9FC58BCB173A402 /* RuntimeProviderDraftDiagnosticsContractTests.swift */,
+				E4F1DDAC44615BCFB3903892 /* SecretBearingSessionTests.swift */,
 				6DF05182CDF3EE6936580D18 /* SecretRedactorTests.swift */,
 				BD7BF40B1D1B98D7C5767D88 /* SSHConnectionServiceSecurityTests.swift */,
 				096C174C9ABE8222B66C798C /* SystemModelDirectoryTests.swift */,
@@ -614,6 +619,7 @@
 				D625AAEDDF97353FF7600049 /* GatewayAuthLatch.swift */,
 				335E3CC42F7A7277B29061A8 /* OasesAppearance.swift */,
 				CEC2CBD024038FFC6C016085 /* OnboardingState.swift */,
+				F30A082173D7E9E88DF92376 /* SecretBearingURLSession.swift */,
 				EB1B29896CF52D29D2C99C6E /* SecretRedactor.swift */,
 				762EEE50190A70179F89D4CA /* WindowLayoutPolicy.swift */,
 			);
@@ -821,6 +827,7 @@
 				ACE1B8C3ABD2279F334EE436 /* RuntimeSystemStatusModels.swift in Sources */,
 				1F8654DA50220A3D98A19FE7 /* RuntimeUsageAnalyticsModels.swift in Sources */,
 				74AD6F9F1B58003594ABBB6C /* SSHConnectionService.swift in Sources */,
+				B14A10D2E60482DCF76E8E4F /* SecretBearingURLSession.swift in Sources */,
 				473E58CB08545DC59F49FE46 /* SecretRedactor.swift in Sources */,
 				98138557908DEBBDFB9D2A52 /* SettingsView.swift in Sources */,
 				8B7CCB05423DF3BAC32E8895 /* SidebarView.swift in Sources */,
@@ -872,6 +879,7 @@
 				E31A0ABF1AC4EC60B3B0A5FD /* RuntimeProviderConnectivityContractTests.swift in Sources */,
 				6911849EA065279F794E490C /* RuntimeProviderDraftDiagnosticsContractTests.swift in Sources */,
 				FA4F03078D3BF5D8C879187E /* SSHConnectionServiceSecurityTests.swift in Sources */,
+				7DE0E5F5D336453E43B0AB18 /* SecretBearingSessionTests.swift in Sources */,
 				759F00BA51B822081C2AD299 /* SecretRedactorTests.swift in Sources */,
 				AE92D506AAF6CC5B9E38CBC3 /* SystemModelDirectoryTests.swift in Sources */,
 				92619BB03B7921A8906E506E /* URLProtocolStub.swift in Sources */,

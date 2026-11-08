@@ -1974,8 +1974,10 @@ extension DeploymentStore: GatewayClientProviding {
         return GatewayAdminClient(baseURL: baseURL, managementKey: managementKey)
     }
 
-    func reportGatewayUnauthorized() {
-        gatewayAuthLatch.reject(key: managementKey)
+    func reportGatewayUnauthorized(rejectedKey: String) {
+        // A late 401 for a key the user has already replaced must not latch the new key.
+        guard !rejectedKey.isEmpty, rejectedKey == managementKey else { return }
+        gatewayAuthLatch.reject(key: rejectedKey)
     }
 
     func retryGatewayAuthentication() {

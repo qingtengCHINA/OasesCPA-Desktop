@@ -21,8 +21,10 @@ protocol GatewayClientProviding: AnyObject {
     var gatewayAvailability: GatewayAvailability { get }
     /// A client for the current target; nil whenever `gatewayAvailability != .ready`.
     func gatewayAdminClient() -> GatewayAdminClient?
-    /// Latches the current key after a 401, so that nothing sends it again.
-    func reportGatewayUnauthorized()
+    /// Reports a 401 for `rejectedKey` (the key the failed request carried). Latches it when it
+    /// is still the current key, so that nothing sends it again; a rejection of a key that has
+    /// since been replaced is ignored.
+    func reportGatewayUnauthorized(rejectedKey: String)
     /// The user's explicit "verify again": clears the latch.
     func retryGatewayAuthentication()
 }
@@ -117,7 +119,7 @@ class GatewayWorkbenchStore: ObservableObject {
                 return
             } catch {
                 guard current == self.generation else { return }
-                self.handleLoadFailure(error)
+                self.handleLoadFailure(error, client: client)
             }
         }
     }
@@ -155,7 +157,7 @@ class GatewayWorkbenchStore: ObservableObject {
             return false
         } catch {
             if case GatewayAdminError.unauthorized = error {
-                latchRejectedKey()
+                latchRejectedKey(client.managementKey)
             } else {
                 actionError = Self.message(for: error)
             }
@@ -181,9 +183,9 @@ class GatewayWorkbenchStore: ObservableObject {
 
     // MARK: - Internals
 
-    private func handleLoadFailure(_ error: Error) {
+    private func handleLoadFailure(_ error: Error, client: GatewayAdminClient) {
         if case GatewayAdminError.unauthorized = error {
-            latchRejectedKey()
+            latchRejectedKey(client.managementKey)
             return
         }
         let message = Self.message(for: error)
@@ -194,12 +196,19 @@ class GatewayWorkbenchStore: ObservableObject {
         }
     }
 
-    private func latchRejectedKey() {
+    /// `rejectedKey` is the key of the client whose request got the 401, not whatever key is
+    /// current now: when the user replaced it meanwhile, the provider ignores the report and
+    /// the page loads again with the new key (the rejected key is never sent again).
+    private func latchRejectedKey(_ rejectedKey: String) {
         generation += 1
         loadTask?.cancel()
         loadTask = nil
-        provider.reportGatewayUnauthorized()
-        phase = .unavailable(.credentialsRejected)
+        provider.reportGatewayUnauthorized(rejectedKey: rejectedKey)
+        if provider.gatewayAvailability == .credentialsRejected {
+            phase = .unavailable(.credentialsRejected)
+        } else {
+            refreshNow()
+        }
     }
 
     private static func message(for error: Error) -> String {

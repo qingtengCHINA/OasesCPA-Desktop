@@ -5,19 +5,24 @@ import XCTest
 private final class FakeGatewayClientProvider: GatewayClientProviding {
     var availability: GatewayAvailability = .ready
     var latched = false
-    private(set) var reportCount = 0
+    /// The key the next client carries (the user may change it while a request is running).
+    var currentKey = "fake-key"
+    private(set) var rejectedKeys: [String] = []
     private(set) var retryCount = 0
     let session = URLProtocolStub.makeSession()
 
+    var reportCount: Int { rejectedKeys.count }
     var gatewayAvailability: GatewayAvailability { latched ? .credentialsRejected : availability }
 
     func gatewayAdminClient() -> GatewayAdminClient? {
         guard gatewayAvailability == .ready else { return nil }
-        return GatewayAdminClient(baseURL: URL(string: "http://127.0.0.1:18320")!, managementKey: "fake-key", session: session)
+        return GatewayAdminClient(baseURL: URL(string: "http://127.0.0.1:18320")!, managementKey: currentKey, session: session)
     }
 
-    func reportGatewayUnauthorized() {
-        reportCount += 1
+    /// Same rule as `DeploymentStore`: only a rejection of the current key latches.
+    func reportGatewayUnauthorized(rejectedKey: String) {
+        rejectedKeys.append(rejectedKey)
+        guard rejectedKey == currentKey else { return }
         latched = true
     }
 
@@ -92,6 +97,35 @@ final class GatewayWorkbenchStoreTests: XCTestCase {
         XCTAssertEqual(provider.retryCount, 1)
         XCTAssertEqual(store.value, "ok#2")
         XCTAssertEqual(URLProtocolStub.recordedRequests.count, 1, "install() started a fresh recording")
+        store.deactivate()
+    }
+
+    func testUnauthorizedReportsTheRejectedClientKeyNotTheCurrentOne() async throws {
+        // The 401 for "k1" arrives after the user switched to "k2": the store reports "k1"
+        // (the key the gateway rejected), the provider ignores it, and the page reloads with "k2".
+        let release = DispatchSemaphore(value: 0)
+        URLProtocolStub.install { request, _ in
+            if request.value(forHTTPHeaderField: "x-management-key") == "k1" {
+                _ = release.wait(timeout: .now() + 5)
+                return .json(401, #"{"error":"Unauthorized management key"}"#, for: request)
+            }
+            return .json(200, #"{"value":"fresh"}"#, for: request)
+        }
+        let provider = FakeGatewayClientProvider()
+        provider.currentKey = "k1"
+        let store = ProbeWorkbenchStore(provider: provider)
+        store.activate()
+        try await waitUntil { URLProtocolStub.recordedRequests.count == 1 }
+        provider.currentKey = "k2"
+        release.signal()
+
+        try await waitUntil { store.phase == .loaded }
+        XCTAssertEqual(provider.rejectedKeys, ["k1"], "the rejected key is the client's own key")
+        XCTAssertFalse(provider.latched, "a rejection of a key that is no longer current latches nothing")
+        XCTAssertEqual(store.phase, .loaded)
+        XCTAssertEqual(store.value, "fresh#2")
+        let keys = URLProtocolStub.recordedRequests.map { $0.0.value(forHTTPHeaderField: "x-management-key") }
+        XCTAssertEqual(keys, ["k1", "k2"], "the rejected key is never sent again")
         store.deactivate()
     }
 
@@ -292,18 +326,30 @@ final class GatewayWorkbenchStoreTests: XCTestCase {
         XCTAssertEqual(client?.baseURL.absoluteString, "http://127.0.0.1:18320")
         XCTAssertEqual(client?.managementKey, "k1")
 
-        store.reportGatewayUnauthorized()
+        store.reportGatewayUnauthorized(rejectedKey: "k1")
         XCTAssertEqual(store.gatewayAvailability, .credentialsRejected)
         XCTAssertNil(store.gatewayAdminClient())
 
         store.retryGatewayAuthentication()
         XCTAssertEqual(store.gatewayAvailability, .ready)
 
-        store.reportGatewayUnauthorized()
+        store.reportGatewayUnauthorized(rejectedKey: "k1")
         store.attachForTesting(topology: .gateway, managementKey: "k2", adminKey: "a")
         XCTAssertEqual(store.gatewayAvailability, .ready, "a new management key clears the latch")
 
         store.attachForTesting(topology: .gateway, managementKey: "", adminKey: "a")
         XCTAssertEqual(store.gatewayAvailability, .notAttached)
+    }
+
+    func testDeploymentStoreIgnoresRejectionOfAKeyThatIsNoLongerCurrent() {
+        let store = DeploymentStore(autoProbe: false)
+        store.attachForTesting(topology: .gateway, managementKey: "k1", adminKey: "a")
+        store.attachForTesting(topology: .gateway, managementKey: "k2", adminKey: "a")
+        store.reportGatewayUnauthorized(rejectedKey: "k1")
+        XCTAssertEqual(store.gatewayAvailability, .ready, "a late 401 for the old key must not latch the new one")
+        XCTAssertEqual(store.gatewayAdminClient()?.managementKey, "k2")
+
+        store.reportGatewayUnauthorized(rejectedKey: "k2")
+        XCTAssertEqual(store.gatewayAvailability, .credentialsRejected)
     }
 }

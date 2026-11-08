@@ -52,10 +52,11 @@ enum ManagementAPIError: LocalizedError {
 
 struct ManagementAPIClient {
     private let decoder: JSONDecoder
-    /// The transport of every request (tests inject a stubbed session).
+    /// The transport of every request (tests inject a stubbed session). The default keeps
+    /// nothing on disk: management responses include client API keys.
     let session: URLSession
 
-    init(session: URLSession = .shared) {
+    init(session: URLSession = SecretBearingURLSession.shared) {
         self.session = session
         decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase

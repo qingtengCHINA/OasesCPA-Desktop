@@ -62,7 +62,7 @@ final class GatewayAdminClientTests: XCTestCase {
         XCTAssertEqual(req.value(forHTTPHeaderField: "Accept"), "application/json")
         XCTAssertNil(req.value(forHTTPHeaderField: "Authorization"))
         XCTAssertNil(req.value(forHTTPHeaderField: "Content-Type"))
-        XCTAssertEqual(req.timeoutInterval, 10)
+        XCTAssertEqual(req.timeoutInterval, 15)
     }
 
     func testGetAddsQueryItemsAndTimeout() async throws {
@@ -99,8 +99,31 @@ final class GatewayAdminClientTests: XCTestCase {
         XCTAssertEqual(sent, ["action": "set_label", "key": "client-a"])
     }
 
+    func testTimeoutsOutlastTheGatewayUnauthorizedBackoff() async throws {
+        // The gateway delays every 401 by up to MAX_BACKOFF_MS = 10 s (one global counter,
+        // gateway/server.mjs). A timeout of 10 s would turn a late 401 into a timeout and the
+        // latch would never close; every authenticated request waits at least 15 s.
+        XCTAssertEqual(GatewayAdminTimeouts.gatewayMaximumUnauthorizedDelay, 10)
+        XCTAssertGreaterThanOrEqual(GatewayAdminTimeouts.minimumAuthenticated, 15)
+        XCTAssertGreaterThan(GatewayAdminTimeouts.minimumAuthenticated, GatewayAdminTimeouts.gatewayMaximumUnauthorizedDelay)
+        for timeout in [
+            GatewayAdminTimeouts.standard, GatewayAdminTimeouts.modelProviders, GatewayAdminTimeouts.modelReorder,
+            GatewayAdminTimeouts.keyMutation, GatewayAdminTimeouts.modelTest, GatewayAdminTimeouts.modelTestAll,
+        ] {
+            XCTAssertGreaterThanOrEqual(timeout, GatewayAdminTimeouts.minimumAuthenticated)
+        }
+
+        // A shorter timeout from a caller is raised to the minimum.
+        stub(200, #"{"success":true}"#)
+        let _: RuntimeJSONValue = try await makeClient().get("/cpa-admin/host/status", timeout: 2)
+        struct Body: Encodable, Sendable { let action: String }
+        let _: RuntimeJSONValue = try await makeClient().post("/cpa-admin/permissions/api/save", body: Body(action: "x"), timeout: 5)
+        let timeouts = URLProtocolStub.recordedRequests.map(\.0.timeoutInterval)
+        XCTAssertEqual(timeouts, [15, 15])
+    }
+
     func testTimeoutConventions() {
-        XCTAssertEqual(GatewayAdminTimeouts.standard, 10)
+        XCTAssertEqual(GatewayAdminTimeouts.standard, 15)
         XCTAssertEqual(GatewayAdminTimeouts.modelProviders, 30)
         XCTAssertEqual(GatewayAdminTimeouts.modelReorder, 30)
         XCTAssertEqual(GatewayAdminTimeouts.keyMutation, 20)

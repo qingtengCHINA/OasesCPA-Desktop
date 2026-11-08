@@ -21,11 +21,49 @@ enum KeychainStore {
         return "\(identifier).credentials"
     }
 
+#if DEBUG
+    /// The Keychain of a test: a dictionary keyed by "<service>\u{0}<account>".
+    final class TestBackend: @unchecked Sendable {
+        fileprivate var items: [String: Data] = [:]
+        fileprivate let lock = NSLock()
+        init() {}
+    }
+
+    nonisolated(unsafe) private static var testBackend: TestBackend?
+
+    /// Runs `operation` against an in-memory Keychain. Tests must never read or write the
+    /// user's real Keychain (the service name is not bundle-scoped, so the app's real
+    /// credentials would be reachable).
+    static func withInMemoryKeychainForTesting<T>(_ operation: () throws -> T) rethrows -> T {
+        let previous = testBackend
+        testBackend = TestBackend()
+        defer { testBackend = previous }
+        return try operation()
+    }
+
+    /// nil outside tests; a backend inside `withInMemoryKeychainForTesting`; otherwise a test
+    /// process gets an error instead of the real Keychain.
+    private static func testBackendOrRefusal() throws -> TestBackend? {
+        if let testBackend { return testBackend }
+        if NSClassFromString("XCTestCase") != nil {
+            throw KeychainStoreError.unexpectedStatus(errSecNotAvailable)
+        }
+        return nil
+    }
+#endif
+
     static func save(_ value: String, account: String) throws {
         try saveData(Data(value.utf8), account: account)
     }
 
     static func saveData(_ data: Data, account: String) throws {
+#if DEBUG
+        if let backend = try testBackendOrRefusal() {
+            backend.lock.lock(); defer { backend.lock.unlock() }
+            backend.items["\(service)\u{0}\(account)"] = data
+            return
+        }
+#endif
         let query = baseQuery(account: account)
         // High-value secrets (SSH private keys, CPA/CPAMP admin keys) must
         // not sync to iCloud Keychain or be restorable on a different
@@ -80,6 +118,12 @@ enum KeychainStore {
     }
 
     private static func loadData(account: String, service: String) throws -> Data? {
+#if DEBUG
+        if let backend = try testBackendOrRefusal() {
+            backend.lock.lock(); defer { backend.lock.unlock() }
+            return backend.items["\(service)\u{0}\(account)"]
+        }
+#endif
         var query = baseQuery(account: account, service: service)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -94,6 +138,13 @@ enum KeychainStore {
     }
 
     static func delete(account: String) throws {
+#if DEBUG
+        if let backend = try testBackendOrRefusal() {
+            backend.lock.lock(); defer { backend.lock.unlock() }
+            backend.items["\(service)\u{0}\(account)"] = nil
+            return
+        }
+#endif
         let status = SecItemDelete(baseQuery(account: account) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainStoreError.unexpectedStatus(status)
@@ -116,6 +167,30 @@ enum KeychainStore {
 enum SSHKeyMaterialStore {
     private static let legacyAccount = "ssh-private-key"
     private static let legacyFileName = "ssh-deployment-key"
+
+#if DEBUG
+    nonisolated(unsafe) private static var keysDirectoryOverride: URL?
+
+    /// Runs `operation` with the materialized keys under `directory` instead of the app's
+    /// Application Support folder.
+    static func withKeysDirectoryForTesting<T>(_ directory: URL, operation: () throws -> T) rethrows -> T {
+        let previous = keysDirectoryOverride
+        keysDirectoryOverride = directory
+        defer { keysDirectoryOverride = previous }
+        return try operation()
+    }
+#endif
+
+    private static func keysDirectory() throws -> URL {
+#if DEBUG
+        if let keysDirectoryOverride { return keysDirectoryOverride }
+        if NSClassFromString("XCTestCase") != nil {
+            throw KeychainStoreError.unexpectedStatus(errSecNotAvailable)
+        }
+#endif
+        let applicationSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return applicationSupport.appendingPathComponent("Oases CPA/Keys", isDirectory: true)
+    }
 
     static func save(from url: URL, profileID: UUID?) throws -> String {
         let hasSecurityScopedAccess = url.startAccessingSecurityScopedResource()
@@ -150,8 +225,7 @@ enum SSHKeyMaterialStore {
             throw KeychainStoreError.unexpectedStatus(errSecItemNotFound)
         }
 
-        let applicationSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let directory = applicationSupport.appendingPathComponent("Oases CPA/Keys", isDirectory: true)
+        let directory = try keysDirectory()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let fileName = profileID.map { "ssh-deployment-key-\($0.uuidString.lowercased())" } ?? legacyFileName
         let url = directory.appendingPathComponent(fileName)
@@ -162,9 +236,7 @@ enum SSHKeyMaterialStore {
 
     static func delete(profileID: UUID?) throws {
         try KeychainStore.delete(account: account(for: profileID))
-        let applicationSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let url = applicationSupport
-            .appendingPathComponent("Oases CPA/Keys", isDirectory: true)
+        let url = try keysDirectory()
             .appendingPathComponent(profileID.map { "ssh-deployment-key-\($0.uuidString.lowercased())" } ?? legacyFileName)
         try? FileManager.default.removeItem(at: url)
     }
