@@ -317,6 +317,28 @@ final class LocalizationResourceTests: XCTestCase {
         XCTAssertEqual(offenders, [])
     }
 
+    /// I4: one English label per intent, with the sidebar names as the glossary (连接与部署 =
+    /// Connect & Deploy, 认证文件 = Auth Files / auth file, 脱敏 = redacted / masked, 额度 =
+    /// quota, 巡检 = health check). The synonyms an earlier machine translation used must not
+    /// come back.
+    func testEnglishFollowsTheSidebarGlossary() throws {
+        let english = try dictionary("en")
+        let banned = [
+            "certification file", "certified file", "certification document", "authentication file",
+            "desensiti", "connection & deployment", "connection and deployment", "connections & deployment",
+            "patrol", "account credit", "credit window", "credit cooldown", "certified identity",
+            "certification history",
+        ]
+        var offenders: [String] = []
+        for (key, value) in english {
+            let lowered = value.lowercased()
+            for term in banned where lowered.contains(term) { offenders.append("\(key) → \(value) [\(term)]") }
+        }
+        XCTAssertEqual(offenders.sorted(), [])
+        XCTAssertEqual(english["连接与部署"], "Connect & Deploy")
+        XCTAssertEqual(english["认证文件"], "Auth Files")
+    }
+
     /// The credential health page's fallbacks and captions are looked up (they reached the
     /// English UI as Chinese text).
     func testInspectionPageHasNoRawChineseFallbacks() throws {
