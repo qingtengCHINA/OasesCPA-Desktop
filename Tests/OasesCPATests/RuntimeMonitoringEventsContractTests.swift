@@ -206,6 +206,34 @@ final class RuntimeMonitoringEventsContractTests: XCTestCase {
         XCTAssertEqual(event.rawFields.map(\.key), event.rawFields.map(\.key).sorted(), "sorted by key")
     }
 
+    func testCredentialKeysAreRecognisedInEverySpelling() throws {
+        for key in [
+            "accessToken", "refreshToken", "idToken", "sessionToken", "managementKey", "xManagementKey",
+            "apiKey", "xApiKey", "X-Goog-Api-Key", "clientSecret", "secretKey", "Authorization",
+            "proxyAuthorization", "setCookie", "userPassword", "access-token", "REFRESH_TOKEN", "token",
+            "bearer", "credentials"
+        ] {
+            XCTAssertTrue(RuntimeMonitoringEvent.isCredentialKey(key), key)
+        }
+        for key in ["inputTokens", "input_tokens", "totalTokens", "cachedTokens", "x-request-id", "model", "keyHint", "latency_ms"] {
+            XCTAssertFalse(RuntimeMonitoringEvent.isCredentialKey(key), key)
+        }
+        let event = try XCTUnwrap(RuntimeMonitoringEvent(value: .object([
+            "event_hash": .string("evt-2"),
+            "accessToken": .string("at-" + String(repeating: "a", count: 24)),
+            "metadata": .object([
+                "refreshToken": .string("rt-" + String(repeating: "b", count: 24)),
+                "managementKey": .string("mk-" + String(repeating: "c", count: 24)),
+                "inputTokens": .number(7)
+            ])
+        ])))
+        let fields = Dictionary(uniqueKeysWithValues: event.rawFields.map { ($0.key, $0.value) })
+        XCTAssertNil(fields["accessToken"])
+        XCTAssertNil(fields["metadata.refreshToken"])
+        XCTAssertNil(fields["metadata.managementKey"])
+        XCTAssertEqual(fields["metadata.inputTokens"], "7", "token counts are not credentials")
+    }
+
     func testAdvancedMonitoringFiltersBuildRequest() throws {
         var draft = RuntimeMonitoringFilterDraft()
         draft.provider = "openai-compatible-mock"

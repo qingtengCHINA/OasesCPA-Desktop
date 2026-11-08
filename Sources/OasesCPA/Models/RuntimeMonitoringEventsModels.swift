@@ -401,21 +401,22 @@ struct RuntimeMonitoringEvent: Identifiable, Equatable, Sendable {
 
     /// Keys whose values are credentials (headers such as `Authorization`, `X-Api-Key`,
     /// `Cookie`, `X-Management-Key`, and secret or token fields): never shown, at any depth.
-    /// Token counts (`input_tokens`) are not credentials.
+    /// Token counts (`input_tokens`, `totalTokens`) are not credentials. The key is compared
+    /// lower-cased without `_` and `-`, so snake_case, kebab-case and camelCase spellings
+    /// (`refresh_token`, `refresh-token`, `refreshToken`) are the same key.
     static func isCredentialKey(_ key: String) -> Bool {
-        let normalized = key.lowercased().replacingOccurrences(of: "-", with: "_")
-        let exact: Set<String> = [
-            "api_key", "apikey", "x_api_key", "x_goog_api_key", "management_key", "x_management_key",
-            "secret_key", "client_secret", "password", "passwd", "token", "access_token",
-            "refresh_token", "id_token", "session_token", "bearer", "credential", "credentials"
-        ]
+        let normalized = key.lowercased()
+            .replacingOccurrences(of: "_", with: "")
+            .replacingOccurrences(of: "-", with: "")
+        let exact: Set<String> = ["passwd", "bearer", "credential", "credentials"]
         if exact.contains(normalized) { return true }
         return normalized.contains("authorization")
             || normalized.contains("cookie")
             || normalized.contains("secret")
             || normalized.contains("password")
-            || normalized.hasSuffix("_api_key")
-            || normalized.hasSuffix("_token")
+            || normalized.hasSuffix("apikey")
+            || normalized.hasSuffix("managementkey")
+            || normalized.hasSuffix("token")
     }
 
     static let rawFieldLimit = 400
