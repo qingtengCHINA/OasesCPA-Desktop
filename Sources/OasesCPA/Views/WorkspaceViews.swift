@@ -792,7 +792,7 @@ struct MonitoringEventRow: View {
                         .padding(.top, Oases.Space.xs)
                     } label: {
                         Text(OasesLocalization.localizedFormat("原始字段（%lld）", event.rawFields.count))
-                            .font(.caption.weight(.medium))
+                            .font(.caption.weight(.medium).monospacedDigit())
                     }
                 }
             }
@@ -1062,7 +1062,7 @@ struct MonitoringAccountHistoryCard: View {
             Image(systemName: "checkmark.circle.fill")
                 .foregroundStyle(Color.oasesGreen)
             Text(OasesLocalization.localizedFormat("本次已在当前 CPAMP 本地监控数据库中补齐 %@ 条记录的聚合。", checkpoint.processed.formatted()))
-                .font(.caption)
+                .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
             Spacer(minLength: 0)
         }
@@ -1677,7 +1677,6 @@ struct RuntimeAuthFileRow: View {
                 .font(.title3)
                 .foregroundStyle(tint)
                 .frame(width: 34, height: 34)
-                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 7) {
@@ -1755,7 +1754,6 @@ struct AccountRow: View {
                 .font(.title3)
                 .foregroundStyle(account.tint)
                 .frame(width: 34, height: 34)
-                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 7) {
@@ -1774,7 +1772,7 @@ struct AccountRow: View {
             if account.remaining > 0 {
                 VStack(alignment: .trailing, spacing: 6) {
                     Text(OasesLocalization.localizedFormat("额度剩余 %lld%%", account.remaining))
-                        .font(.caption.weight(.semibold))
+                        .font(.caption.weight(.semibold).monospacedDigit())
                     ProgressView(value: Double(account.remaining), total: 100)
                         .tint(account.tint)
                         .frame(width: 120)
@@ -2061,7 +2059,6 @@ struct QuotaCooldownRow: View {
                 .font(.title3)
                 .foregroundStyle(Color.oasesOrange)
                 .frame(width: 32, height: 32)
-                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 8) {
@@ -2077,7 +2074,7 @@ struct QuotaCooldownRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text(OasesLocalization.localizedFormat("恢复时间：%@ · %@", cooldown.recoverAt.formatted(date: .abbreviated, time: .shortened), recoveryHint))
-                    .font(.caption)
+                    .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
 
@@ -2123,7 +2120,6 @@ struct QuotaEvidenceCard: View {
                     .font(.title3)
                     .foregroundStyle(statusTint)
                     .frame(width: 32, height: 32)
-                    .oasesIconTile()
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
@@ -2194,11 +2190,11 @@ struct QuotaWindowRow: View {
                 Spacer()
                 if let percent = window.normalizedUsedPercent {
                         Text(OasesLocalization.localizedFormat("已用 %@%%", percent.formatted(.number.precision(.fractionLength(0)))))
-                            .font(.caption.weight(.semibold))
+                            .font(.caption.weight(.semibold).monospacedDigit())
                         .foregroundStyle(percent >= 90 ? Color.oasesOrange : Color.secondary)
                 } else if let used = window.used, let limit = window.limit {
                     Text("\(used.formatted(.number.precision(.fractionLength(0)))) / \(limit.formatted(.number.precision(.fractionLength(0))))")
-                        .font(.caption.weight(.semibold))
+                        .font(.caption.weight(.semibold).monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
             }

@@ -567,11 +567,11 @@ private struct InspectionRunRow: View {
                 }
 
                 Text(run.startedAt?.formatted(date: .abbreviated, time: .shortened) ?? OasesLocalization.localized("时间未知"))
-                    .font(.caption)
+                    .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
 
                 Text(OasesLocalization.localizedFormat("%@ · 抽样 %lld / %lld", run.triggerTitle, run.sampledCount, run.totalFiles))
-                    .font(.caption2)
+                    .font(.caption2.monospacedDigit())
                     .foregroundStyle(.secondary)
 
                 if run.actionCount > 0 {

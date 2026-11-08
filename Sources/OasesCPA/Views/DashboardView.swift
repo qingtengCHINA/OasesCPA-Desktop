@@ -22,13 +22,6 @@ struct DashboardView: View {
                         systemImage: "exclamationmark.triangle",
                         tint: .oasesOrange
                     )
-                } else if deploymentStore.stage != .attached {
-                    InfoBanner(
-                        title: "尚未连接目标环境",
-                        message: "先在“连接与部署”中选择本机终端或 SSH / VPS；连接完成后，这里只显示当前目标环境的真实数据。",
-                        systemImage: "info.circle",
-                        tint: .oasesBlue
-                    )
                 }
 
                 LazyVGrid(columns: columns, spacing: 12) {
@@ -38,6 +31,7 @@ struct DashboardView: View {
                 }
 
                 GatewayAccessSummaryCard(deploymentStore: deploymentStore)
+                Divider()
 
                 AdaptiveDashboardRow {
                     TrafficChartCard(points: runtimeTraffic)
@@ -567,7 +561,7 @@ struct ChannelHealthCard: View {
                                 .font(.callout.weight(.medium))
                                 .lineLimit(1)
                             Text(OasesLocalization.localizedFormat("调用 %@ · 失败 %@", channel.calls.formatted(), channel.failures.formatted()))
-                                .font(.caption2)
+                                .font(.caption2.monospacedDigit())
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
                         }

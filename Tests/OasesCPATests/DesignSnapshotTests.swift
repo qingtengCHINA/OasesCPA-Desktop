@@ -182,7 +182,6 @@ private struct FoundationGalleryView: View {
             OasesRowGroup {
                 OasesValueRow(label: "接入地址", value: "http://127.0.0.1:8317/v1", mono: true)
                 OasesValueRow(label: "状态", value: "运行中", tone: .success)
-                OasesLinkRow(systemImage: "book", title: "使用文档", subtitle: "官方部署与使用文档", action: {})
             }
 
             OasesEmptyState(systemImage: "tray", title: "暂无数据", message: "连接后读取", actionTitle: "刷新", action: {})

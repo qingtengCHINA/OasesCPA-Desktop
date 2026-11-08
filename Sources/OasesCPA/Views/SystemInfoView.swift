@@ -11,8 +11,6 @@ struct SystemInfoView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                header
-
                 if let status = runtimeDataStore.systemStatus {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 12)], spacing: 12) {
                         ForEach(metrics(for: status)) { metric in
@@ -43,82 +41,35 @@ struct SystemInfoView: View {
                             tint: .oasesRed
                         )
                     }
+                } else if deploymentStore.stage == .attached {
+                    InlineProblem(message: runtimeDataStore.systemStatusErrorMessage
+                        ?? OasesLocalization.localized("系统状态暂时不可用"))
                 } else {
-                    InfoBanner(
-                        title: deploymentStore.stage == .attached ? OasesLocalization.localized("系统状态暂时不可用") : OasesLocalization.localized("先连接一个目标环境"),
-                        message: runtimeDataStore.systemStatusErrorMessage
-                            ?? OasesLocalization.localized("连接成功后，这里会显示 CPAMP 服务、采集器、事件和数据迁移状态。"),
-                        systemImage: deploymentStore.stage == .attached ? "exclamationmark.triangle" : "link.badge.plus",
-                        tint: deploymentStore.stage == .attached ? .oasesOrange : .oasesBlue
+                    GatewayStateLine(
+                        systemImage: "link",
+                        message: "先在“连接与部署”接入本机或 SSH / VPS 目标，这一页才有数据。",
+                        actionTitle: "打开连接与部署",
+                        action: { store.selectSection(.environments) }
                     )
                 }
 
-                quickLinksCard
                 modelDirectoryCard
-
-                HStack(spacing: 12) {
-                    Button("前往连接与部署", systemImage: "arrow.triangle.branch") {
-                        store.selectSection(.environments)
-                    }
-                    .buttonStyle(.bordered)
-                }
+                quickLinks
             }
-            .padding(28)
+            .padding(Oases.Space.page)
         }
     }
 
-    private var header: some View {
-        HStack(alignment: .bottom) {
-            Spacer()
-            StatusPill(
-                title: runtimeDataStore.systemStatus == nil ? OasesLocalization.localized("连接后读取") : OasesLocalization.localized("实时状态"),
-                tint: runtimeDataStore.systemStatus == nil ? .oasesOrange : .oasesGreen,
-                systemImage: runtimeDataStore.systemStatus == nil ? "link.badge.plus" : "checkmark.circle"
-            )
-            Button {
-                runtimeDataStore.refresh(using: deploymentStore)
-            } label: {
-                Label("刷新", systemImage: "arrow.clockwise")
-            }
-            .buttonStyle(.bordered)
+    /// Project and documentation links: plain rows, no boxes.
+    private var quickLinks: some View {
+        VStack(alignment: .leading, spacing: Oases.Space.sm) {
+            OasesSectionHeader(title: "快捷链接")
+            QuickLinkRow(title: "CLIProxyAPI", subtitle: "核心网关项目", url: URL(string: "https://github.com/router-for-me/CLIProxyAPI")!)
+            Divider()
+            QuickLinkRow(title: "CPA-Manager-Plus", subtitle: "用量统计与请求监控后端", url: URL(string: "https://github.com/seakee/CPA-Manager-Plus")!)
+            Divider()
+            QuickLinkRow(title: "使用教程", subtitle: "官方配置与使用说明", url: URL(string: "https://help.router-for.me/introduction/quick-start.html")!)
         }
-    }
-
-    private var quickLinksCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            CardTitle(
-                title: "快捷链接",
-                subtitle: "访问项目仓库与官方文档，获取帮助和更新",
-                icon: "link"
-            )
-
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 220), spacing: 12)],
-                alignment: .leading,
-                spacing: 12
-            ) {
-                QuickLinkButton(
-                    title: "CLIProxyAPI",
-                    subtitle: "核心网关项目",
-                    systemImage: "shippingbox",
-                    url: URL(string: "https://github.com/router-for-me/CLIProxyAPI")!
-                )
-                QuickLinkButton(
-                    title: "CPA-Manager-Plus",
-                    subtitle: "用量统计与请求监控后端",
-                    systemImage: "rectangle.on.rectangle",
-                    url: URL(string: "https://github.com/seakee/CPA-Manager-Plus")!
-                )
-                QuickLinkButton(
-                    title: "使用教程",
-                    subtitle: "官方配置与使用说明",
-                    systemImage: "book.closed",
-                    url: URL(string: "https://help.router-for.me/introduction/quick-start.html")!
-                )
-            }
-        }
-        .padding(20)
-        .oasesCard()
     }
 
     private var modelDirectoryCard: some View {
@@ -231,7 +182,7 @@ struct SystemInfoView: View {
             )
             if !groups.isEmpty {
                 Text(OasesLocalization.localizedFormat("%lld 个提供商 / 家族分组", groups.count))
-                    .font(.caption)
+                    .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
             if let copiedModelID {
@@ -312,8 +263,7 @@ struct SystemInfoView: View {
     }
 
     private func copyModelID(_ value: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(value, forType: .string)
+        OasesPasteboard.copy(value)
         copiedModelID = value
     }
 
@@ -393,7 +343,7 @@ struct SystemInfoView: View {
                 StatusPill(title: migration.status ?? OasesLocalization.localized("未知"), tint: migration.status == "completed" ? .oasesGreen : .oasesOrange)
                 Spacer()
                 Text(OasesLocalization.localizedFormat("已处理 %@ 行", migration.processedRows?.formatted() ?? OasesLocalization.localized("暂无")))
-                    .font(.caption)
+                    .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
             if let target = migration.targetEventId, target > 0 {
@@ -411,44 +361,26 @@ struct SystemInfoView: View {
     private func timestamp(_ value: Int64?) -> String {
         guard let value, value > 0 else { return OasesLocalization.localized("暂无") }
         return Date(timeIntervalSince1970: TimeInterval(value) / 1_000)
-            .formatted(date: .abbreviated, time: .shortened)
+            .oasesShortDateTime
     }
 }
 
-private struct QuickLinkButton: View {
+/// One link: the name as a link, a secondary description after it.
+private struct QuickLinkRow: View {
     let title: String
     let subtitle: String
-    let systemImage: String
     let url: URL
 
     var body: some View {
-        Button {
-            NSWorkspace.shared.open(url)
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: systemImage)
-                    .font(.title3)
-                    .foregroundStyle(Oases.Color.textSecondary)
-                    .frame(width: 34, height: 34)
-                    .oasesIconTile()
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(OasesLocalization.localized(title))
-                        .font(.callout.weight(.semibold))
-                        .lineLimit(1)
-                    Text(OasesLocalization.localized(subtitle))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 4)
-                Image(systemName: "arrow.up.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+        HStack(alignment: .firstTextBaseline, spacing: Oases.Space.sm) {
+            Link(destination: url) {
+                Label(OasesLocalization.localized(title), systemImage: "arrow.up.right.square")
             }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            Text(OasesLocalization.localized(subtitle))
+                .foregroundStyle(Oases.Color.textSecondary)
+            Spacer(minLength: 0)
         }
-        .buttonStyle(.plain)
-        .help("在浏览器中打开 \(title)")
+        .padding(.vertical, Oases.Space.xxs)
+        .help(url.absoluteString)
     }
 }

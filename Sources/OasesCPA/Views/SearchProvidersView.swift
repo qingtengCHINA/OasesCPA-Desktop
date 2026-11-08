@@ -289,7 +289,7 @@ private struct SearchProviderEditor: View {
                     SecureField("新的 API Key", text: $newKey, prompt: Text(provider.configured ? "留空则保留当前 Key" : "粘贴服务商的 API Key"))
                     TextField("每日上限", text: $limitText, prompt: Text("不限"))
                     Text(OasesLocalization.localizedFormat("服务商建议的每日上限：%lld 次。", provider.defaultDailyLimit))
-                        .font(.caption)
+                        .font(.caption.monospacedDigit())
                         .foregroundStyle(Oases.Color.textSecondary)
                     if case .failure(let error) = LimitFields.parse(limitText) {
                         Text(error.message).font(.caption).foregroundStyle(Oases.Color.dangerText)

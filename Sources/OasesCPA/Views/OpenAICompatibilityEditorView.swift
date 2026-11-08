@@ -263,7 +263,6 @@ struct OpenAICompatibilityEditorView: View {
                 .font(.title)
                 .foregroundStyle(Oases.Color.textSecondary)
                 .frame(width: 52, height: 52)
-                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(LocalizedStringKey(index == nil ? "添加 AI 服务" : "调整 AI 服务"))
@@ -424,7 +423,7 @@ struct OpenAICompatibilityEditorView: View {
                     .padding(.top, 12)
                 } label: {
                     Text(OasesLocalization.localizedFormat("管理 %lld 个模型", models.count))
-                        .font(.subheadline.weight(.semibold))
+                        .font(.subheadline.weight(.semibold).monospacedDigit())
                 }
             }
         }
@@ -872,7 +871,6 @@ private struct ProviderEditorSection<Content: View>: View {
                 Image(systemName: systemImage)
                     .foregroundStyle(Oases.Color.textSecondary)
                     .frame(width: 32, height: 32)
-                    .oasesIconTile()
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(LocalizedStringKey(title))
@@ -974,7 +972,7 @@ private struct ProviderAPIKeyEditorCard: View {
             HStack(spacing: 10) {
                 ProviderKeyStatusIcon(status: entry.testStatus)
                 Text(OasesLocalization.localizedFormat("密钥 %lld", number))
-                    .font(.subheadline.weight(.semibold))
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
                 SecureField("粘贴完整 API Key", text: $entry.apiKey)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
@@ -1031,7 +1029,7 @@ private struct ProviderKeyAdvancedFields: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(OasesLocalization.localizedFormat("密钥 %lld", number))
-                .font(.caption.weight(.semibold))
+                .font(.caption.weight(.semibold).monospacedDigit())
                 .foregroundStyle(.secondary)
             LazyVGrid(
                 columns: [GridItem(.adaptive(minimum: 230), spacing: 14)],

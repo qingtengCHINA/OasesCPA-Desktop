@@ -375,7 +375,7 @@ struct ProviderInspector: View {
             }
             if provider.apiKeyEntries.count > 1 {
                 Text(OasesLocalization.localizedFormat("共 %lld 把密钥", provider.apiKeyEntries.count))
-                    .font(.caption)
+                    .font(.caption.monospacedDigit())
                     .foregroundStyle(Oases.Color.textSecondary)
             }
         } else {

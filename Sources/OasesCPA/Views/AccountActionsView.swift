@@ -288,7 +288,6 @@ private struct AccountActionCandidateCard: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(actionTint)
                     .frame(width: 38, height: 38)
-                    .oasesIconTile()
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(candidate.accountTitle)

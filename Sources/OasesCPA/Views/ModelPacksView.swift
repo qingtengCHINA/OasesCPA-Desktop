@@ -286,17 +286,17 @@ struct ModelPacksView: View {
                     .foregroundStyle(Oases.Color.textSecondary)
                 if let expires = key.expiresAt {
                     Text(OasesLocalization.localizedFormat("到期：%@", expires.formatted(date: .abbreviated, time: .shortened)))
-                        .font(.caption)
+                        .font(.caption.monospacedDigit())
                         .foregroundStyle(expires <= Date() ? Oases.Color.dangerText : Oases.Color.textTertiary)
                 }
                 if let next = key.reset?.nextResetAt {
                     Text(OasesLocalization.localizedFormat("下次恢复：%@", next.formatted(date: .abbreviated, time: .shortened)))
-                        .font(.caption)
+                        .font(.caption.monospacedDigit())
                         .foregroundStyle(Oases.Color.textTertiary)
                 }
                 if key.bound, let boundAt = key.boundAt {
                     Text(OasesLocalization.localizedFormat("绑定于 %@", boundAt.formatted(date: .abbreviated, time: .shortened)))
-                        .font(.caption)
+                        .font(.caption.monospacedDigit())
                         .foregroundStyle(Oases.Color.textTertiary)
                 }
             }

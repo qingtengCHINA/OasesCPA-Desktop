@@ -380,7 +380,6 @@ private struct RuntimePluginRow: View {
                 .font(.title3)
                 .foregroundStyle(statusTint)
                 .frame(width: 34, height: 34)
-                .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
