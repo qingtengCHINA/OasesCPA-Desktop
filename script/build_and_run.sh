@@ -75,6 +75,8 @@ cat >"$INFO_PLIST" <<PLIST
   <string></string>
   <key>OasesAuthorURL</key>
   <string></string>
+  <key>OasesPrivacyPolicyURL</key>
+  <string></string>
   <key>OasesUpdateRepository</key>
   <string></string>
   <key>OasesUpdateTeamIdentifier</key>

@@ -9,3 +9,4 @@ OASES_UPDATE_REPOSITORY = owner/repo
 // OASES_UPDATE_TEAM_ID = YOUR_TEAM_ID
 OASES_AUTHOR_NAME = Your Name
 OASES_AUTHOR_URL = https:/$()/example.com/
+OASES_PRIVACY_POLICY_URL = https:/$()/example.com/privacy

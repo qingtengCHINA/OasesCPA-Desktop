@@ -15,5 +15,7 @@ OASES_UPDATE_REPOSITORY =
 OASES_UPDATE_TEAM_ID = $(DEVELOPMENT_TEAM)
 OASES_AUTHOR_NAME =
 OASES_AUTHOR_URL =
+// Privacy policy of whoever distributes the build; empty hides the link in Settings > About.
+OASES_PRIVACY_POLICY_URL =
 
 #include? "Local.xcconfig"

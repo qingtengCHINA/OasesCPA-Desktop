@@ -37,6 +37,8 @@
 	<string>$(OASES_AUTHOR_NAME)</string>
 	<key>OasesAuthorURL</key>
 	<string>$(OASES_AUTHOR_URL)</string>
+	<key>OasesPrivacyPolicyURL</key>
+	<string>$(OASES_PRIVACY_POLICY_URL)</string>
 	<key>OasesUpdateRepository</key>
 	<string>$(OASES_UPDATE_REPOSITORY)</string>
 	<key>OasesUpdateTeamIdentifier</key>

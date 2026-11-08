@@ -135,6 +135,24 @@ final class AppUpdateServiceTests: XCTestCase {
         XCTAssertNil(AppAuthorInfo(infoDictionary: ["OasesAuthorName": "Example Author", "OasesAuthorURL": "https:"]).url)
     }
 
+    func testPrivacyPolicyLinkComesFromBuildSettingsAndIsHiddenWhenEmpty() {
+        XCTAssertEqual(
+            AppPrivacyPolicyInfo(infoDictionary: ["OasesPrivacyPolicyURL": "https://example.com/privacy"]).url?.absoluteString,
+            "https://example.com/privacy"
+        )
+        let hidden: [[String: Any]] = [
+            [:],
+            ["OasesPrivacyPolicyURL": ""],
+            ["OasesPrivacyPolicyURL": "   "],
+            ["OasesPrivacyPolicyURL": "$(OASES_PRIVACY_POLICY_URL)"],
+            ["OasesPrivacyPolicyURL": "http://example.com/privacy"],
+            ["OasesPrivacyPolicyURL": "https:"]
+        ]
+        for info in hidden {
+            XCTAssertNil(AppPrivacyPolicyInfo(infoDictionary: info).url, "\(info)")
+        }
+    }
+
     func testServiceWithoutConfigurationIsDisabledAndNeverRequests() async {
         let session = makeSession { request in
             XCTFail("a disabled updater must not send \(request.url?.absoluteString ?? "a request")")

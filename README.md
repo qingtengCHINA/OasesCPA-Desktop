@@ -246,7 +246,7 @@ Oases CPA 独立开发，不隶属于以下上游项目：
 
 完整版权和许可证文本见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)，App 内也可从“设置 → 关于 → 开源许可与致谢”查看。
 
-- [隐私声明](https://www.freeprivacypolicy.com/live/e016e69e-1613-454a-83cb-411674f7d303)
+- 隐私声明：App 的“设置 → 关于”只在构建时设置了 `OASES_PRIVACY_POLICY_URL`（`Config/Local.xcconfig`）时显示隐私声明链接；维护者的发行构建会设置它，指向分发方自己的隐私声明。
 - [作者 · QingTeng Studio](https://qingtengstudio.com/)
 - [CLIProxyAPI 文档](https://help.router-for.me/)
 

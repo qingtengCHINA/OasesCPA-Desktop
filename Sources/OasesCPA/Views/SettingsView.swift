@@ -30,6 +30,25 @@ struct AppVersionInfo {
     }
 }
 
+/// Reads optional build-time values (xcconfig -> Info.plist). Empty or unexpanded values are nil.
+private enum BuildSetting {
+    static func text(_ value: Any?) -> String? {
+        guard let value = value as? String else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.hasPrefix("$(") else { return nil }
+        return trimmed
+    }
+
+    /// Only https URLs with a host are accepted.
+    static func httpsURL(_ value: Any?) -> URL? {
+        guard let url = text(value).flatMap(URL.init(string:)),
+              url.scheme?.lowercased() == "https",
+              url.host?.isEmpty == false
+        else { return nil }
+        return url
+    }
+}
+
 /// The optional author line of the About section, from the `OasesAuthorName` and
 /// `OasesAuthorURL` Info.plist keys (build-time configuration). Empty values hide it.
 struct AppAuthorInfo {
@@ -37,17 +56,19 @@ struct AppAuthorInfo {
     let url: URL?
 
     init(infoDictionary: [String: Any]? = Bundle.main.infoDictionary) {
-        name = Self.cleanedValue(infoDictionary?["OasesAuthorName"] as? String)
-        url = Self.cleanedValue(infoDictionary?["OasesAuthorURL"] as? String)
-            .flatMap(URL.init(string:))
-            .flatMap { $0.scheme?.lowercased() == "https" && $0.host?.isEmpty == false ? $0 : nil }
+        name = BuildSetting.text(infoDictionary?["OasesAuthorName"])
+        url = BuildSetting.httpsURL(infoDictionary?["OasesAuthorURL"])
     }
+}
 
-    private static func cleanedValue(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !trimmed.hasPrefix("$(") else { return nil }
-        return trimmed
+/// The optional privacy-policy link of the About section, from the `OasesPrivacyPolicyURL`
+/// Info.plist key (`OASES_PRIVACY_POLICY_URL`). The policy belongs to whoever distributes a
+/// build, so the committed configuration leaves it empty and the link is hidden.
+struct AppPrivacyPolicyInfo {
+    let url: URL?
+
+    init(infoDictionary: [String: Any]? = Bundle.main.infoDictionary) {
+        url = BuildSetting.httpsURL(infoDictionary?["OasesPrivacyPolicyURL"])
     }
 }
 
@@ -64,6 +85,7 @@ struct SettingsView: View {
 
     private var appVersion: AppVersionInfo { AppVersionInfo() }
     private var appAuthor: AppAuthorInfo { AppAuthorInfo() }
+    private var appPrivacyPolicy: AppPrivacyPolicyInfo { AppPrivacyPolicyInfo() }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -242,8 +264,10 @@ struct SettingsView: View {
                     openWindow(id: OpenSourceNoticesWindow.id)
                 }
 
-                Link(destination: URL(string: "https://www.freeprivacypolicy.com/live/e016e69e-1613-454a-83cb-411674f7d303")!) {
-                    Label("隐私声明", systemImage: "hand.raised")
+                if let privacyPolicyURL = appPrivacyPolicy.url {
+                    Link(destination: privacyPolicyURL) {
+                        Label("隐私声明", systemImage: "hand.raised")
+                    }
                 }
 
                 if let authorName = appAuthor.name {
