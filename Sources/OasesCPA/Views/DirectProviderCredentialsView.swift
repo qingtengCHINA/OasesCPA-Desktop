@@ -63,7 +63,7 @@ struct DirectProviderCredentialsCard: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 StatusPill(
-                    title: "\(credentials.count) 个凭证",
+                    title: OasesLocalization.localizedFormat("%lld 个凭证", credentials.count),
                     tint: credentials.isEmpty ? .oasesOrange : .oasesGreen,
                     systemImage: "key"
                 )
@@ -78,18 +78,18 @@ struct DirectProviderCredentialsCard: View {
                 )
             } else if let error = runtimeDataStore.directProviderError(for: selectedKind) {
                 InfoBanner(
-                    title: "\(selectedKind.title) 凭证池暂不可用",
+                    title: OasesLocalization.localizedFormat("%@ 凭证池暂不可用", selectedKind.title),
                     message: error,
                     systemImage: "exclamationmark.triangle",
                     tint: .oasesRed
                 )
             } else if credentials.isEmpty, !runtimeDataStore.isLoadingDirectProviders {
                 ContentUnavailableView {
-                    Label("尚未配置 \(selectedKind.title) 凭证", systemImage: "key")
+                    Label(OasesLocalization.localizedFormat("尚未配置 %@ 凭证", selectedKind.title), systemImage: "key")
                 } description: {
                     Text("添加后会直接写入当前目标 CLIProxyAPI，不依赖 Oases dev 或浏览器面板。")
                 } actions: {
-                    Button("添加 \(selectedKind.title) 凭证", systemImage: "plus") {
+                    Button(OasesLocalization.localizedFormat("添加 %@ 凭证", selectedKind.title), systemImage: "plus") {
                         editorTarget = DirectProviderEditorTarget(kind: selectedKind, credential: nil)
                     }
                     .buttonStyle(.oasesPrimary)
@@ -147,7 +147,7 @@ struct DirectProviderCredentialsCard: View {
             DirectProviderCredentialEditorView(kind: target.kind, credential: target.credential)
         }
         .confirmationDialog(
-            "删除 \(deletingCredential?.kind.title ?? "") 凭证？",
+            OasesLocalization.localizedFormat("删除 %@ 凭证？", deletingCredential?.kind.title ?? ""),
             isPresented: $deleteConfirmationPresented,
             titleVisibility: .visible
         ) {
@@ -160,7 +160,7 @@ struct DirectProviderCredentialsCard: View {
                 deletingCredential = nil
             }
         } message: {
-            Text("这会从当前目标 CLIProxyAPI 的 \(deletingCredential?.kind.title ?? "") 凭证池中移除此条目，无法自动恢复。")
+            Text(OasesLocalization.localizedFormat("这会从当前目标 CLIProxyAPI 的 %@ 凭证池中移除此条目，无法自动恢复。", deletingCredential?.kind.title ?? ""))
         }
     }
 
@@ -207,7 +207,7 @@ private struct DirectProviderCredentialRow: View {
                     Text(credential.maskedAPIKey)
                         .font(.system(.callout, design: .monospaced).weight(.semibold))
                     if let weight = credential.weight {
-                        StatusPill(title: "权重 \(weight)", tint: .oasesBlue)
+                        StatusPill(title: OasesLocalization.localizedFormat("权重 %lld", weight), tint: .oasesBlue)
                     } else {
                         StatusPill(title: "默认权重", tint: .oasesGreen)
                     }
@@ -220,7 +220,7 @@ private struct DirectProviderCredentialRow: View {
 
                 HStack(spacing: 8) {
                     if !credential.prefix.isEmpty {
-                        Text("前缀 \(credential.prefix)")
+                        Text(OasesLocalization.localizedFormat("前缀 %@", credential.prefix))
                     }
                     if !credential.proxyURL.isEmpty {
                         Text("独立代理")
@@ -238,7 +238,7 @@ private struct DirectProviderCredentialRow: View {
                         Text("模型映射 \(credential.models.count)")
                     }
                     if !credential.authIndex.isEmpty {
-                        Text("认证索引 \(credential.authIndex)")
+                        Text(OasesLocalization.localizedFormat("认证索引 %@", credential.authIndex))
                     }
                 }
                 .font(.caption)
@@ -588,7 +588,7 @@ struct DirectProviderCredentialEditorView: View {
             }
         )
         .confirmationDialog(
-            isNew ? "添加 \(kind.title) 凭证？" : "保存 \(kind.title) 凭证修改？",
+            isNew ? OasesLocalization.localizedFormat("添加 %@ 凭证？", kind.title) : OasesLocalization.localizedFormat("保存 %@ 凭证修改？", kind.title),
             isPresented: $showSaveConfirmation,
             titleVisibility: .visible
         ) {

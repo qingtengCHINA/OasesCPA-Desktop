@@ -205,7 +205,7 @@ enum RuntimeProviderConnectivityFactory {
         }
 
         let targetID = "direct.\(kind.rawValue).\(max(0, credential.index))"
-        let targetTitle = "\(kind.title) · 凭证 \(credential.index + 1)"
+        let targetTitle = OasesLocalization.localizedFormat("%@ · 凭证 %lld", kind.title, credential.index + 1)
         let resolution = endpoint(
             configuredBaseURL: credential.baseURL,
             fallbackBaseURL: fallbackBaseURL,
@@ -300,7 +300,7 @@ enum RuntimeProviderConnectivityFactory {
         return entries.map { entry in
             let target = target(
                 id: "openai.\(providerIndex).\(entry.index)",
-                providerTitle: "\(providerName) · 密钥 \(entry.index + 1)",
+                providerTitle: OasesLocalization.localizedFormat("%@ · 密钥 %lld", providerName, entry.index + 1),
                 providerKind: "Compatible",
                 host: resolution.map(\.host) ?? hostLabel(
                     configuredBaseURL: provider.baseURL,

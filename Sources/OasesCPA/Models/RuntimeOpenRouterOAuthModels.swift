@@ -319,15 +319,15 @@ enum RuntimeOpenRouterOAuthError: LocalizedError, Equatable, Sendable {
         case .invalidAuthorizationCode:
             OasesLocalization.localized("OpenRouter 回调中的授权码无效。")
         case .invalidCallback(let message):
-            "OpenRouter 回调无效：\(message)"
+            OasesLocalization.localizedFormat("OpenRouter 回调无效：%@", message)
         case .stateMismatch:
             OasesLocalization.localized("OpenRouter 回调的 state 不匹配，已拒绝该请求。")
         case .authorizationDenied(let message):
-            "OpenRouter 授权未完成：\(message)"
+            OasesLocalization.localizedFormat("OpenRouter 授权未完成：%@", message)
         case .invalidTokenResponse:
             OasesLocalization.localized("OpenRouter 返回了无法识别的换取凭证响应。")
         case .tokenExchangeFailed(let message):
-            "OpenRouter 换取 API Key 失败：\(message)"
+            OasesLocalization.localizedFormat("OpenRouter 换取 API Key 失败：%@", message)
         }
     }
 }

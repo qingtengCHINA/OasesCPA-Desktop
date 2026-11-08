@@ -90,7 +90,7 @@ final class OpenRouterOAuthLoopbackListener: ObservableObject {
             listener.start(queue: Self.listenerQueue)
         } catch {
             fail(
-                message: "无法仅在本机启动 OpenRouter 回调监听：\(error.localizedDescription)"
+                message: OasesLocalization.localizedFormat("无法仅在本机启动 OpenRouter 回调监听：%@", error.localizedDescription)
             )
         }
     }
@@ -169,7 +169,7 @@ final class OpenRouterOAuthLoopbackListener: ObservableObject {
                 fail(message: error.localizedDescription)
             }
         case .failed(let error):
-            fail(message: "OpenRouter 本机回调监听失败：\(error.localizedDescription)")
+            fail(message: OasesLocalization.localizedFormat("OpenRouter 本机回调监听失败：%@", error.localizedDescription))
         case .cancelled:
             if phase == .preparing || phase == .waiting {
                 fail(message: OasesLocalization.localized("OpenRouter 本机回调监听已取消。"))
@@ -208,7 +208,7 @@ final class OpenRouterOAuthLoopbackListener: ObservableObject {
             notice = OasesLocalization.localized("已拒绝一个 state 不匹配的本机回调；仍在等待本次浏览器授权。")
             return .badRequest(OasesLocalization.localized("此回调不属于当前授权请求。请返回浏览器继续完成授权。"))
         case .failure(.invalidCallback(let message)):
-            notice = "收到无效回调：\(message) 仍在等待正确的浏览器回调。"
+            notice = OasesLocalization.localizedFormat("收到无效回调：%@ 仍在等待正确的浏览器回调。", message)
             return .badRequest(OasesLocalization.localized("此回调无效。请返回浏览器继续完成授权。"))
         case .failure(let error):
             fail(message: error.localizedDescription)

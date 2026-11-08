@@ -166,13 +166,13 @@ struct InspectionView: View {
                     InspectionPolicyFact(
                         title: "并发检查",
                         value: inspectionPolicy.workers > 0
-                            ? "\(inspectionPolicy.workers) 个"
+                            ? OasesLocalization.localizedFormat("%lld 个", inspectionPolicy.workers)
                             : "服务端默认"
                     )
                     InspectionPolicyFact(
                         title: "采样",
                         value: inspectionPolicy.sampleSize > 0
-                            ? "\(inspectionPolicy.sampleSize) 个账号"
+                            ? OasesLocalization.localizedFormat("%lld 个账号", inspectionPolicy.sampleSize)
                             : "全部账号"
                     )
                     InspectionPolicyFact(
@@ -238,7 +238,7 @@ struct InspectionView: View {
             HStack {
                 CardTitle(
                     title: "运行历史",
-                    subtitle: "\(runtimeDataStore.codexInspectionRuns.count) 个最近任务",
+                    subtitle: OasesLocalization.localizedFormat("%lld 个最近任务", runtimeDataStore.codexInspectionRuns.count),
                     icon: "clock.arrow.circlepath"
                 )
                 Spacer()
@@ -435,11 +435,11 @@ private enum InspectionConfirmation: Identifiable {
         case .start(let policy):
             let baseline = "CPAMP 会在当前目标上使用已有认证文件向对应 Provider 发起真实健康检查；认证令牌不会回传到 App。"
             if policy.isMutationCapable {
-                return "\(baseline)\n\n\(policy.mutationWarning)\n\n请确认这是你希望操作的目标环境后继续。"
+                return OasesLocalization.localizedFormat("%@\n\n%@\n\n请确认这是你希望操作的目标环境后继续。", baseline, policy.mutationWarning)
             }
-            return "\(baseline)\n\n当前策略为仅记录，不会按巡检策略自动修改认证文件。"
+            return OasesLocalization.localizedFormat("%@\n\n当前策略为仅记录，不会按巡检策略自动修改认证文件。", baseline)
         case .cancel(let run):
-            return "将向 CPAMP 请求取消运行 #\(run.id)。已经发出的 Provider 检查可能会完成，已有日志和结果会保留在历史记录中。"
+            return OasesLocalization.localizedFormat("将向 CPAMP 请求取消运行 #%lld。已经发出的 Provider 检查可能会完成，已有日志和结果会保留在历史记录中。", run.id)
         }
     }
 }
@@ -511,22 +511,22 @@ private struct InspectionPolicyPresentation: Equatable {
         var actions: [String] = []
         switch normalizedMode {
         case "delete":
-            actions.append("删除符合 CPAMP 规则且通过稳定身份核验的认证文件")
+            actions.append(OasesLocalization.localized("删除符合 CPAMP 规则且通过稳定身份核验的认证文件"))
         case "disable":
-            actions.append("禁用符合 CPAMP 规则的认证文件")
+            actions.append(OasesLocalization.localized("禁用符合 CPAMP 规则的认证文件"))
         case "enable":
-            actions.append("启用满足恢复条件的认证文件")
+            actions.append(OasesLocalization.localized("启用满足恢复条件的认证文件"))
         default:
             if hasUnknownMode {
-                actions.append("执行当前 CPAMP 版本定义的未知自动动作")
+                actions.append(OasesLocalization.localized("执行当前 CPAMP 版本定义的未知自动动作"))
             }
             break
         }
         if autoRecoverEnabled {
-            actions.append("恢复由巡检自身禁用且已明确恢复的认证文件")
+            actions.append(OasesLocalization.localized("恢复由巡检自身禁用且已明确恢复的认证文件"))
         }
-        let detail = actions.isEmpty ? "修改认证文件状态" : actions.joined(separator: "；")
-        return "当前策略允许 CPAMP 在巡检中\(detail)。服务端仍会核验账号稳定身份，但此操作并非只读。"
+        let detail = actions.isEmpty ? OasesLocalization.localized("修改认证文件状态") : actions.joined(separator: "；")
+        return OasesLocalization.localizedFormat("当前策略允许 CPAMP 在巡检中%@。服务端仍会核验账号稳定身份，但此操作并非只读。", detail)
     }
 }
 
@@ -567,11 +567,11 @@ private struct InspectionRunRow: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Text(run.startedAt?.formatted(date: .abbreviated, time: .shortened) ?? "时间未知")
+                Text(run.startedAt?.formatted(date: .abbreviated, time: .shortened) ?? OasesLocalization.localized("时间未知"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Text("\(run.triggerTitle) · 抽样 \(run.sampledCount) / \(run.totalFiles)")
+                Text(OasesLocalization.localizedFormat("%@ · 抽样 %lld / %lld", run.triggerTitle, run.sampledCount, run.totalFiles))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
 
@@ -598,7 +598,7 @@ private struct InspectionRunRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(
-            "\(run.statusTitle)，运行 #\(run.id)，\(run.startedAt?.formatted(date: .abbreviated, time: .shortened) ?? "时间未知")"
+            OasesLocalization.localizedFormat("%@，运行 #%lld，%@", run.statusTitle, run.id, run.startedAt?.formatted(date: .abbreviated, time: .shortened) ?? "时间未知")
         )
     }
 
@@ -624,10 +624,10 @@ private struct InspectionRunRow: View {
 
     private var actionSummary: String {
         [
-            run.deleteCount > 0 ? "删除 \(run.deleteCount)" : nil,
-            run.disableCount > 0 ? "禁用 \(run.disableCount)" : nil,
-            run.enableCount > 0 ? "启用 \(run.enableCount)" : nil,
-            run.reauthCount > 0 ? "授权 \(run.reauthCount)" : nil
+            run.deleteCount > 0 ? OasesLocalization.localizedFormat("删除 %lld", run.deleteCount) : nil,
+            run.disableCount > 0 ? OasesLocalization.localizedFormat("禁用 %lld", run.disableCount) : nil,
+            run.enableCount > 0 ? OasesLocalization.localizedFormat("启用 %lld", run.enableCount) : nil,
+            run.reauthCount > 0 ? OasesLocalization.localizedFormat("授权 %lld", run.reauthCount) : nil
         ]
         .compactMap { $0 }
         .joined(separator: " · ")
@@ -677,7 +677,7 @@ private struct InspectionRunDetailView: View {
     private var detailHeader: some View {
         HStack(alignment: .top, spacing: 16) {
             CardTitle(
-                title: "运行 #\(detail.run.id)",
+                title: OasesLocalization.localizedFormat("运行 #%lld", detail.run.id),
                 subtitle: "\(detail.run.triggerTitle) · \(dateText(detail.run.startedAtMs))",
                 icon: "checkmark.shield"
             )
@@ -712,7 +712,7 @@ private struct InspectionRunDetailView: View {
             InspectionMetric(
                 title: "已探测",
                 value: detail.run.sampledCount.formatted(),
-                caption: "探测集合 \(detail.run.probeSetCount)",
+                caption: OasesLocalization.localizedFormat("探测集合 %lld", detail.run.probeSetCount),
                 tint: .oasesMint,
                 icon: "waveform.path.ecg"
             )
@@ -726,7 +726,7 @@ private struct InspectionRunDetailView: View {
             InspectionMetric(
                 title: "日志",
                 value: detail.logs.count.formatted(),
-                caption: detail.run.finishedAt.map { "完成 \(dateText(Int64($0.timeIntervalSince1970 * 1_000)))" } ?? "持续更新",
+                caption: detail.run.finishedAt.map { OasesLocalization.localizedFormat("完成 %@", dateText(Int64($0.timeIntervalSince1970 * 1_000))) } ?? "持续更新",
                 tint: .oasesPurple,
                 icon: "text.alignleft"
             )
@@ -738,7 +738,7 @@ private struct InspectionRunDetailView: View {
             HStack {
                 CardTitle(
                     title: "账号结果",
-                    subtitle: "\(visibleResults.count) / \(detail.results.count) 项符合当前筛选",
+                    subtitle: OasesLocalization.localizedFormat("%lld / %lld 项符合当前筛选", visibleResults.count, detail.results.count),
                     icon: "person.crop.circle.badge.checkmark"
                 )
                 Spacer()
@@ -798,7 +798,7 @@ private struct InspectionRunDetailView: View {
         } label: {
             CardTitle(
                 title: "服务端日志",
-                subtitle: "\(detail.logs.count) 条 · 由 CPAMP 保存的脱敏运行记录",
+                subtitle: OasesLocalization.localizedFormat("%lld 条 · 由 CPAMP 保存的脱敏运行记录", detail.logs.count),
                 icon: "text.alignleft"
             )
         }

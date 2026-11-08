@@ -535,9 +535,9 @@ enum RuntimeQuotaParser {
 
     private static func failureMessage(_ response: RuntimeAPICallResponse) -> String {
         let body = response.body.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !body.isEmpty else { return "Provider 返回 HTTP \(response.statusCode)。" }
+        guard !body.isEmpty else { return OasesLocalization.localizedFormat("Provider 返回 HTTP %lld。", response.statusCode) }
         let preview = String(body.prefix(280))
-        return "Provider 返回 HTTP \(response.statusCode)：\(preview)"
+        return OasesLocalization.localizedFormat("Provider 返回 HTTP %lld：%@", response.statusCode, preview)
     }
 }
 

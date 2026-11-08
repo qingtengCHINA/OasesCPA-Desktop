@@ -99,16 +99,105 @@ public enum OasesLocalization {
         )
     }
 
+    /// Looks up `source` (a format key such as `"已发现 %lld 个可用模型。"`) and fills in
+    /// `arguments`. A translation whose specifiers do not fit the arguments (a wrong type or
+    /// count) never reaches `String(format:)`: it is rendered with every argument as text
+    /// instead (see `OasesFormat`), so a localization mistake cannot crash the app.
     public static func localizedFormat(
         _ source: String,
         language: AppLanguage? = nil,
         _ arguments: CVarArg...
     ) -> String {
         let language = language ?? preferredLanguage
-        return String(
-            format: localized(source, language: language),
+        return OasesFormat.format(
+            localized(source, language: language),
             locale: language.locale,
             arguments: arguments
         )
+    }
+}
+
+/// `String(format:)` with a type check of the arguments against the specifiers.
+public enum OasesFormat {
+    /// One conversion in a format string.
+    public struct Specifier: Equatable, Sendable {
+        public enum Kind: Equatable, Sendable { case object, integer, floatingPoint, unsupported }
+        public let range: Range<String.Index>
+        /// The argument index (0-based): explicit for `%2$@`, else sequential.
+        public let argument: Int
+        public let kind: Kind
+        public let isPositional: Bool
+    }
+
+    private static let pattern = #"%(?:([1-9][0-9]*)\$)?[-+ #0']*(?:[0-9]+|\*)?(?:\.(?:[0-9]+|\*))?(?:hh|h|ll|l|q|L|z|t|j)?([@dDiuUxXoOfFeEgGaAcCsSpn%])"#
+
+    /// The conversions of `format`, `%%` excluded.
+    public static func specifiers(in format: String) -> [Specifier] {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        var result: [Specifier] = []
+        var next = 0
+        let matches = regex.matches(in: format, range: NSRange(format.startIndex..<format.endIndex, in: format))
+        for match in matches {
+            guard let range = Range(match.range, in: format),
+                  let conversionRange = Range(match.range(at: 2), in: format) else { continue }
+            let conversion = format[conversionRange]
+            if conversion == "%" { continue }
+            let text = format[range]
+            let kind: Specifier.Kind
+            if text.contains("*") {
+                kind = .unsupported
+            } else {
+                switch conversion {
+                case "@": kind = .object
+                case "d", "D", "i", "u", "U", "x", "X", "o", "O", "c": kind = .integer
+                case "f", "F", "e", "E", "g", "G", "a", "A": kind = .floatingPoint
+                default: kind = .unsupported
+                }
+            }
+            if let positionRange = Range(match.range(at: 1), in: format), let position = Int(format[positionRange]) {
+                result.append(Specifier(range: range, argument: position - 1, kind: kind, isPositional: true))
+            } else {
+                result.append(Specifier(range: range, argument: next, kind: kind, isPositional: false))
+                next += 1
+            }
+        }
+        return result
+    }
+
+    /// Whether `arguments` fit the conversions of `format` (types and count).
+    public static func argumentsFit(_ format: String, _ arguments: [CVarArg]) -> Bool {
+        let found = specifiers(in: format)
+        if found.contains(where: \.isPositional) && found.contains(where: { !$0.isPositional }) { return false }
+        for specifier in found {
+            guard specifier.argument < arguments.count else { return false }
+            let argument = arguments[specifier.argument]
+            let isInteger = argument is any BinaryInteger
+            let isFloatingPoint = argument is any BinaryFloatingPoint
+            switch specifier.kind {
+            case .object: if isInteger || isFloatingPoint { return false }
+            case .integer: if !isInteger { return false }
+            case .floatingPoint: if !isFloatingPoint { return false }
+            case .unsupported: return false
+            }
+        }
+        return true
+    }
+
+    public static func format(_ format: String, locale: Locale, arguments: [CVarArg]) -> String {
+        if argumentsFit(format, arguments) {
+            return String(format: format, locale: locale, arguments: arguments)
+        }
+        // Every conversion becomes its argument as text; a missing argument is empty.
+        var text = ""
+        var cursor = format.startIndex
+        for specifier in specifiers(in: format) {
+            text += format[cursor..<specifier.range.lowerBound].replacingOccurrences(of: "%%", with: "%")
+            if specifier.argument < arguments.count {
+                text += String(describing: arguments[specifier.argument])
+            }
+            cursor = specifier.range.upperBound
+        }
+        text += format[cursor...].replacingOccurrences(of: "%%", with: "%")
+        return text
     }
 }

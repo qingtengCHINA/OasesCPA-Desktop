@@ -125,7 +125,7 @@ struct OAuthView: View {
             Button("取消", role: .cancel) {}
         } message: {
             Text(
-                "浏览器完成授权后，App 会把新 API Key 直接写入「\(deploymentStore.targetTitle)」的 \(RuntimeOpenRouterOAuth.providerName) Provider。若该专用 Provider 已存在，其密钥将被替换；API Key 不会存入 App 偏好设置或显示在界面中。"
+                OasesLocalization.localizedFormat("浏览器完成授权后，App 会把新 API Key 直接写入「%@」的 %@ Provider。若该专用 Provider 已存在，其密钥将被替换；API Key 不会存入 App 偏好设置或显示在界面中。", deploymentStore.targetTitle, RuntimeOpenRouterOAuth.providerName)
             )
         }
     }
@@ -619,17 +619,17 @@ struct OAuthView: View {
             )
             guard !Task.isCancelled else { return }
 
-            let action = result.disposition == .created ? "已创建" : "已更新"
+            let action = result.disposition == .created ? OasesLocalization.localized("已创建") : OasesLocalization.localized("已更新")
             let modelSummary: String
             if modelCatalog.didLoad {
-                modelSummary = "已同步 \(result.modelCount) 个模型映射。"
+                modelSummary = OasesLocalization.localizedFormat("已同步 %lld 个模型映射。", result.modelCount)
             } else if result.preservedExistingModels {
                 modelSummary = "OpenRouter 模型目录暂不可读，已保留原有模型映射。"
             } else {
                 modelSummary = "OpenRouter 模型目录暂不可读；请在「AI Providers」补充模型映射。"
             }
             openRouterOAuth.complete(
-                message: "\(action)当前目标的 OpenRouter Provider；\(modelSummary)"
+                message: OasesLocalization.localizedFormat("%@当前目标的 OpenRouter Provider；%@", action, modelSummary)
             )
         } catch {
             guard !Task.isCancelled else { return }

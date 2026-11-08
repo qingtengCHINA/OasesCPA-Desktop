@@ -231,7 +231,7 @@ struct SystemInfoView: View {
     private func modelDirectoryStatus(groups: [SystemModelDirectoryGroup]) -> some View {
         HStack(spacing: 12) {
             StatusPill(
-                title: "\(runtimeDataStore.gatewayModels.count) 个模型",
+                title: OasesLocalization.localizedFormat("%lld 个模型", runtimeDataStore.gatewayModels.count),
                 tint: runtimeDataStore.gatewayModels.isEmpty ? .oasesOrange : .oasesGreen,
                 systemImage: "cpu"
             )
@@ -403,7 +403,7 @@ struct SystemInfoView: View {
             HStack {
                 StatusPill(title: migration.status ?? "未知", tint: migration.status == "completed" ? .oasesGreen : .oasesOrange)
                 Spacer()
-                Text("已处理 \(migration.processedRows?.formatted() ?? "暂无") 行")
+                Text(OasesLocalization.localizedFormat("已处理 %@ 行", migration.processedRows?.formatted() ?? OasesLocalization.localized("暂无")))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

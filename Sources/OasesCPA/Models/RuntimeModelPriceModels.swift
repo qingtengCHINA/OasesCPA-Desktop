@@ -317,7 +317,7 @@ struct RuntimeModelPriceDraft: Equatable, Sendable {
         for (label, raw) in values {
             let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             guard trimmed.isEmpty || (Self.number(from: trimmed).map { $0 >= 0 } == true) else {
-                return "\(label)价格必须是大于或等于 0 的有效数字。"
+                return OasesLocalization.localizedFormat("%@价格必须是大于或等于 0 的有效数字。", label)
             }
         }
         return nil

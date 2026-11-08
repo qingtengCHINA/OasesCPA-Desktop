@@ -46,7 +46,7 @@ struct PluginsView: View {
             titleVisibility: .visible
         ) {
             if let plugin = deletingPlugin {
-                Button("删除 \(plugin.displayTitle)", role: .destructive) {
+                Button(OasesLocalization.localizedFormat("删除 %@", plugin.displayTitle), role: .destructive) {
                     delete(plugin)
                     deletingPlugin = nil
                 }
@@ -191,7 +191,7 @@ struct PluginsView: View {
             HStack(alignment: .center, spacing: 12) {
                 CardTitle(
                     title: "已安装与已发现插件",
-                    subtitle: "\(catalog.plugins.count) 个条目 · 启停与配置直连当前目标",
+                    subtitle: OasesLocalization.localizedFormat("%lld 个条目 · 启停与配置直连当前目标", catalog.plugins.count),
                     icon: "puzzlepiece.extension"
                 )
                 Spacer()
@@ -267,7 +267,7 @@ struct PluginsView: View {
                     using: deploymentStore
                 )
             } catch {
-                operationErrorMessage = "更新 \(plugin.displayTitle) 状态失败：\(error.localizedDescription)"
+                operationErrorMessage = OasesLocalization.localizedFormat("更新 %@ 状态失败：%@", plugin.displayTitle, error.localizedDescription)
             }
         }
     }
@@ -282,10 +282,10 @@ struct PluginsView: View {
                     using: deploymentStore
                 )
                 if result.restartRequired {
-                    restartNotice = "CLIProxyAPI 已要求重启后才能完成 \(plugin.displayTitle) 的删除。请从“连接与部署”停止并重新启动当前目标后重试。"
+                    restartNotice = OasesLocalization.localizedFormat("CLIProxyAPI 已要求重启后才能完成 %@ 的删除。请从“连接与部署”停止并重新启动当前目标后重试。", plugin.displayTitle)
                 }
             } catch {
-                operationErrorMessage = "删除 \(plugin.displayTitle) 失败：\(error.localizedDescription)"
+                operationErrorMessage = OasesLocalization.localizedFormat("删除 %@ 失败：%@", plugin.displayTitle, error.localizedDescription)
             }
         }
     }
@@ -427,7 +427,7 @@ private struct RuntimePluginRow: View {
 
             VStack(alignment: .trailing, spacing: 10) {
                 Toggle(
-                    "启用 \(plugin.displayTitle)",
+                    OasesLocalization.localizedFormat("启用 %@", plugin.displayTitle),
                     isOn: Binding(
                         get: { plugin.enabled },
                         set: { onToggle($0) }
@@ -482,8 +482,8 @@ private struct RuntimePluginRow: View {
         if !plugin.path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { parts.append("已发现") }
         if plugin.configured { parts.append("已配置") }
         if plugin.registered { parts.append("已注册") }
-        if !plugin.configFields.isEmpty { parts.append("\(plugin.configFields.count) 个配置字段") }
-        if !plugin.menus.isEmpty { parts.append("\(plugin.menus.count) 个菜单") }
+        if !plugin.configFields.isEmpty { parts.append(OasesLocalization.localizedFormat("%lld 个配置字段", plugin.configFields.count)) }
+        if !plugin.menus.isEmpty { parts.append(OasesLocalization.localizedFormat("%lld 个菜单", plugin.menus.count)) }
         return parts
     }
 }

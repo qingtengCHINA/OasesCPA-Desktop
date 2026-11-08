@@ -567,7 +567,7 @@ struct ChannelHealthCard: View {
                             Text(channelTitle(channel))
                                 .font(.callout.weight(.medium))
                                 .lineLimit(1)
-                            Text("调用 \(channel.calls.formatted()) · 失败 \(channel.failures.formatted())")
+                            Text(OasesLocalization.localizedFormat("调用 %@ · 失败 %@", channel.calls.formatted(), channel.failures.formatted()))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)

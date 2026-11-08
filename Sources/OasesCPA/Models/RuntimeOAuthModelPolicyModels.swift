@@ -190,20 +190,20 @@ enum RuntimeOAuthModelPolicyValidator {
         for (index, entry) in aliases.enumerated() {
             let normalized = entry.normalized()
             guard !normalized.name.isEmpty, !normalized.alias.isEmpty else {
-                return "第 \(index + 1) 条模型别名缺少上游模型或客户端模型 ID。"
+                return OasesLocalization.localizedFormat("第 %lld 条模型别名缺少上游模型或客户端模型 ID。", index + 1)
             }
             guard !normalized.name.contains(where: { $0.isNewline }),
                   !normalized.alias.contains(where: { $0.isNewline }),
                   normalized.name.count <= 512,
                   normalized.alias.count <= 512 else {
-                return "第 \(index + 1) 条模型 ID 格式无效。"
+                return OasesLocalization.localizedFormat("第 %lld 条模型 ID 格式无效。", index + 1)
             }
             guard normalized.name.caseInsensitiveCompare(normalized.alias) != .orderedSame else {
-                return "第 \(index + 1) 条模型别名不能与上游模型 ID 相同。"
+                return OasesLocalization.localizedFormat("第 %lld 条模型别名不能与上游模型 ID 相同。", index + 1)
             }
             let aliasKey = normalized.alias.lowercased()
             guard seenAliases.insert(aliasKey).inserted else {
-                return "客户端模型 ID “\(normalized.alias)” 在当前渠道中重复。"
+                return OasesLocalization.localizedFormat("客户端模型 ID “%@” 在当前渠道中重复。", normalized.alias)
             }
         }
         return nil

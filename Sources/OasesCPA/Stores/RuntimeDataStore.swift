@@ -914,7 +914,7 @@ final class RuntimeDataStore: ObservableObject {
                     managementKey: managementKey
                 ).rules
             } catch {
-                failures.append("模型排除规则：\(error.localizedDescription)")
+                failures.append(OasesLocalization.localizedFormat("模型排除规则：%@", error.localizedDescription))
             }
 
             guard !Task.isCancelled else { return }
@@ -925,7 +925,7 @@ final class RuntimeDataStore: ObservableObject {
                     managementKey: managementKey
                 ).aliases
             } catch {
-                failures.append("模型别名：\(error.localizedDescription)")
+                failures.append(OasesLocalization.localizedFormat("模型别名：%@", error.localizedDescription))
             }
 
             guard !Task.isCancelled,
@@ -2462,7 +2462,7 @@ final class RuntimeDataStore: ObservableObject {
                     modelCount: modelCount,
                     statusCode: response.statusCode,
                     durationMilliseconds: providerConnectivityDuration(since: startedAt),
-                    message: "已发现 \(modelCount) 个可用模型。"
+                    message: OasesLocalization.localizedFormat("已发现 %lld 个可用模型。", modelCount)
                 )
             } catch {
                 if Task.isCancelled {
@@ -2494,7 +2494,7 @@ final class RuntimeDataStore: ObservableObject {
                 status: .failed,
                 statusCode: lastStatusCode,
                 durationMilliseconds: duration,
-                message: "上游返回 HTTP \(lastStatusCode)。"
+                message: OasesLocalization.localizedFormat("上游返回 HTTP %lld。", lastStatusCode)
             )
         }
         return RuntimeProviderConnectivityResult(

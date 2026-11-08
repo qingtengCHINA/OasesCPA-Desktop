@@ -83,7 +83,7 @@ struct AuthFilesWorkbenchView: View {
             defaultFilename: exportFileName
         ) { result in
             if case .failure(let error) = result {
-                operationError = "导出认证文件失败：\(error.localizedDescription)"
+                operationError = OasesLocalization.localizedFormat("导出认证文件失败：%@", error.localizedDescription)
             }
         }
         .confirmationDialog(
@@ -104,7 +104,7 @@ struct AuthFilesWorkbenchView: View {
             titleVisibility: .visible
         ) {
             if let name = pendingImportName {
-                Button("替换 \(name)", role: .destructive) {
+                Button(OasesLocalization.localizedFormat("替换 %@", name), role: .destructive) {
                     guard let data = pendingImportData else { return }
                     pendingImportName = nil
                     pendingImportData = nil
@@ -429,7 +429,7 @@ struct AuthFilesWorkbenchView: View {
                 exportFileName = file.name
                 exportingFile = true
             } catch {
-                operationError = "读取认证文件失败：\(error.localizedDescription)"
+                operationError = OasesLocalization.localizedFormat("读取认证文件失败：%@", error.localizedDescription)
             }
         }
     }
@@ -437,7 +437,7 @@ struct AuthFilesWorkbenchView: View {
     private func handleImport(_ result: Result<[URL], Error>) {
         switch result {
         case .failure(let error):
-            operationError = "选择认证文件失败：\(error.localizedDescription)"
+            operationError = OasesLocalization.localizedFormat("选择认证文件失败：%@", error.localizedDescription)
         case .success(let urls):
             guard let url = urls.first else { return }
             let accessed = url.startAccessingSecurityScopedResource()
@@ -459,7 +459,7 @@ struct AuthFilesWorkbenchView: View {
                     uploadImportedFile(name: name, data: canonicalData)
                 }
             } catch {
-                operationError = "导入认证文件失败：\(error.localizedDescription)"
+                operationError = OasesLocalization.localizedFormat("导入认证文件失败：%@", error.localizedDescription)
             }
         }
     }
@@ -470,7 +470,7 @@ struct AuthFilesWorkbenchView: View {
                 try await runtimeDataStore.uploadAuthFile(name: name, data: data, using: deploymentStore)
                 await refresh()
             } catch {
-                operationError = "保存导入文件失败：\(error.localizedDescription)"
+                operationError = OasesLocalization.localizedFormat("保存导入文件失败：%@", error.localizedDescription)
             }
         }
     }

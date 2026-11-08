@@ -588,6 +588,6 @@ private struct WelcomeProgressView: View {
         .frame(height: 8)
         .accessibilityElement()
         .accessibilityLabel("欢迎引导进度")
-        .accessibilityValue("第 \(currentPage + 1) 页，共 \(pageCount) 页")
+        .accessibilityValue(OasesLocalization.localizedFormat("第 %lld 页，共 %lld 页", currentPage + 1, pageCount))
     }
 }

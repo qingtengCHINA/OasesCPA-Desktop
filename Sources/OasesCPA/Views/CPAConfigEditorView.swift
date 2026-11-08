@@ -25,7 +25,7 @@ struct CPAConfigEditorView: View {
             Form {
                 Section {
                     HStack(spacing: 10) {
-                        Label("当前目标：\(deploymentStore.targetTitle)", systemImage: "server.rack")
+                        Label(OasesLocalization.localizedFormat("当前目标：%@", deploymentStore.targetTitle), systemImage: "server.rack")
                         Spacer()
                         if isLoading || runtimeDataStore.isLoadingCPAConfig {
                             ProgressView()
@@ -173,7 +173,7 @@ struct CPAConfigEditorView: View {
             defaultFilename: exportFileName
         ) { result in
             if case .failure(let error) = result {
-                errorMessage = "导出 config.yaml 失败：\(error.localizedDescription)"
+                errorMessage = OasesLocalization.localizedFormat("导出 config.yaml 失败：%@", error.localizedDescription)
             }
         }
     }
@@ -256,7 +256,7 @@ struct CPAConfigEditorView: View {
     private func handleImport(_ result: Result<[URL], Error>) {
         switch result {
         case .failure(let error):
-            errorMessage = "导入 config.yaml 失败：\(error.localizedDescription)"
+            errorMessage = OasesLocalization.localizedFormat("导入 config.yaml 失败：%@", error.localizedDescription)
         case .success(let urls):
             guard let url = urls.first else { return }
             let accessed = url.startAccessingSecurityScopedResource()
@@ -275,7 +275,7 @@ struct CPAConfigEditorView: View {
                 isDirty = true
                 errorMessage = nil
             } catch {
-                errorMessage = "导入 config.yaml 失败：\(error.localizedDescription)"
+                errorMessage = OasesLocalization.localizedFormat("导入 config.yaml 失败：%@", error.localizedDescription)
             }
         }
     }

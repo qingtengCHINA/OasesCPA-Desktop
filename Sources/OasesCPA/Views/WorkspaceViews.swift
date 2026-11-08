@@ -111,12 +111,12 @@ struct UsageAnalyticsView: View {
         }
 
         let cachedShare = dashboard.tokenMix?.first(where: { $0.key == "cached" || $0.key == "cache_read" })?.share
-        let latency = dashboard.today.averageLatencyMs.map { String(format: "%.1f 秒", $0 / 1_000) } ?? "暂无"
+        let latency = dashboard.today.averageLatencyMs.map { OasesLocalization.localizedFormat("%.1f 秒", $0 / 1_000) } ?? OasesLocalization.localized("暂无")
         return [
-            .init(title: "总 Token", value: compactToken(Double(dashboard.today.totalTokens)), caption: "\(range.title)累计", systemImage: "number", tint: .oasesBlue),
-            .init(title: "预估成本", value: dashboard.today.totalCost.formatted(.currency(code: "USD")), caption: "\(range.title) · 当前计价模型", systemImage: "dollarsign.circle", tint: .oasesOrange),
+            .init(title: "总 Token", value: compactToken(Double(dashboard.today.totalTokens)), caption: OasesLocalization.localizedFormat("%@累计", range.title), systemImage: "number", tint: .oasesBlue),
+            .init(title: "预估成本", value: dashboard.today.totalCost.formatted(.currency(code: "USD")), caption: OasesLocalization.localizedFormat("%@ · 当前计价模型", range.title), systemImage: "dollarsign.circle", tint: .oasesOrange),
             .init(title: "缓存占比", value: cachedShare?.formatted(.percent.precision(.fractionLength(1))) ?? "暂无", caption: "摘要返回的 Token 构成", systemImage: "externaldrive.fill", tint: .oasesMint),
-            .init(title: "平均延迟", value: latency, caption: "零 Token \(dashboard.today.zeroTokenCalls.formatted()) 次", systemImage: "timer", tint: .oasesPurple)
+            .init(title: "平均延迟", value: latency, caption: OasesLocalization.localizedFormat("零 Token %@ 次", dashboard.today.zeroTokenCalls.formatted()), systemImage: "timer", tint: .oasesPurple)
         ]
     }
 
@@ -526,7 +526,7 @@ struct MonitoringView: View {
             parts.append("已应用搜索")
         }
         if let total = runtimeDataStore.monitoringEventsTotalCount {
-            parts.append("共 \(total.formatted()) 条")
+            parts.append(OasesLocalization.localizedFormat("共 %@ 条", total.formatted()))
         }
         return parts.joined(separator: " · ")
     }
@@ -544,9 +544,9 @@ struct MonitoringView: View {
 
     private var eventCountCaption: String {
         guard let total = runtimeDataStore.monitoringEventsTotalCount else {
-            return "已加载 \(runtimeDataStore.monitoringEvents.count.formatted()) 条"
+            return OasesLocalization.localizedFormat("已加载 %@ 条", runtimeDataStore.monitoringEvents.count.formatted())
         }
-        return "已加载 \(runtimeDataStore.monitoringEvents.count.formatted()) / \(total.formatted()) 条"
+        return OasesLocalization.localizedFormat("已加载 %@ / %@ 条", runtimeDataStore.monitoringEvents.count.formatted(), total.formatted())
     }
 
     private var metrics: [MetricSummary] {
@@ -558,12 +558,12 @@ struct MonitoringView: View {
                 .init(title: "预估花费", value: "暂无", caption: "连接后读取", systemImage: "dollarsign.circle", tint: .oasesOrange)
             ]
         }
-        let latency = dashboard.today.averageLatencyMs.map { String(format: "%.1f 秒", $0 / 1_000) } ?? "暂无"
+        let latency = dashboard.today.averageLatencyMs.map { OasesLocalization.localizedFormat("%.1f 秒", $0 / 1_000) } ?? OasesLocalization.localized("暂无")
         return [
-            .init(title: "总调用", value: dashboard.today.totalCalls.formatted(), caption: "\(range.title)累计", systemImage: "arrow.down.circle", tint: .oasesBlue),
-            .init(title: "调用成功率", value: dashboard.today.successRate.formatted(.percent.precision(.fractionLength(2))), caption: "平均 \(latency)", systemImage: "checkmark.circle", tint: .oasesGreen),
-            .init(title: "失败总数", value: dashboard.today.failureCalls.formatted(), caption: "最近失败 \(dashboard.recentFailures?.count ?? 0) 条", systemImage: "xmark.circle", tint: .oasesRed),
-            .init(title: "预估花费", value: dashboard.today.totalCost.formatted(.currency(code: "USD")), caption: "\(range.title) · 当前计价模型", systemImage: "dollarsign.circle", tint: .oasesOrange)
+            .init(title: "总调用", value: dashboard.today.totalCalls.formatted(), caption: OasesLocalization.localizedFormat("%@累计", range.title), systemImage: "arrow.down.circle", tint: .oasesBlue),
+            .init(title: "调用成功率", value: dashboard.today.successRate.formatted(.percent.precision(.fractionLength(2))), caption: OasesLocalization.localizedFormat("平均 %@", latency), systemImage: "checkmark.circle", tint: .oasesGreen),
+            .init(title: "失败总数", value: dashboard.today.failureCalls.formatted(), caption: OasesLocalization.localizedFormat("最近失败 %lld 条", dashboard.recentFailures?.count ?? 0), systemImage: "xmark.circle", tint: .oasesRed),
+            .init(title: "预估花费", value: dashboard.today.totalCost.formatted(.currency(code: "USD")), caption: OasesLocalization.localizedFormat("%@ · 当前计价模型", range.title), systemImage: "dollarsign.circle", tint: .oasesOrange)
         ]
     }
 
@@ -624,7 +624,7 @@ struct MonitoringEventRow: View {
 
                 MonitoringEventDetail(
                     title: "Token",
-                    value: "输入 \(event.inputTokens.formatted()) · 输出 \(event.outputTokens.formatted()) · 总计 \(event.totalTokens.formatted())"
+                    value: OasesLocalization.localizedFormat("输入 %@ · 输出 %@ · 总计 %@", event.inputTokens.formatted(), event.outputTokens.formatted(), event.totalTokens.formatted())
                 )
                 MonitoringEventDetail(
                     title: "耗时",
@@ -702,14 +702,14 @@ struct MonitoringEventRow: View {
     }
 
     private var latencyTitle: String {
-        guard let latency = event.latencyMs else { return "暂无" }
-        return String(format: "%.1f 秒", Double(latency) / 1_000)
+        guard let latency = event.latencyMs else { return OasesLocalization.localized("暂无") }
+        return OasesLocalization.localizedFormat("%.1f 秒", Double(latency) / 1_000)
     }
 
     private var latencyDetail: String {
-        var parts = ["总耗时 \(latencyTitle)"]
+        var parts = [OasesLocalization.localizedFormat("总耗时 %@", latencyTitle)]
         if let ttft = event.ttftMs {
-            parts.append("首字节 \(String(format: "%.1f 秒", Double(ttft) / 1_000))")
+            parts.append(OasesLocalization.localizedFormat("首字节 %@", OasesLocalization.localizedFormat("%.1f 秒", Double(ttft) / 1_000)))
         }
         return parts.joined(separator: " · ")
     }
@@ -914,7 +914,7 @@ struct MonitoringAccountHistoryCard: View {
         HStack(alignment: .top, spacing: 9) {
             Image(systemName: "checkmark.circle.fill")
                 .foregroundStyle(Color.oasesGreen)
-            Text("本次已在当前 CPAMP 本地监控数据库中补齐 \(checkpoint.processed.formatted()) 条记录的聚合。")
+            Text(OasesLocalization.localizedFormat("本次已在当前 CPAMP 本地监控数据库中补齐 %@ 条记录的聚合。", checkpoint.processed.formatted()))
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer(minLength: 0)
@@ -927,7 +927,7 @@ struct MonitoringAccountHistoryCard: View {
         _ checkpoint: RuntimeMonitoringAccountHistoryCheckpoint
     ) -> String {
         if checkpoint.processed > 0 {
-            return "仍有监控记录待汇总；本次已处理 \(checkpoint.processed.formatted()) 条，当前聚合可能尚不完整。"
+            return OasesLocalization.localizedFormat("仍有监控记录待汇总；本次已处理 %@ 条，当前聚合可能尚不完整。", checkpoint.processed.formatted())
         }
         return "CPAMP 仍有监控记录待汇总，当前聚合可能不完整。确认“补齐历史汇总”后，最多处理 5,000 条本地记录。"
     }
@@ -944,7 +944,7 @@ struct MonitoringAccountHistoryRow: View {
                     if item.matched {
                         MonitoringEventDetail(
                             title: "调用",
-                            value: "总计 \(item.totalRequests.formatted()) · 成功 \(item.successCalls.formatted()) · 失败 \(item.failureCalls.formatted())"
+                            value: OasesLocalization.localizedFormat("总计 %@ · 成功 %@ · 失败 %@", item.totalRequests.formatted(), item.successCalls.formatted(), item.failureCalls.formatted())
                         )
                         MonitoringEventDetail(
                             title: "Token",
@@ -1047,7 +1047,7 @@ struct MonitoringAccountHistoryRow: View {
         guard let item = entry.item, item.matched else {
             return "暂无"
         }
-        return "调用 \(item.totalRequests.formatted())"
+        return OasesLocalization.localizedFormat("调用 %@", item.totalRequests.formatted())
     }
 
     private var summarySubtitle: String {
@@ -1148,7 +1148,7 @@ struct MonitoringHeaderSnapshotRow: View {
                         .font(.caption.weight(.semibold))
                         .lineLimit(1)
                     if let recoveryTime {
-                        Text("恢复 \(recoveryTime)")
+                        Text(OasesLocalization.localizedFormat("恢复 %@", recoveryTime))
                             .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -1193,7 +1193,7 @@ struct MonitoringHeaderSnapshotRow: View {
             return errorTitle
         }
         if let quota = snapshot.quotaUsedPercentTitle {
-            return "额度已用 \(quota)"
+            return OasesLocalization.localizedFormat("额度已用 %@", quota)
         }
         return "已记录响应信号"
     }
@@ -1264,7 +1264,7 @@ struct ProvidersView: View {
             titleVisibility: .visible
         ) {
             if let provider = deletingProvider {
-                Button("删除 \(provider.name)", role: .destructive) {
+                Button(OasesLocalization.localizedFormat("删除 %@", provider.name), role: .destructive) {
                     Task {
                         do {
                             try await runtimeDataStore.deleteOpenAICompatibility(
@@ -1305,7 +1305,7 @@ struct ProvidersView: View {
                                     VStack(alignment: .leading, spacing: 3) {
                                         Text(channelTitle(channel))
                                             .font(.subheadline.weight(.semibold))
-                                        Text("调用 \(channel.calls.formatted()) · 失败 \(channel.failures.formatted()) · Token \(compactToken(Double(channel.tokens)))")
+                                        Text(OasesLocalization.localizedFormat("调用 %@ · 失败 %@ · Token %@", channel.calls.formatted(), channel.failures.formatted(), compactToken(Double(channel.tokens))))
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
@@ -1452,9 +1452,9 @@ struct ProvidersView: View {
     }
 
     private func summary(for provider: RuntimeOpenAICompatibility) -> String {
-        let keySummary = provider.apiKeyEntries.isEmpty ? "无密钥" : "密钥 \(provider.apiKeyEntries.count) 个"
-        let modelSummary = provider.models.isEmpty ? "跟随上游模型" : "模型映射 \(provider.models.count) 个"
-        let prefixSummary = provider.prefix.isEmpty ? "无前缀" : "前缀 \(provider.prefix)"
+        let keySummary = provider.apiKeyEntries.isEmpty ? "无密钥" : OasesLocalization.localizedFormat("密钥 %lld 个", provider.apiKeyEntries.count)
+        let modelSummary = provider.models.isEmpty ? "跟随上游模型" : OasesLocalization.localizedFormat("模型映射 %lld 个", provider.models.count)
+        let prefixSummary = provider.prefix.isEmpty ? "无前缀" : OasesLocalization.localizedFormat("前缀 %@", provider.prefix)
         return "\(keySummary) · \(modelSummary) · \(prefixSummary)"
     }
 
@@ -1541,9 +1541,9 @@ struct AuthFilesView: View {
                 }
 
                 HStack(spacing: 12) {
-                    StatusPill(title: "\(runtimeDataStore.authFiles.count) 个认证文件", tint: .oasesBlue, systemImage: "folder")
-                    StatusPill(title: "\(healthyCount) 个健康", tint: .oasesGreen, systemImage: "checkmark.circle")
-                    StatusPill(title: "\(attentionCount) 个需关注", tint: .oasesOrange, systemImage: "exclamationmark.triangle")
+                    StatusPill(title: OasesLocalization.localizedFormat("%lld 个认证文件", runtimeDataStore.authFiles.count), tint: .oasesBlue, systemImage: "folder")
+                    StatusPill(title: OasesLocalization.localizedFormat("%lld 个健康", healthyCount), tint: .oasesGreen, systemImage: "checkmark.circle")
+                    StatusPill(title: OasesLocalization.localizedFormat("%lld 个需关注", attentionCount), tint: .oasesOrange, systemImage: "exclamationmark.triangle")
                 }
 
                 if deploymentStore.stage != .attached {
@@ -1631,7 +1631,7 @@ struct AuthFilesView: View {
             defaultFilename: exportFileName
         ) { result in
             if case .failure(let error) = result {
-                operationErrorMessage = "导出认证文件失败：\(error.localizedDescription)"
+                operationErrorMessage = OasesLocalization.localizedFormat("导出认证文件失败：%@", error.localizedDescription)
             }
         }
         .confirmationDialog(
@@ -1640,7 +1640,7 @@ struct AuthFilesView: View {
             titleVisibility: .visible
         ) {
             if let file = deletingFile {
-                Button("删除 \(file.name)", role: .destructive) {
+                Button(OasesLocalization.localizedFormat("删除 %@", file.name), role: .destructive) {
                     deleteFile(file)
                     deletingFile = nil
                 }
@@ -1655,7 +1655,7 @@ struct AuthFilesView: View {
             titleVisibility: .visible
         ) {
             if let name = pendingImportName {
-                Button("替换 \(name)", role: .destructive) {
+                Button(OasesLocalization.localizedFormat("替换 %@", name), role: .destructive) {
                     uploadPendingImport()
                 }
             }
@@ -1685,7 +1685,7 @@ struct AuthFilesView: View {
                 exportFileName = file.name
                 exportingFile = true
             } catch {
-                operationErrorMessage = "读取认证文件失败：\(error.localizedDescription)"
+                operationErrorMessage = OasesLocalization.localizedFormat("读取认证文件失败：%@", error.localizedDescription)
             }
         }
     }
@@ -1701,7 +1701,7 @@ struct AuthFilesView: View {
                     using: deploymentStore
                 )
             } catch {
-                operationErrorMessage = "更新认证文件状态失败：\(error.localizedDescription)"
+                operationErrorMessage = OasesLocalization.localizedFormat("更新认证文件状态失败：%@", error.localizedDescription)
             }
         }
     }
@@ -1712,7 +1712,7 @@ struct AuthFilesView: View {
             do {
                 try await runtimeDataStore.deleteAuthFile(file, using: deploymentStore)
             } catch {
-                operationErrorMessage = "删除认证文件失败：\(error.localizedDescription)"
+                operationErrorMessage = OasesLocalization.localizedFormat("删除认证文件失败：%@", error.localizedDescription)
             }
         }
     }
@@ -1720,7 +1720,7 @@ struct AuthFilesView: View {
     private func handleImport(_ result: Result<[URL], Error>) {
         switch result {
         case .failure(let error):
-            operationErrorMessage = "选择认证文件失败：\(error.localizedDescription)"
+            operationErrorMessage = OasesLocalization.localizedFormat("选择认证文件失败：%@", error.localizedDescription)
         case .success(let urls):
             guard let url = urls.first else { return }
             let accessed = url.startAccessingSecurityScopedResource()
@@ -1747,7 +1747,7 @@ struct AuthFilesView: View {
                     uploadImportedFile(name: name, data: canonicalData)
                 }
             } catch {
-                operationErrorMessage = "导入认证文件失败：\(error.localizedDescription)"
+                operationErrorMessage = OasesLocalization.localizedFormat("导入认证文件失败：%@", error.localizedDescription)
             }
         }
     }
@@ -1769,7 +1769,7 @@ struct AuthFilesView: View {
                     using: deploymentStore
                 )
             } catch {
-                operationErrorMessage = "保存导入文件失败：\(error.localizedDescription)"
+                operationErrorMessage = OasesLocalization.localizedFormat("保存导入文件失败：%@", error.localizedDescription)
             }
         }
     }
@@ -1910,7 +1910,7 @@ struct AccountRow: View {
                         .padding(.vertical, 3)
                         .background(Color.oasesBlue.opacity(0.10), in: Capsule())
                 }
-                Text("\(account.plan) · 脱敏状态摘要")
+                Text(OasesLocalization.localizedFormat("%@ · 脱敏状态摘要", account.plan))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1919,7 +1919,7 @@ struct AccountRow: View {
 
             if account.remaining > 0 {
                 VStack(alignment: .trailing, spacing: 6) {
-                    Text("额度剩余 \(account.remaining)%")
+                    Text(OasesLocalization.localizedFormat("额度剩余 %lld%%", account.remaining))
                         .font(.caption.weight(.semibold))
                     ProgressView(value: Double(account.remaining), total: 100)
                         .tint(account.tint)
@@ -2150,7 +2150,7 @@ struct QuotaView: View {
     }
 
     private func resetButtonTitle(for cooldown: RuntimeQuotaCooldown) -> String {
-        "清除 \(cooldown.authFileName) 的冷却"
+        OasesLocalization.localizedFormat("清除 %@ 的冷却", cooldown.authFileName)
     }
 }
 
@@ -2162,9 +2162,9 @@ struct QuotaStatusStrip: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            StatusPill(title: "\(authFileCount) 个认证文件", tint: .oasesBlue, systemImage: "folder")
-            StatusPill(title: "\(cooldownCount) 个冷却中", tint: .oasesOrange, systemImage: "hourglass")
-            StatusPill(title: "\(evidenceCount) 个额度证据", tint: .oasesPurple, systemImage: "chart.bar.xaxis")
+            StatusPill(title: OasesLocalization.localizedFormat("%lld 个认证文件", authFileCount), tint: .oasesBlue, systemImage: "folder")
+            StatusPill(title: OasesLocalization.localizedFormat("%lld 个冷却中", cooldownCount), tint: .oasesOrange, systemImage: "hourglass")
+            StatusPill(title: OasesLocalization.localizedFormat("%lld 个额度证据", evidenceCount), tint: .oasesPurple, systemImage: "chart.bar.xaxis")
             StatusPill(
                 title: stage == .attached ? "已连接目标" : "未连接目标",
                 tint: stage == .attached ? .oasesGreen : .oasesOrange,
@@ -2231,7 +2231,7 @@ struct QuotaCooldownRow: View {
                 Text(cooldownDetail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text("恢复时间：\(cooldown.recoverAt.formatted(date: .abbreviated, time: .shortened)) · \(recoveryHint)")
+                Text(OasesLocalization.localizedFormat("恢复时间：%@ · %@", cooldown.recoverAt.formatted(date: .abbreviated, time: .shortened), recoveryHint))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -2261,10 +2261,10 @@ struct QuotaCooldownRow: View {
 
     private var recoveryHint: String {
         let seconds = cooldown.recoverAt.timeIntervalSinceNow
-        if seconds <= 0 { return "已到恢复时间" }
+        if seconds <= 0 { return OasesLocalization.localized("已到恢复时间") }
         let minutes = Int(ceil(seconds / 60))
-        if minutes < 60 { return "约 \(minutes) 分钟后" }
-        return "约 \(Int(ceil(Double(minutes) / 60))) 小时后"
+        if minutes < 60 { return OasesLocalization.localizedFormat("约 %lld 分钟后", minutes) }
+        return OasesLocalization.localizedFormat("约 %lld 小时后", Int(ceil(Double(minutes) / 60)))
     }
 }
 
@@ -2334,9 +2334,9 @@ struct QuotaEvidenceCard: View {
     }
 
     private var evidenceSummary: String {
-        var parts = ["\(evidence.windows.count) 个窗口"]
+        var parts = [OasesLocalization.localizedFormat("%lld 个窗口", evidence.windows.count)]
         if let plan = evidence.plan, !plan.isEmpty { parts.append(plan) }
-        parts.append("读取于 \(evidence.observedAt.formatted(date: .omitted, time: .shortened))")
+        parts.append(OasesLocalization.localizedFormat("读取于 %@", evidence.observedAt.formatted(date: .omitted, time: .shortened)))
         return parts.joined(separator: " · ")
     }
 }
@@ -2351,7 +2351,7 @@ struct QuotaWindowRow: View {
                     .font(.callout.weight(.semibold))
                 Spacer()
                 if let percent = window.normalizedUsedPercent {
-                        Text("已用 \(percent.formatted(.number.precision(.fractionLength(0))))%")
+                        Text(OasesLocalization.localizedFormat("已用 %@%%", percent.formatted(.number.precision(.fractionLength(0)))))
                             .font(.caption.weight(.semibold))
                         .foregroundStyle(percent >= 90 ? Color.oasesOrange : Color.secondary)
                 } else if let used = window.used, let limit = window.limit {
@@ -2371,15 +2371,15 @@ struct QuotaWindowRow: View {
 
             HStack(spacing: 12) {
                 if let remaining = window.normalizedRemainingPercent {
-                    Text("剩余约 \(remaining.formatted(.number.precision(.fractionLength(0))))%")
+                    Text(OasesLocalization.localizedFormat("剩余约 %@%%", remaining.formatted(.number.precision(.fractionLength(0)))))
                 }
                 if let resetAt = window.resetAt {
-                    Text("重置 \(resetAt.formatted(date: .abbreviated, time: .shortened))")
+                    Text(OasesLocalization.localizedFormat("重置 %@", resetAt.formatted(date: .abbreviated, time: .shortened)))
                 } else if let resetAfter = window.resetAfterSeconds {
-                    Text("约 \(Int(ceil(resetAfter / 60))) 分钟后重置")
+                    Text(OasesLocalization.localizedFormat("约 %lld 分钟后重置", Int(ceil(resetAfter / 60))))
                 }
                 if let seconds = window.limitWindowSeconds, seconds > 0 {
-                    Text("窗口 \(windowLength(seconds))")
+                    Text(OasesLocalization.localizedFormat("窗口 %@", windowLength(seconds)))
                 }
             }
             .font(.caption)
@@ -2390,9 +2390,9 @@ struct QuotaWindowRow: View {
 
     private func windowLength(_ seconds: Double) -> String {
         let hours = seconds / 3_600
-        if hours >= 24 { return "\(Int(hours / 24)) 天" }
-        if hours >= 1 { return "\(Int(hours)) 小时" }
-        return "\(Int(max(1, seconds / 60))) 分钟"
+        if hours >= 24 { return OasesLocalization.localizedFormat("%lld 天", Int(hours / 24)) }
+        if hours >= 1 { return OasesLocalization.localizedFormat("%lld 小时", Int(hours)) }
+        return OasesLocalization.localizedFormat("%lld 分钟", Int(max(1, seconds / 60)))
     }
 }
 
@@ -2412,7 +2412,7 @@ struct QuotaCard: View {
 
             Text(quota.title)
                 .font(.headline)
-            Text("剩余 \(quota.remaining.formatted(.percent.precision(.fractionLength(0))))")
+            Text(OasesLocalization.localizedFormat("剩余 %@", quota.remaining.formatted(.percent.precision(.fractionLength(0)))))
                 .font(.system(size: 27, weight: .bold, design: .rounded))
 
             ProgressView(value: quota.remaining)

@@ -127,7 +127,7 @@ struct PluginOAuthView: View {
         VStack(alignment: .leading, spacing: 14) {
             CardTitle(
                 title: "发起动态插件授权",
-                subtitle: "直接调用当前目标的 /v0/management/\(provider)-auth-url",
+                subtitle: OasesLocalization.localizedFormat("直接调用当前目标的 /v0/management/%@-auth-url", provider),
                 icon: "person.badge.key"
             )
 

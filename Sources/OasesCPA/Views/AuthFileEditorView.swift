@@ -90,7 +90,7 @@ struct AuthFileEditorView: View {
             }
             .safeAreaInset(edge: .bottom) {
                 HStack(spacing: 12) {
-                    Text("目标：\(deploymentStore.targetTitle)")
+                    Text(OasesLocalization.localizedFormat("目标：%@", deploymentStore.targetTitle))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
@@ -135,7 +135,7 @@ struct AuthFileEditorView: View {
             didLoad = true
             errorMessage = nil
         } catch {
-            errorMessage = "读取认证文件失败：\(error.localizedDescription)"
+            errorMessage = OasesLocalization.localizedFormat("读取认证文件失败：%@", error.localizedDescription)
             didLoad = true
         }
     }
@@ -167,7 +167,7 @@ struct AuthFileEditorView: View {
                 )
                 dismiss()
             } catch {
-                errorMessage = "保存认证文件失败：\(error.localizedDescription)"
+                errorMessage = OasesLocalization.localizedFormat("保存认证文件失败：%@", error.localizedDescription)
             }
             isSaving = false
         }

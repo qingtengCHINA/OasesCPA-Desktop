@@ -44,17 +44,17 @@ enum ManagementAPIError: LocalizedError {
             let detail = message.trimmingCharacters(in: .whitespacesAndNewlines)
             return detail.isEmpty
                 ? OasesLocalization.localized("当前操作需要重启目标服务后再继续。")
-                : "当前操作需要重启目标服务后再继续：\(detail)"
+                : OasesLocalization.localizedFormat("当前操作需要重启目标服务后再继续：%@", detail)
         case .configConflict:
             return OasesLocalization.localized("配置已被其他人修改，请重新加载。")
         case .managerConfigConflict:
             return OasesLocalization.localized("CPAMP 设置已被其他人修改，请重新读取后再保存。")
         case .server(let status, let message):
-            return "当前目标管理 API 返回 HTTP \(status)：\(message)"
+            return OasesLocalization.localizedFormat("当前目标管理 API 返回 HTTP %lld：%@", status, message)
         case .invalidResponse:
             return OasesLocalization.localized("当前目标管理 API 返回了无法解析的数据。")
         case .decoding(let detail):
-            return "当前目标管理 API 响应格式不兼容：\(detail)"
+            return OasesLocalization.localizedFormat("当前目标管理 API 响应格式不兼容：%@", detail)
         }
     }
 }

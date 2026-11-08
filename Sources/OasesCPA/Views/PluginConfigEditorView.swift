@@ -36,7 +36,7 @@ struct PluginConfigEditorView: View {
                 } header: {
                     Text("当前目标插件")
                 } footer: {
-                    Text("保存会完整替换当前目标 plugins.configs.\(plugin.id) 的 JSON 对象。")
+                    Text(OasesLocalization.localizedFormat("保存会完整替换当前目标 plugins.configs.%@ 的 JSON 对象。", plugin.id))
                 }
 
                 if !plugin.configFields.isEmpty {
@@ -51,7 +51,7 @@ struct PluginConfigEditorView: View {
                                         .foregroundStyle(Color.oasesBlue)
                                 }
                                 if !field.enumValues.isEmpty {
-                                    Text("可选值：\(field.enumValues.joined(separator: "、"))")
+                                    Text(OasesLocalization.localizedFormat("可选值：%@", field.enumValues.joined(separator: "、")))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -124,7 +124,7 @@ struct PluginConfigEditorView: View {
             }
             .safeAreaInset(edge: .bottom) {
                 HStack(spacing: 12) {
-                    Text("目标：\(deploymentStore.targetTitle)")
+                    Text(OasesLocalization.localizedFormat("目标：%@", deploymentStore.targetTitle))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
@@ -190,7 +190,7 @@ struct PluginConfigEditorView: View {
             initialContents = text
             didLoad = true
         } catch {
-            errorMessage = "读取插件配置失败：\(error.localizedDescription)"
+            errorMessage = OasesLocalization.localizedFormat("读取插件配置失败：%@", error.localizedDescription)
         }
     }
 
@@ -222,7 +222,7 @@ struct PluginConfigEditorView: View {
                 )
                 dismiss()
             } catch {
-                errorMessage = "保存插件配置失败：\(error.localizedDescription)"
+                errorMessage = OasesLocalization.localizedFormat("保存插件配置失败：%@", error.localizedDescription)
             }
             isSaving = false
         }

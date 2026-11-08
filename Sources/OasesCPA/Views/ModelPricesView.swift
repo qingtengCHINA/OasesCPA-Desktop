@@ -128,12 +128,12 @@ struct ModelPricesView: View {
 
                 HStack(spacing: 12) {
                     StatusPill(
-                        title: "\(configuredCount) 个已计价",
+                        title: OasesLocalization.localizedFormat("%lld 个已计价", configuredCount),
                         tint: configuredCount == 0 ? .oasesOrange : .oasesGreen,
                         systemImage: "dollarsign.circle"
                     )
                     StatusPill(
-                        title: "\(usageByModel.count) 个已调用",
+                        title: OasesLocalization.localizedFormat("%lld 个已调用", usageByModel.count),
                         tint: .oasesBlue,
                         systemImage: "chart.bar"
                     )
@@ -144,7 +144,7 @@ struct ModelPricesView: View {
                     )
                     if missingCount > 0 {
                         StatusPill(
-                            title: "\(missingCount) 个待补价",
+                            title: OasesLocalization.localizedFormat("%lld 个待补价", missingCount),
                             tint: .oasesOrange,
                             systemImage: "exclamationmark.triangle"
                         )
@@ -188,7 +188,7 @@ struct ModelPricesView: View {
                 if let error = runtimeDataStore.modelPriceUsageErrorMessage {
                     InfoBanner(
                         title: "调用次数摘要暂不可用",
-                        message: "已保存的价格仍可管理；当前 CPAMP 版本可能尚未提供轻量 usage-summary 接口。\n\(error)",
+                        message: OasesLocalization.localizedFormat("已保存的价格仍可管理；当前 CPAMP 版本可能尚未提供轻量 usage-summary 接口。\n%@", error),
                         systemImage: "chart.bar.xaxis",
                         tint: .oasesOrange
                     )
@@ -197,7 +197,7 @@ struct ModelPricesView: View {
                 if let error = runtimeDataStore.automaticModelPriceSyncError {
                     InfoBanner(
                         title: "公开价格暂时无法更新",
-                        message: "当前成本继续使用最近一次可用价格，App 稍后会自动重试。\n\(error)",
+                        message: OasesLocalization.localizedFormat("当前成本继续使用最近一次可用价格，App 稍后会自动重试。\n%@", error),
                         systemImage: "arrow.clockwise.circle",
                         tint: .oasesOrange
                     )
@@ -241,10 +241,10 @@ struct ModelPricesView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("当前目标 CPAMP 会为 \(modelsForSync.count) 个已配置或已调用模型查询 models.dev、LiteLLM 和 OpenRouter 公开元数据。同步不会自动覆盖存在歧义的模型，且不会修改 CPA 路由或真实 Provider 账单。")
+            Text(OasesLocalization.localizedFormat("当前目标 CPAMP 会为 %lld 个已配置或已调用模型查询 models.dev、LiteLLM 和 OpenRouter 公开元数据。同步不会自动覆盖存在歧义的模型，且不会修改 CPA 路由或真实 Provider 账单。", modelsForSync.count))
         }
         .confirmationDialog(
-            "删除 \(InternalModelID.publicName(deletingRecord?.modelID ?? "")) 的价格？",
+            OasesLocalization.localizedFormat("删除 %@ 的价格？", InternalModelID.publicName(deletingRecord?.modelID ?? "")),
             isPresented: $deleteConfirmationPresented,
             titleVisibility: .visible
         ) {
@@ -391,7 +391,7 @@ private struct ModelPriceRow: View {
                     Text(row.modelID)
                         .font(.system(.callout, design: .monospaced).weight(.semibold))
                     if row.calls > 0 {
-                        StatusPill(title: "调用 \(row.calls)", tint: .oasesBlue, systemImage: "chart.bar")
+                        StatusPill(title: OasesLocalization.localizedFormat("调用 %lld", row.calls), tint: .oasesBlue, systemImage: "chart.bar")
                     }
                 }
                 Text(OasesLocalization.localized(priceSummary))
@@ -431,9 +431,9 @@ private struct ModelPriceRow: View {
     private var priceSummary: String {
         guard let payload = row.payload else { return "尚未配置本地成本估算" }
         return [
-            "输入 \(Self.price(payload.prompt))",
-            "输出 \(Self.price(payload.completion))",
-            "缓存 \(Self.price(payload.cache))"
+            OasesLocalization.localizedFormat("输入 %@", Self.price(payload.prompt)),
+            OasesLocalization.localizedFormat("输出 %@", Self.price(payload.completion)),
+            OasesLocalization.localizedFormat("缓存 %@", Self.price(payload.cache))
         ]
         .joined(separator: " · ")
     }
@@ -442,15 +442,15 @@ private struct ModelPriceRow: View {
         guard let payload = row.payload else {
             return row.calls > 0 ? "已有调用记录，可同步公开价格或手动补价" : "可添加手动价格"
         }
-        var parts = [payload.source.isEmpty ? "未标记来源" : "来源 \(payload.source)"]
+        var parts = [payload.source.isEmpty ? "未标记来源" : OasesLocalization.localizedFormat("来源 %@", payload.source)]
         if !payload.sourceModelID.isEmpty {
-            parts.append("上游 \(payload.sourceModelID)")
+            parts.append(OasesLocalization.localizedFormat("上游 %@", payload.sourceModelID))
         }
         if payload.contextTierCount > 0 {
-            parts.append("上下文阶梯 \(payload.contextTierCount)")
+            parts.append(OasesLocalization.localizedFormat("上下文阶梯 %lld", payload.contextTierCount))
         }
         if payload.serviceTierCount > 0 {
-            parts.append("服务层级 \(payload.serviceTierCount)")
+            parts.append(OasesLocalization.localizedFormat("服务层级 %lld", payload.serviceTierCount))
         }
         return parts.joined(separator: " · ")
     }
@@ -582,9 +582,9 @@ private struct ModelPriceEditorView: View {
 
     private var saveConfirmationMessage: String {
         if isReplacingSyncedMetadata {
-            return "会把 \(draft.normalizedModelID) 改为手动基础价格，并清除其同步上下文阶梯、服务层级和来源元数据。其它模型价格会在保存前重新读取后保留。"
+            return OasesLocalization.localizedFormat("会把 %@ 改为手动基础价格，并清除其同步上下文阶梯、服务层级和来源元数据。其它模型价格会在保存前重新读取后保留。", draft.normalizedModelID)
         }
-        return "会把 \(draft.normalizedModelID) 的手动基础价格写入当前目标 CPAMP。其它模型价格会在保存前重新读取后保留。"
+        return OasesLocalization.localizedFormat("会把 %@ 的手动基础价格写入当前目标 CPAMP。其它模型价格会在保存前重新读取后保留。", draft.normalizedModelID)
     }
 
     private func save() {
@@ -613,12 +613,12 @@ private struct ModelPriceSyncResultCard: View {
                 )
                 Spacer()
                 StatusPill(
-                    title: "导入 \(result.imported)",
+                    title: OasesLocalization.localizedFormat("导入 %lld", result.imported),
                     tint: result.imported > 0 ? .oasesGreen : .oasesOrange,
                     systemImage: "arrow.down.circle"
                 )
                 if result.skipped > 0 {
-                    StatusPill(title: "跳过 \(result.skipped)", tint: .oasesOrange, systemImage: "forward.end")
+                    StatusPill(title: OasesLocalization.localizedFormat("跳过 %lld", result.skipped), tint: .oasesOrange, systemImage: "forward.end")
                 }
             }
 
@@ -630,7 +630,7 @@ private struct ModelPriceSyncResultCard: View {
                 HStack(spacing: 8) {
                     ForEach(result.sourceResults, id: \.source) { source in
                         StatusPill(
-                            title: source.error == nil ? "\(source.source) \(source.models)" : "\(source.source) 失败",
+                            title: source.error == nil ? "\(source.source) \(source.models)" : OasesLocalization.localizedFormat("%@ 失败", source.source),
                             tint: source.error == nil ? .oasesGreen : .oasesOrange,
                             systemImage: source.error == nil ? "checkmark.circle" : "exclamationmark.triangle"
                         )
@@ -649,18 +649,18 @@ private struct ModelPriceSyncResultCard: View {
     }
 
     private var summary: String {
-        var parts = ["同步 \(result.sources.isEmpty ? "公开目录" : result.sources.joined(separator: "、"))"]
+        var parts = [OasesLocalization.localizedFormat("同步 %@", result.sources.isEmpty ? OasesLocalization.localized("公开目录") : result.sources.joined(separator: "、"))]
         if result.proxyUsed {
             parts.append("使用目标代理")
         }
         if result.candidateSetCount > 0 {
-            parts.append("\(result.candidateSetCount) 组候选待核对")
+            parts.append(OasesLocalization.localizedFormat("%lld 组候选待核对", result.candidateSetCount))
         }
         if !result.unmatchedModels.isEmpty {
-            parts.append("\(result.unmatchedModels.count) 个未匹配")
+            parts.append(OasesLocalization.localizedFormat("%lld 个未匹配", result.unmatchedModels.count))
         }
         if !result.preservedModels.isEmpty {
-            parts.append("保留 \(result.preservedModels.count) 个既有价格")
+            parts.append(OasesLocalization.localizedFormat("保留 %lld 个既有价格", result.preservedModels.count))
         }
         return parts.joined(separator: " · ")
     }

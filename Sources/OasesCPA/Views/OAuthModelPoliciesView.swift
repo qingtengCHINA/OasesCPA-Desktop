@@ -142,14 +142,14 @@ private struct OAuthModelPolicyChannelRow: View {
 
             if excludedModelCount > 0 {
                 StatusPill(
-                    title: "排除 (excludedModelCount)",
+                    title: OasesLocalization.localizedFormat("排除 %lld", excludedModelCount),
                     tint: .oasesOrange,
                     systemImage: "eye.slash"
                 )
             }
             if aliasCount > 0 {
                 StatusPill(
-                    title: "别名 (aliasCount)",
+                    title: OasesLocalization.localizedFormat("别名 %lld", aliasCount),
                     tint: .oasesGreen,
                     systemImage: "arrow.left.arrow.right"
                 )
@@ -169,11 +169,11 @@ private struct OAuthModelPolicyChannelRow: View {
         case (0, 0):
             return "尚未保存具体规则"
         case (0, _):
-            return "(aliasCount) 条客户端模型别名"
+            return OasesLocalization.localizedFormat("%lld 条客户端模型别名", aliasCount)
         case (_, 0):
-            return "(excludedModelCount) 个模型不会对外暴露"
+            return OasesLocalization.localizedFormat("%lld 个模型不会对外暴露", excludedModelCount)
         default:
-            return "(excludedModelCount) 个模型排除 · (aliasCount) 条模型别名"
+            return OasesLocalization.localizedFormat("%lld 个模型排除 · %lld 条模型别名", excludedModelCount, aliasCount)
         }
     }
 }
@@ -446,7 +446,7 @@ private struct OAuthModelPolicyEditorView: View {
                 }
                 Spacer()
                 StatusPill(
-                    title: "(aliases.count) 条别名",
+                    title: OasesLocalization.localizedFormat("%lld 条别名", aliases.count),
                     tint: aliases.isEmpty ? .oasesOrange : .oasesGreen,
                     systemImage: "arrow.left.arrow.right"
                 )
@@ -498,19 +498,19 @@ private struct OAuthModelPolicyEditorView: View {
     }
 
     private var excludedSaveConfirmationMessage: String {
-        let target = normalizedChannel ?? "当前渠道"
+        let target = normalizedChannel ?? OasesLocalization.localized("当前渠道")
         if normalizedExcludedModels.isEmpty {
-            return "这会删除 \(target) 渠道当前保存的模型排除规则。"
+            return OasesLocalization.localizedFormat("这会删除 %@ 渠道当前保存的模型排除规则。", target)
         }
-        return "这会把 \(normalizedExcludedModels.count) 个模型排除规则写入 \(target) 渠道。"
+        return OasesLocalization.localizedFormat("这会把 %lld 个模型排除规则写入 %@ 渠道。", normalizedExcludedModels.count, target)
     }
 
     private var aliasSaveConfirmationMessage: String {
-        let target = normalizedChannel ?? "当前渠道"
+        let target = normalizedChannel ?? OasesLocalization.localized("当前渠道")
         if aliases.isEmpty {
-            return "这会删除 \(target) 渠道当前保存的模型别名规则。"
+            return OasesLocalization.localizedFormat("这会删除 %@ 渠道当前保存的模型别名规则。", target)
         }
-        return "这会把 \(aliases.count) 条模型别名写入 \(target) 渠道。"
+        return OasesLocalization.localizedFormat("这会把 %lld 条模型别名写入 %@ 渠道。", aliases.count, target)
     }
 
     private func addExcludedModel() {

@@ -427,7 +427,7 @@ struct OpenAICompatibilityEditorView: View {
                     }
                     .padding(.top, 12)
                 } label: {
-                    Text("管理 \(models.count) 个模型")
+                    Text(OasesLocalization.localizedFormat("管理 %lld 个模型", models.count))
                         .font(.subheadline.weight(.semibold))
                 }
             }
@@ -978,7 +978,7 @@ private struct ProviderAPIKeyEditorCard: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 ProviderKeyStatusIcon(status: entry.testStatus)
-                Text("密钥 \(number)")
+                Text(OasesLocalization.localizedFormat("密钥 %lld", number))
                     .font(.subheadline.weight(.semibold))
                 SecureField("粘贴完整 API Key", text: $entry.apiKey)
                     .textFieldStyle(.roundedBorder)
@@ -1036,7 +1036,7 @@ private struct ProviderKeyAdvancedFields: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("密钥 \(number)")
+            Text(OasesLocalization.localizedFormat("密钥 %lld", number))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
             LazyVGrid(

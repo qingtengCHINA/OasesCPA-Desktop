@@ -114,7 +114,7 @@ struct LogsView: View {
                 }
                 if let logs = runtimeDataStore.logs {
                     StatusPill(
-                        title: "\(logs.lineCount) 行",
+                        title: OasesLocalization.localizedFormat("%lld 行", logs.lineCount),
                         tint: .oasesBlue,
                         systemImage: "list.number"
                     )

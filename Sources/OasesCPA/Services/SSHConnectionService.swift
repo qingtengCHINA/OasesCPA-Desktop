@@ -96,7 +96,7 @@ enum SSHConnectionError: LocalizedError, Equatable, Sendable {
     var errorDescription: String? {
         switch self {
         case .cannotPrepareKnownHosts(let message):
-            return "无法准备 SSH 主机指纹文件：\(message)"
+            return OasesLocalization.localizedFormat("无法准备 SSH 主机指纹文件：%@", message)
         case .invalidPort:
             return OasesLocalization.localized("SSH 端口必须是 1-65535 之间的数字。")
         case .invalidHost:

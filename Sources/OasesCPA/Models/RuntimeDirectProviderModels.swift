@@ -343,7 +343,7 @@ struct RuntimeDirectProviderCredentialDraft: Equatable, Sendable {
 
         let endpoint = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         if kind.requiresBaseURL && endpoint.isEmpty {
-            return "\(kind.title) 凭证需要填写上游 Base URL。"
+            return OasesLocalization.localizedFormat("%@ 凭证需要填写上游 Base URL。", kind.title)
         }
         if !endpoint.isEmpty && !Self.isHTTPURL(endpoint) {
             return OasesLocalization.localized("Base URL 必须是包含 http 或 https 协议的有效地址。")

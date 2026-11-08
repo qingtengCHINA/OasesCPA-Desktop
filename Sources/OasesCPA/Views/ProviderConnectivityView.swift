@@ -134,7 +134,7 @@ struct ProviderConnectivityCard: View {
                 .oasesIconTile()
 
             VStack(alignment: .leading, spacing: 5) {
-                Text("准备检查 \(preview.targetCount) 个配置")
+                Text(OasesLocalization.localizedFormat("准备检查 %lld 个配置", preview.targetCount))
                     .font(.headline)
                 Text(OasesLocalization.localized(readyStateDetail))
                     .font(.callout)
@@ -149,15 +149,15 @@ struct ProviderConnectivityCard: View {
         if preview.outboundRequestUpperBound == 0 {
             return "现有配置缺少可安全使用的认证信息；开始后只会显示未发起原因。"
         }
-        let skipped = preview.skippedCount > 0 ? "，其中 \(preview.skippedCount) 个只会给出未发起原因" : ""
-        return "将最多发起 \(preview.outboundRequestUpperBound) 次只读模型发现请求\(skipped)。"
+        let skipped = preview.skippedCount > 0 ? OasesLocalization.localizedFormat("，其中 %lld 个只会给出未发起原因", preview.skippedCount) : ""
+        return OasesLocalization.localizedFormat("将最多发起 %lld 次只读模型发现请求%@。", preview.outboundRequestUpperBound, skipped)
     }
 
     private var results: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 StatusPill(
-                    title: "\(completedCount)/\(runtimeDataStore.providerConnectivityResults.count) 已完成",
+                    title: OasesLocalization.localizedFormat("%lld/%lld 已完成", completedCount, runtimeDataStore.providerConnectivityResults.count),
                     tint: runtimeDataStore.isCheckingProviderConnectivity ? .oasesBlue : .oasesGreen,
                     systemImage: runtimeDataStore.isCheckingProviderConnectivity
                         ? "arrow.triangle.2.circlepath"
@@ -165,14 +165,14 @@ struct ProviderConnectivityCard: View {
                 )
                 if successfulCount > 0 {
                     StatusPill(
-                        title: "\(successfulCount) 个可连接",
+                        title: OasesLocalization.localizedFormat("%lld 个可连接", successfulCount),
                         tint: .oasesGreen,
                         systemImage: "checkmark.seal"
                     )
                 }
                 Spacer()
                 if let date = runtimeDataStore.providerConnectivityLastCheckedAt {
-                    Text("最近检查 \(date.formatted(date: .omitted, time: .shortened))")
+                    Text(OasesLocalization.localizedFormat("最近检查 %@", date.formatted(date: .omitted, time: .shortened)))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -195,12 +195,12 @@ struct ProviderConnectivityCard: View {
         for preview: RuntimeProviderConnectivityPreview
     ) -> String {
         guard preview.outboundRequestUpperBound > 0 else {
-            return "当前 \(preview.targetCount) 个配置都缺少可安全使用的认证信息或已被停用。开始后不会发送任何上游请求，只会显示未发起原因。"
+            return OasesLocalization.localizedFormat("当前 %lld 个配置都缺少可安全使用的认证信息或已被停用。开始后不会发送任何上游请求，只会显示未发起原因。", preview.targetCount)
         }
         let skipped = preview.skippedCount > 0
-            ? "另有 \(preview.skippedCount) 个配置不会发起请求。"
+            ? OasesLocalization.localizedFormat("另有 %lld 个配置不会发起请求。", preview.skippedCount)
             : ""
-        return "将为 \(preview.outboundTargetCount) 个配置，最多发送 \(preview.outboundRequestUpperBound) 次 GET /models 请求。不会生成推理调用、保存或显示密钥和原始响应，也不会自动启停或改写 Provider。上游可能记录这类请求。\(skipped)"
+        return OasesLocalization.localizedFormat("将为 %lld 个配置，最多发送 %lld 次 GET /models 请求。不会生成推理调用、保存或显示密钥和原始响应，也不会自动启停或改写 Provider。上游可能记录这类请求。%@", preview.outboundTargetCount, preview.outboundRequestUpperBound, skipped)
     }
 }
 
@@ -245,7 +245,7 @@ private struct ProviderConnectivityResultRow: View {
                 )
                 HStack(spacing: 7) {
                     if let modelCount = result.modelCount {
-                        Text("\(modelCount) 个模型")
+                        Text(OasesLocalization.localizedFormat("%lld 个模型", modelCount))
                     }
                     if let statusCode = result.statusCode {
                         Text("HTTP \(statusCode)")

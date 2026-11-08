@@ -682,7 +682,7 @@ struct ConnectionCenterView: View {
                 TargetFact(title: "权限", value: deploymentStore.targetSummary.access)
             }
 
-            Text("安装目录：\(deploymentStore.installDirectory)")
+            Text(OasesLocalization.localizedFormat("安装目录：%@", deploymentStore.installDirectory))
                 .font(.system(.callout, design: .monospaced))
                 .foregroundStyle(.secondary)
         }
@@ -877,7 +877,7 @@ struct ConnectionCenterView: View {
                     Text(LocalizedStringKey(deploymentStore.isMaintaining ? "正在维护目标运行时…" : "当前部署可安全升级或回滚"))
                         .font(.subheadline.weight(.semibold))
                     if let backup = deploymentStore.latestMaintenanceBackup {
-                        Text("最近备份：\(backup)")
+                        Text(OasesLocalization.localizedFormat("最近备份：%@", backup))
                             .font(.caption.monospaced())
                             .foregroundStyle(.secondary)
                     } else {

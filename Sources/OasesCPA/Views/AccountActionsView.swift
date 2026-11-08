@@ -143,7 +143,7 @@ struct AccountActionsView: View {
                 HStack {
                     CardTitle(
                         title: "候选账号",
-                        subtitle: "\(visibleCandidates.count) 项符合当前筛选 · 数据来自 CPAMP Management API",
+                        subtitle: OasesLocalization.localizedFormat("%lld 项符合当前筛选 · 数据来自 CPAMP Management API", visibleCandidates.count),
                         icon: "person.crop.circle.badge.exclamationmark"
                     )
                     Spacer()
@@ -193,7 +193,7 @@ struct AccountActionsView: View {
 
     private var pendingTitle: String {
         let count = runtimeDataStore.accountActionPendingCount
-        return count == 0 ? "暂无待办" : "待处理 \(count)"
+        return count == 0 ? "暂无待办" : OasesLocalization.localizedFormat("待处理 %lld", count)
     }
 
     private var visibleCandidates: [RuntimeAccountActionCandidate] {
@@ -210,7 +210,7 @@ struct AccountActionsView: View {
 
     private var emptyTitle: String {
         search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? "当前没有\(filter.title)账号待办"
+            ? OasesLocalization.localizedFormat("当前没有%@账号待办", filter.title)
             : "没有匹配的账号待办"
     }
 
@@ -263,14 +263,14 @@ private struct AccountActionConfirmation: Identifiable {
     }
 
     var message: String {
-        let file = candidate.authFileName.isEmpty ? "该认证文件" : candidate.authFileName
+        let file = candidate.authFileName.isEmpty ? OasesLocalization.localized("该认证文件") : candidate.authFileName
         switch operation {
         case .ignore:
-            return "这只会把 \(file) 的当前待办标记为已忽略，不会修改认证文件或 Provider。"
+            return OasesLocalization.localizedFormat("这只会把 %@ 的当前待办标记为已忽略，不会修改认证文件或 Provider。", file)
         case .resolve:
-            return "这只会把 \(file) 的当前待办标记为已处理，不会修改认证文件或 Provider。"
+            return OasesLocalization.localizedFormat("这只会把 %@ 的当前待办标记为已处理，不会修改认证文件或 Provider。", file)
         case .enable:
-            return "CPAMP 会先核对 \(file) 的稳定身份，再在当前目标重新启用该认证文件，并将待办标记为已处理。仅在你确认该账号已恢复可用时继续。"
+            return OasesLocalization.localizedFormat("CPAMP 会先核对 %@ 的稳定身份，再在当前目标重新启用该认证文件，并将待办标记为已处理。仅在你确认该账号已恢复可用时继续。", file)
         }
     }
 }
@@ -312,7 +312,7 @@ private struct AccountActionCandidateCard: View {
                 Text(candidate.reason.isEmpty ? "CPAMP 未提供原因摘要。" : candidate.reason)
                     .font(.callout)
                 if !candidate.reasonCode.isEmpty {
-                    Text("原因代码：\(candidate.reasonCode)")
+                    Text(OasesLocalization.localizedFormat("原因代码：%@", candidate.reasonCode))
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
                 }
@@ -407,7 +407,7 @@ private struct AccountActionCandidateCard: View {
 
     private var autoDisableText: String {
         if let timestamp = candidate.autoDisabledAtMs {
-            return "已禁用 · \(dateText(timestamp))"
+            return OasesLocalization.localizedFormat("已禁用 · %@", dateText(timestamp))
         }
         return candidate.autoDisableEligible ? "可自动禁用" : "未自动禁用"
     }
@@ -513,6 +513,6 @@ private struct AccountActionEvidenceSheet: View {
         let evidence = candidate.evidenceText
         let maximumLength = 24_000
         guard evidence.count > maximumLength else { return evidence }
-        return String(evidence.prefix(maximumLength)) + "\n\n… 证据过长，仅显示前 \(maximumLength.formatted()) 个字符。"
+        return String(evidence.prefix(maximumLength)) + OasesLocalization.localizedFormat("\n\n… 证据过长，仅显示前 %@ 个字符。", maximumLength.formatted())
     }
 }

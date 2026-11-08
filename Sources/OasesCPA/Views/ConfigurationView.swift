@@ -312,7 +312,7 @@ struct ConfigurationView: View {
 
             HStack(spacing: 12) {
                 StatusPill(
-                    title: runtimeDataStore.managerConfiguration?.source.map { "来源：\($0)" } ?? "来源：CPAMP",
+                    title: runtimeDataStore.managerConfiguration?.source.map { OasesLocalization.localizedFormat("来源：%@", $0) } ?? "来源：CPAMP",
                     tint: .oasesBlue,
                     systemImage: "server.rack"
                 )

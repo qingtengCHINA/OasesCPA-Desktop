@@ -432,10 +432,10 @@ final class DeploymentStore: ObservableObject {
 
         if profileIsInstalled {
             stage = .idle
-            statusMessage = "已切换到 \(profile.displayName)；点击“连接已保存目标”后才会读取钥匙串凭据"
+            statusMessage = OasesLocalization.localizedFormat("已切换到 %@；点击“连接已保存目标”后才会读取钥匙串凭据", profile.displayName)
         } else {
             stage = .idle
-            statusMessage = "已切换到 \(profile.displayName)，可重新检测环境"
+            statusMessage = OasesLocalization.localizedFormat("已切换到 %@，可重新检测环境", profile.displayName)
             if automaticActivityEnabled, targetKind == .local {
                 Task { [weak self] in
                     self?.probeTarget()
@@ -581,7 +581,7 @@ final class DeploymentStore: ObservableObject {
                     return
                 }
                 self.stage = .ready
-                self.statusMessage = "环境检测完成：\(result.dependencySummary(for: self.deploymentMethod))"
+                self.statusMessage = OasesLocalization.localizedFormat("环境检测完成：%@", result.dependencySummary(for: self.deploymentMethod))
                 self.preparePlan()
             } catch {
                 guard let self, self.probeRequestID == requestID else { return }
@@ -1108,8 +1108,8 @@ final class DeploymentStore: ObservableObject {
                 self.setWantsRunningPreference(true)
                 self.invalidateProbe()
                 self.stage = .idle
-                self.statusMessage = "失败部署已备份到目标目录的 backups/\(result.backupName)，现在可以重新检测并重试"
-                self.deploymentLogSource = "失败部署已备份；原日志保留在 backups/\(result.backupName)"
+                self.statusMessage = OasesLocalization.localizedFormat("失败部署已备份到目标目录的 backups/%@，现在可以重新检测并重试", result.backupName)
+                self.deploymentLogSource = OasesLocalization.localizedFormat("失败部署已备份；原日志保留在 backups/%@", result.backupName)
                 self.deploymentLogError = nil
                 self.saveProfile()
             } catch {
@@ -1250,7 +1250,7 @@ final class DeploymentStore: ObservableObject {
                     self.statusMessage = OasesLocalization.localized("请先确认 SSH 主机指纹，然后重新执行维护操作")
                     return
                 }
-                self.statusMessage = "\(action.title)失败；App 已尝试恢复原运行时，请查看目标日志"
+                self.statusMessage = OasesLocalization.localizedFormat("%@失败；App 已尝试恢复原运行时，请查看目标日志", action.title)
                 self.refreshDeploymentLog()
                 self.startHealthMonitor()
             }
@@ -1445,7 +1445,7 @@ final class DeploymentStore: ObservableObject {
             do {
                 try loadActiveCredentials()
             } catch {
-                deploymentError = "无法读取已保存的钥匙串凭据：\(error.localizedDescription)"
+                deploymentError = OasesLocalization.localizedFormat("无法读取已保存的钥匙串凭据：%@", error.localizedDescription)
                 statusMessage = OasesLocalization.localized("未能读取已保存凭据；请在系统提示中授权，或重新配置目标")
                 stage = .failed
                 return
@@ -1594,7 +1594,7 @@ final class DeploymentStore: ObservableObject {
         }
         let missing = probe.missingDependencies(for: deploymentMethod)
         guard missing.isEmpty else {
-            return "当前部署方式无法继续：缺少\(missing.joined(separator: "、"))。"
+            return OasesLocalization.localizedFormat("当前部署方式无法继续：缺少%@。", missing.joined(separator: "、"))
         }
         return nil
     }

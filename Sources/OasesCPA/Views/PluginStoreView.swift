@@ -85,7 +85,7 @@ struct PluginStoreView: View {
             titleVisibility: .visible
         ) {
             if let entry = deletingEntry {
-                Button("删除 \(entry.displayTitle)", role: .destructive) {
+                Button(OasesLocalization.localizedFormat("删除 %@", entry.displayTitle), role: .destructive) {
                     delete(entry)
                     deletingEntry = nil
                 }
@@ -93,7 +93,7 @@ struct PluginStoreView: View {
             Button("取消", role: .cancel) { deletingEntry = nil }
         } message: {
             if let entry = deletingEntry {
-                Text("这会移除当前目标插件目录中的 \(entry.displayTitle) 文件，并删除它的保存配置。若插件正在加载，CLIProxyAPI 会拒绝操作并要求先重启服务。")
+                Text(OasesLocalization.localizedFormat("这会移除当前目标插件目录中的 %@ 文件，并删除它的保存配置。若插件正在加载，CLIProxyAPI 会拒绝操作并要求先重启服务。", entry.displayTitle))
             }
         }
     }
@@ -228,7 +228,7 @@ struct PluginStoreView: View {
                     .font(.headline)
                 ForEach(catalog.sourceErrors, id: \.self) { error in
                     Label(
-                        "\(error.sourceTitle.isEmpty ? "未命名来源" : error.sourceTitle) 暂时无法读取。请检查目标网络、来源地址或所需授权后刷新。",
+                        OasesLocalization.localizedFormat("%@ 暂时无法读取。请检查目标网络、来源地址或所需授权后刷新。", error.sourceTitle.isEmpty ? OasesLocalization.localized("未命名来源") : error.sourceTitle),
                         systemImage: "exclamationmark.triangle"
                     )
                     .font(.caption)
@@ -344,12 +344,12 @@ struct PluginStoreView: View {
     }
 
     private func installConfirmationMessage(for entry: RuntimePluginStoreEntry) -> String {
-        let action = entry.installed ? "更新会覆盖目标中的现有插件版本" : "安装会把插件代码写入目标主机"
-        let source = entry.sourceTitle.isEmpty ? "未命名来源" : entry.sourceTitle
-        let sourceURL = entry.sourceURL.isEmpty ? "" : "\n来源地址：\(sanitizedDisplayURL(entry.sourceURL))"
-        let repository = entry.repository.isEmpty ? "" : "\n仓库：\(entry.repository)"
-        let version = entry.version.isEmpty ? "" : "\n版本：\(entry.version)"
-        return "\(action)，并在 CLIProxyAPI 中创建或更新该插件的启用配置。\n插件：\(entry.displayTitle)\n来源：\(source)\(sourceURL)\(repository)\(version)\n\n请仅在你已核验上述来源和代码时继续。"
+        let action = entry.installed ? OasesLocalization.localized("更新会覆盖目标中的现有插件版本") : OasesLocalization.localized("安装会把插件代码写入目标主机")
+        let source = entry.sourceTitle.isEmpty ? OasesLocalization.localized("未命名来源") : entry.sourceTitle
+        let sourceURL = entry.sourceURL.isEmpty ? "" : OasesLocalization.localizedFormat("\n来源地址：%@", sanitizedDisplayURL(entry.sourceURL))
+        let repository = entry.repository.isEmpty ? "" : OasesLocalization.localizedFormat("\n仓库：%@", entry.repository)
+        let version = entry.version.isEmpty ? "" : OasesLocalization.localizedFormat("\n版本：%@", entry.version)
+        return OasesLocalization.localizedFormat("%@，并在 CLIProxyAPI 中创建或更新该插件的启用配置。\n插件：%@\n来源：%@%@%@%@\n\n请仅在你已核验上述来源和代码时继续。", action, entry.displayTitle, source, sourceURL, repository, version)
     }
 
     private func install(_ entry: RuntimePluginStoreEntry) {
@@ -364,14 +364,14 @@ struct PluginStoreView: View {
                 if result.restartRequired {
                     operationNotice = PluginStoreNotice(
                         title: "安装完成，需要重启",
-                        message: "\(entry.displayTitle) 已写入当前目标；请从“连接与部署”停止并重新启动目标服务后再使用。",
+                        message: OasesLocalization.localizedFormat("%@ 已写入当前目标；请从“连接与部署”停止并重新启动目标服务后再使用。", entry.displayTitle),
                         systemImage: "arrow.clockwise.circle",
                         tint: .oasesOrange
                     )
                 } else {
                     operationNotice = PluginStoreNotice(
                         title: entry.installed ? "插件已更新" : "插件已安装",
-                        message: "\(entry.displayTitle) 已由当前目标的 CLIProxyAPI 保存并应用。状态列表正在刷新。",
+                        message: OasesLocalization.localizedFormat("%@ 已由当前目标的 CLIProxyAPI 保存并应用。状态列表正在刷新。", entry.displayTitle),
                         systemImage: "checkmark.circle",
                         tint: .oasesGreen
                     )
@@ -394,13 +394,13 @@ struct PluginStoreView: View {
                 operationNotice = PluginStoreNotice(
                     title: result.restartRequired ? "需要重启后继续" : "插件已删除",
                     message: result.restartRequired
-                        ? "CLIProxyAPI 要求先重启服务，才能完成 \(entry.displayTitle) 的删除。"
-                        : "\(entry.displayTitle) 的目标文件和已保存配置已删除。",
+                        ? OasesLocalization.localizedFormat("CLIProxyAPI 要求先重启服务，才能完成 %@ 的删除。", entry.displayTitle)
+                        : OasesLocalization.localizedFormat("%@ 的目标文件和已保存配置已删除。", entry.displayTitle),
                     systemImage: result.restartRequired ? "arrow.clockwise.circle" : "checkmark.circle",
                     tint: result.restartRequired ? .oasesOrange : .oasesGreen
                 )
             } catch {
-                operationErrorMessage = "删除 \(entry.displayTitle) 失败：\(error.localizedDescription)"
+                operationErrorMessage = OasesLocalization.localizedFormat("删除 %@ 失败：%@", entry.displayTitle, error.localizedDescription)
             }
         }
     }
@@ -567,7 +567,7 @@ private struct PluginStoreEntryRow: View {
         var parts: [String] = []
         if !entry.versionSummary.isEmpty { parts.append("v\(entry.versionSummary)") }
         if !entry.author.isEmpty { parts.append(entry.author) }
-        if !entry.sourceTitle.isEmpty { parts.append("来源：\(entry.sourceTitle)") }
+        if !entry.sourceTitle.isEmpty { parts.append(OasesLocalization.localizedFormat("来源：%@", entry.sourceTitle)) }
         if !entry.installType.isEmpty { parts.append(entry.installType) }
         let platforms = entry.platforms.map(\.title).filter { !$0.isEmpty }
         if !platforms.isEmpty { parts.append(platforms.joined(separator: ", ")) }

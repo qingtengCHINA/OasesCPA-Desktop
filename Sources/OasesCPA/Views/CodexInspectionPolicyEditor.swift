@@ -270,7 +270,7 @@ struct CodexInspectionPolicyEditor: View {
                 }
 
             HStack(spacing: 10) {
-                Text("提示词会发送给 xAI；当前 \(draft.xaiInferencePrompt.count) 个字符。")
+                Text(OasesLocalization.localizedFormat("提示词会发送给 xAI；当前 %lld 个字符。", draft.xaiInferencePrompt.count))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
