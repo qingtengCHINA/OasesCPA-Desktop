@@ -7,6 +7,9 @@ struct DeploymentScriptPorts: Equatable, Sendable {
     let gatewayAdmin: Int
     let engine: Int
     let cpamp: Int
+    /// The port a legacy 0.1.x engine listens on (`port: 8317` in its config.yaml), which the
+    /// migration rewrites to `engine`. Only scratch drills use another value.
+    var legacyEngine: Int = DeploymentPorts.legacyEngine
 
     static let standard = DeploymentScriptPorts(
         gatewayAPI: DeploymentPorts.gatewayAPI,

@@ -41,5 +41,6 @@ after and were never bound), a scratch `HOME`, a closed loopback port as `HTTPS_
   app by design).
 - Everything the drill started was stopped at the end; `ps` showed none of it afterwards.
 
-Not covered by this drill: the 0.1.x → gateway migration with real packages (a real 0.1.x
-engine would bind the fixed port 8317); it ran with fake packages only (`UpgradeScriptTests`).
+Not covered by this drill: the 0.1.x → gateway migration with real packages; it has its own
+drill since 2026-11-08 (`legacy-migration-drill.md`, random ports including the legacy engine
+port).

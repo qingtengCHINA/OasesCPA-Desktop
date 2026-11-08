@@ -15,8 +15,11 @@ struct DeploymentMaintenanceResult: Sendable {
 /// → the no-downgrade guard (exit 22 before anything is stopped or written) → a backup →
 /// stop → download and verify → install → start and wait → versions file → `gateway/run.sh`.
 /// Any failure after the backup restores it (`oases_restore_backup`). The rollback restores
-/// the newest backup the same way. Authentication files and CPA Manager Plus `data/` are never
-/// rolled back; `gateway-data/` is (a newer gateway may have rewritten it one way).
+/// the newest backup the same way. Authentication files are never rolled back; `gateway-data/`
+/// and `secrets/` are, and CPA Manager Plus `data/` is whenever the rollback changes the
+/// CPA Manager Plus binary (a newer version may have migrated `usage.sqlite` one way). The
+/// newer copies are moved into the backup, never deleted. After every health check passed, a
+/// root with the legacy install marker gets the ownership marker `.oases-cpa-managed`.
 struct DeploymentMaintenanceService {
     /// One `/healthz` (and engine/panel) attempt per second.
     static let healthAttempts = 45
@@ -116,6 +119,10 @@ struct DeploymentMaintenanceService {
         if case .nonZero(22, _, let standardError) = error,
            let refusal = DowngradeRefusal(standardError: standardError) {
             return .downgradeRefused(component: refusal.component, installed: refusal.installed, target: refusal.target)
+        }
+        if case .nonZero(_, _, let standardError) = error,
+           let failure = UpgradeFailure(standardError: standardError) {
+            return .upgradeFailed(failure)
         }
         return .commandFailed(
             BoundedProcessRunner.userFacingMessage(
@@ -377,9 +384,53 @@ struct DeploymentMaintenanceService {
           done
         }
 
+        # oases_restore_directory <backup dir> <current dir> <kept dir>: the current directory is
+        # moved into the backup as <kept dir> (never deleted), then the backup's copy goes back.
+        oases_restore_directory() {
+          local saved="$1" current="$2" kept="$3"
+          [ -d "$saved" ] || return 0
+          if [ -e "$current" ] || [ -L "$current" ]; then
+            mv "$current" "$(oases_after_path "$kept")" || return 1
+          fi
+          cp -Rp "$saved" "$current"
+        }
+        # oases_restore_secrets <backup>: every key of the backup goes back (a differing current
+        # copy is kept in secrets-after-upgrade/); keys the upgrade created (the gateway's pack
+        # keys after a 0.1.x migration) move there too. The directory itself stays (0700).
+        oases_restore_secrets() {
+          local backup="$1" saved current name kept="$1/secrets-after-upgrade"
+          [ -f "$backup/secrets.saved" ] && [ -d "$backup/secrets" ] || return 0
+          [ ! -L "$ROOT/secrets" ] || return 1
+          mkdir -p "$ROOT/secrets" || return 1
+          for current in "$ROOT/secrets"/* "$ROOT/secrets"/.[!.]*; do
+            [ -e "$current" ] || [ -L "$current" ] || continue
+            name="$(basename "$current")"
+            if [ ! -e "$backup/secrets/$name" ]; then
+              mkdir -m 700 -p "$kept" || return 1
+              mv "$current" "$(oases_after_path "$kept/$name")" || return 1
+            fi
+          done
+          for saved in "$backup/secrets"/* "$backup/secrets"/.[!.]*; do
+            [ -f "$saved" ] || continue
+            name="$(basename "$saved")"
+            if [ -e "$ROOT/secrets/$name" ] && ! cmp -s "$saved" "$ROOT/secrets/$name"; then
+              mkdir -m 700 -p "$kept" || return 1
+              mv "$ROOT/secrets/$name" "$(oases_after_path "$kept/$name")" || return 1
+            fi
+            [ -e "$ROOT/secrets/$name" ] || cp -p "$saved" "$ROOT/secrets/$name" || return 1
+          done
+          return 0
+        }
+
         oases_restore_backup() {
-          local backup="$1" link name
+          local backup="$1" link name restore_cpamp_data=0
           [ -d "$backup" ] || return 1
+          # CPA Manager Plus data comes back only when the rollback changes its binary (the
+          # run script differs): a newer version may have migrated usage.sqlite forward. With
+          # the same binary the usage recorded since the upgrade stays.
+          if [ -f "$backup/cpamp-data.saved" ] && [ -d "$backup/cpamp-data" ] && ! cmp -s "$backup/cpamp-run.sh" "$ROOT/cpamp/run.sh"; then
+            restore_cpamp_data=1
+          fi
           oases_restore_file "$backup/cli-proxy-api-run.sh" "$ROOT/cli-proxy-api/run.sh" "$backup/cli-proxy-api-run.sh.after-upgrade" || return 1
           oases_restore_file "$backup/cpamp-run.sh" "$ROOT/cpamp/run.sh" "$backup/cpamp-run.sh.after-upgrade" || return 1
           oases_restore_file "$backup/cli-proxy-api-config.yaml" "$ROOT/cli-proxy-api/config.yaml" "$backup/cli-proxy-api-config.yaml.after-upgrade" || return 1
@@ -414,6 +465,20 @@ struct DeploymentMaintenanceService {
             cp -Rp "$backup/gateway-data" "$ROOT/gateway-data" || return 1
           elif [ "$(oases_backup_topology "$backup")" = legacy ] && [ -e "$ROOT/gateway-data" ]; then
             mv "$ROOT/gateway-data" "$(oases_after_path "$backup/gateway-data-after-upgrade")" || return 1
+          fi
+          if [ "$restore_cpamp_data" -eq 1 ]; then
+            [ ! -L "$ROOT/cpamp/data" ] || return 1
+            oases_restore_directory "$backup/cpamp-data" "$ROOT/cpamp/data" "$backup/cpamp-data-after-upgrade" || return 1
+          fi
+          oases_restore_secrets "$backup" || return 1
+          # The legacy install marker goes back as it was. An ownership marker the upgrade wrote
+          # (none before it, ours now) moves into the backup, so a restored 0.1.x root looks as
+          # before. Pid files are not put back: the processes they named are stopped, and the
+          # start writes the pid files of the restored ones.
+          oases_restore_file "$backup/root-files/.oases-cpa-installed" "$ROOT/.oases-cpa-installed" "$backup/oases-cpa-installed.after-upgrade" || return 1
+          if [ -f "$backup/root-files/managed-marker.absent" ] && [ -f "$ROOT/.oases-cpa-managed" ] && [ ! -L "$ROOT/.oases-cpa-managed" ] &&
+             grep -Fqx 'owned-by=oases-cpa' "$ROOT/.oases-cpa-managed"; then
+            mv "$ROOT/.oases-cpa-managed" "$(oases_after_path "$backup/oases-cpa-managed.after-upgrade")" || return 1
           fi
           return 0
         }
@@ -453,8 +518,12 @@ struct DeploymentMaintenanceService {
         \(pins.nativeSelectionScript())
         GATEWAY_PAYLOAD_BASE64='\(gatewayPayloadBase64)'
         ENGINE_PORT=\(ports.engine)
+        LEGACY_ENGINE_PORT=\(ports.legacyEngine)
         GATEWAY_API_PORT=\(ports.gatewayAPI)
         GATEWAY_ADMIN_PORT=\(ports.gatewayAdmin)
+        # The phase a failure belongs to (OASES_UPGRADE_FAILURE, mapped by the app to a
+        # localized reason; DeploymentMaintenanceService.UpgradeFailure).
+        UPGRADE_STAGE="prepare"
 
         \(nativeMaintenanceFunctions(installDirectory: installDirectory, ports: ports, healthAttempts: healthAttempts))
         \(DeploymentScriptFragments.engineRunScript())
@@ -530,40 +599,88 @@ struct DeploymentMaintenanceService {
           fi
         }
 
+        # Every failure leaves two machine-readable stderr lines for the app (mapped to a
+        # localized message): OASES_UPGRADE_FAILURE stage=<phase> status=<exit> and
+        # OASES_UPGRADE_OUTCOME changes=<unchanged|restored|restore_incomplete>
+        # running=<yes|no|stopped>, where running=yes means the previous version passed its
+        # health checks again.
         upgrade_exit() {
-          local status="$?"
+          local status="$?" changes="unchanged" running="no"
           trap - EXIT
           set +e
+          if [ "$status" -ne 0 ]; then
+            printf 'OASES_UPGRADE_FAILURE stage=%s status=%s\\n' "$UPGRADE_STAGE" "$status" >&2
+          fi
           if [ "$status" -eq 28 ] && [ "$BACKUP_READY" -eq 0 ]; then
             # Refused after the stop (oases_refuse_if_still_running): nothing was changed or
             # backed up; a process without a pid file still runs, so nothing is started next to
             # it either. (28 is also curl's timeout code: once the backup is ready it is handled
             # like every other failure below.)
             oases_set_aside_partial_backup
+            printf 'OASES_UPGRADE_OUTCOME changes=unchanged running=stopped\\n' >&2
             exit "$status"
           fi
           if [ "$status" -ne 0 ]; then
             oases_stop_all >/dev/null 2>&1
             if [ "$BACKUP_READY" -eq 1 ]; then
               printf '升级失败（退出码 %s），正在恢复升级前的版本。\\n' "$status" >&2
-              oases_restore_backup "$BACKUP_ROOT" || printf '%s\\n' '自动恢复不完整，请使用回滚并查看 backups 目录。' >&2
+              if oases_restore_backup "$BACKUP_ROOT"; then
+                changes="restored"
+              else
+                changes="restore_incomplete"
+                printf '%s\\n' '自动恢复不完整，请使用回滚并查看 backups 目录。' >&2
+              fi
             else
               printf '升级在备份完成前失败（退出码 %s），没有做任何改动，正在重新启动服务。\\n' "$status" >&2
               oases_set_aside_partial_backup
             fi
             oases_start_all >/dev/null 2>&1
+            if oases_wait_services "$PREVIOUS_TOPOLOGY" "$INSTALLED_GATEWAY" >/dev/null 2>&1; then running="yes"; fi
+            printf 'OASES_UPGRADE_OUTCOME changes=%s running=%s\\n' "$changes" "$running" >&2
           fi
           rm -rf "$TEMP_ROOT" >/dev/null 2>&1
           exit "$status"
         }
         trap upgrade_exit EXIT
 
+        # oases_port_in_use <port>: something accepts connections on 127.0.0.1:<port> (bash's
+        # /dev/tcp; where that is unavailable the check passes and a conflict shows up as a
+        # failed start instead).
+        oases_port_in_use() {
+          (exec 9<>"/dev/tcp/127.0.0.1/$1") >/dev/null 2>&1
+        }
+        # After the stop every port of the gateway topology must be free: a port held by another
+        # program would only fail later, after the old version was replaced. Exit 29 before the
+        # backup; the previous version is started again.
+        oases_require_free_ports() {
+          local port
+          for port in "$GATEWAY_API_PORT" "$GATEWAY_ADMIN_PORT" "$ENGINE_PORT" "$CPAMP_PORT"; do
+            if oases_port_in_use "$port"; then
+              printf 'OASES_UPGRADE_PORT_BUSY port=%s\\n' "$port" >&2
+              printf '端口 %s 已被其他程序占用，升级需要它；没有做任何改动。\\n' "$port" >&2
+              exit 29
+            fi
+          done
+        }
+
         # --- Stop all three processes (gateway first, up to 30 s); nothing of the deployment
         # may still run, pid file or not (exit 28 before any backup). ---
+        # The pid files as they were (the stop removes them), for the backup's record.
+        OASES_PID_SNAPSHOT=""
+        for name in $OASES_MANAGED_PID_FILES; do
+          if [ -f "$ROOT/$name" ] && [ ! -L "$ROOT/$name" ]; then
+            OASES_PID_SNAPSHOT="$OASES_PID_SNAPSHOT $name=$(head -n 1 "$ROOT/$name" 2>/dev/null | tr -cd '0-9')"
+          fi
+        done
+        UPGRADE_STAGE="stop"
         oases_stop_all
         oases_refuse_if_still_running
+        UPGRADE_STAGE="ports"
+        oases_require_free_ports
 
-        # --- Backup (before anything changes; gateway-data while the gateway is stopped). ---
+        # --- Backup (before anything changes; gateway-data, cpamp/data and secrets while every
+        # process is stopped, so the SQLite database and its -wal/-shm files are consistent). ---
+        UPGRADE_STAGE="backup"
         mkdir -p "$ROOT/backups"
         mkdir -m 700 "$BACKUP_ROOT"
         : > "$BACKUP_ROOT/backup-started"
@@ -580,11 +697,31 @@ struct DeploymentMaintenanceService {
           cp -Rp "$ROOT/gateway-data" "$BACKUP_ROOT/gateway-data"
           : > "$BACKUP_ROOT/gateway-data.saved"
         fi
+        # Data that cannot be regenerated: CPA Manager Plus usage.sqlite (+ -wal/-shm), data.key
+        # and usage-imports (a newer CPA Manager Plus migrates the schema forward, an older one
+        # cannot read it back), the keys, and the root's markers and pid files.
+        if [ -d "$ROOT/cpamp/data" ] && [ ! -L "$ROOT/cpamp/data" ]; then
+          cp -Rp "$ROOT/cpamp/data" "$BACKUP_ROOT/cpamp-data"
+          : > "$BACKUP_ROOT/cpamp-data.saved"
+        fi
+        if [ -d "$ROOT/secrets" ] && [ ! -L "$ROOT/secrets" ]; then
+          cp -Rp "$ROOT/secrets" "$BACKUP_ROOT/secrets"
+          : > "$BACKUP_ROOT/secrets.saved"
+        fi
+        mkdir -m 700 "$BACKUP_ROOT/root-files"
+        for name in .oases-cpa-installed .oases-cpa-managed; do
+          if [ -f "$ROOT/$name" ] && [ ! -L "$ROOT/$name" ]; then cp -p "$ROOT/$name" "$BACKUP_ROOT/root-files/$name"; fi
+        done
+        for entry in $OASES_PID_SNAPSHOT; do
+          printf '%s\\n' "${entry#*=}" > "$BACKUP_ROOT/root-files/${entry%%=*}"
+        done
+        if [ ! -e "$ROOT/.oases-cpa-managed" ] && [ ! -L "$ROOT/.oases-cpa-managed" ]; then : > "$BACKUP_ROOT/root-files/managed-marker.absent"; fi
         # Written last: a rollback only uses a backup this app started when this marker exists.
         : > "$BACKUP_ROOT/backup-complete"
         BACKUP_READY=1
 
         # --- Engine (CLIProxyAPI). ---
+        UPGRADE_STAGE="engine"
         CLI_TEMP_DIR="$TEMP_ROOT/cli-proxy-api/runtime/$CLI_PACKAGE"
         CLI_ARCHIVE="$TEMP_ROOT/cli-proxy-api/$CLI_ASSET"
         mkdir -p "$CLI_TEMP_DIR"
@@ -600,6 +737,7 @@ struct DeploymentMaintenanceService {
         oases_write_engine_run "$ROOT/cli-proxy-api" "$ROOT/cli-proxy-api/runtime/$CLI_PACKAGE/cli-proxy-api"
 
         # --- CPA Manager Plus (fixed cpamp/config.json, data/ untouched). ---
+        UPGRADE_STAGE="cpamp"
         CPAMP_TEMP_DIR="$TEMP_ROOT/cpamp/runtime"
         CPAMP_ARCHIVE="$TEMP_ROOT/cpamp/$CPAMP_ASSET"
         mkdir -p "$CPAMP_TEMP_DIR"
@@ -615,6 +753,7 @@ struct DeploymentMaintenanceService {
 
         \(nativeTopologyStep())
 
+        UPGRADE_STAGE="cpamp-config"
         CPAMP_DATA_JSON="$(yaml_escape "$ROOT/cpamp/data")"
         CPAMP_ADMIN_KEY_JSON="$(yaml_escape "$ROOT/secrets/cpamp-admin-key")"
         CPAMP_DATA_KEY_JSON="$(yaml_escape "$ROOT/cpamp/data/data.key")"
@@ -641,9 +780,32 @@ struct DeploymentMaintenanceService {
         oases_write_cpamp_run "$ROOT/cpamp" "$ROOT/cpamp/runtime/$CPAMP_PACKAGE/cpa-manager-plus"
 
         # --- Start (engine, CPA Manager Plus, gateway) and wait. ---
+        UPGRADE_STAGE="start"
         oases_start_all
+        UPGRADE_STAGE="health"
         oases_wait_services gateway "$GATEWAY_VERSION" || exit 26
+        UPGRADE_STAGE="finalize"
         oases_write_versions "$ROOT" "$CLI_VERSION_TAG" "$CPAMP_VERSION_TAG" "$NODE_VERSION_TAG" "$GATEWAY_VERSION"
+
+        # --- Every health check passed: a root with the legacy install marker was created by
+        # this app, so it gets the installer's ownership marker (stop, cancel and removal
+        # require it). Best effort, never overwrites another marker. ---
+        oases_write_managed_marker() {
+          local marker="$ROOT/.oases-cpa-managed" part="$ROOT/.oases-cpa-managed.part.$$"
+          [ -f "$ROOT/.oases-cpa-installed" ] && [ ! -L "$ROOT/.oases-cpa-installed" ] || return 0
+          if [ -e "$marker" ] || [ -L "$marker" ]; then
+            if [ -f "$marker" ] && [ ! -L "$marker" ] && grep -Fqx 'owned-by=oases-cpa' "$marker"; then return 0; fi
+            printf '%s\\n' '目标目录已有另一个 .oases-cpa-managed 标记，已保留原样；停止和删除仍会拒绝这个目录。' >&2
+            return 0
+          fi
+          if printf 'owned-by=oases-cpa\\n' > "$part" && chmod 600 "$part" && mv "$part" "$marker"; then
+            return 0
+          fi
+          rm -f "$part"
+          printf '%s\\n' '升级已完成，但未能写入受管标记 .oases-cpa-managed；停止和删除仍会拒绝这个目录。' >&2
+          return 0
+        }
+        oases_write_managed_marker
 
         # --- Keep the two newest previous versions of Node and the gateway. ---
         PRUNE_ROOT="$ROOT/backups/pruned-$(date -u '+%Y%m%d-%H%M%S')"
@@ -688,9 +850,12 @@ struct DeploymentMaintenanceService {
     /// the idempotent bootstrap; then, for a legacy 0.1.x deployment, the migration.
     private func nativeTopologyStep() -> String {
         """
+        UPGRADE_STAGE="node"
         oases_install_node "$ROOT"
+        UPGRADE_STAGE="gateway"
         oases_install_gateway "$ROOT"
         oases_write_gateway_run "$ROOT" "$CLI_VERSION_TAG" "$CPAMP_VERSION_TAG" "$GATEWAY_API_PORT" "$GATEWAY_ADMIN_PORT" "$ENGINE_PORT"
+        UPGRADE_STAGE="bootstrap"
         oases_secure_private_directories "$ROOT"
         oases_run_bootstrap "$ROOT"
         if [ "$PREVIOUS_TOPOLOGY" = legacy ]; then
@@ -707,7 +872,8 @@ struct DeploymentMaintenanceService {
     /// environment (`OASES_MANAGEMENT_KEY`, `PACK_ENGINE_KEY`); its text holds none.
     private func legacyMigrationStep() -> String {
         """
-        ENGINE_CONFIG="$ROOT/cli-proxy-api/config.yaml"
+        UPGRADE_STAGE="migration-config"
+          ENGINE_CONFIG="$ROOT/cli-proxy-api/config.yaml"
           [ -f "$ENGINE_CONFIG" ] || { printf '%s\\n' '旧部署缺少引擎配置 config.yaml，无法迁移。' >&2; exit 27; }
           # Behind the gateway the engine must stay on loopback (18316 would be reachable from
           # the network otherwise): only a loopback host is migrated.
@@ -717,10 +883,10 @@ struct DeploymentMaintenanceService {
             # ::1 is loopback too, but the gateway and CPA Manager Plus dial 127.0.0.1 only.
             *) printf '%s\\n' '引擎配置的 host 不是本机回环地址（127.0.0.1，网关只经 IPv4 回环访问引擎）；为避免把引擎端口暴露到网络或迁移后无法连接，已停止迁移并恢复原版本。' >&2; exit 27 ;;
           esac
-          sed "s/^port: 8317$/port: $ENGINE_PORT/" "$ENGINE_CONFIG" > "$ENGINE_CONFIG.migrate.$$"
+          sed "s/^port: $LEGACY_ENGINE_PORT$/port: $ENGINE_PORT/" "$ENGINE_CONFIG" > "$ENGINE_CONFIG.migrate.$$"
           if cmp -s "$ENGINE_CONFIG" "$ENGINE_CONFIG.migrate.$$"; then
             rm -f "$ENGINE_CONFIG.migrate.$$"
-            printf '%s\\n' '引擎配置中没有 port: 8317 这一行，无法安全迁移端口，已停止并恢复原版本。' >&2
+            printf '引擎配置中没有 port: %s 这一行，无法安全迁移端口，已停止并恢复原版本。\\n' "$LEGACY_ENGINE_PORT" >&2
             exit 27
           fi
           if ! grep -q '^response-compression:' "$ENGINE_CONFIG.migrate.$$"; then
@@ -729,6 +895,7 @@ struct DeploymentMaintenanceService {
           chmod 600 "$ENGINE_CONFIG.migrate.$$"
           mv "$ENGINE_CONFIG.migrate.$$" "$ENGINE_CONFIG"
 
+          UPGRADE_STAGE="migration-engine"
           nohup "$ROOT/cli-proxy-api/run.sh" >> "$ROOT/logs/cli-proxy-api.log" 2>&1 &
           printf '%s\\n' "$!" > "$ROOT/cli-proxy-api.pid"
           MIGRATION_ENGINE_READY=0
@@ -740,6 +907,7 @@ struct DeploymentMaintenanceService {
             sleep 1
           done
           [ "$MIGRATION_ENGINE_READY" -eq 1 ] || { printf '%s\\n' '迁移后的引擎没有在新端口上就绪。' >&2; exit 27; }
+          UPGRADE_STAGE="migration-keys"
 
           # The script has no single quote (checked by a test), so it fits a single-quoted word.
           OASES_API_KEYS_SCRIPT='\(Self.apiKeysMigrationScript)'
@@ -827,7 +995,7 @@ struct DeploymentMaintenanceService {
         oases_wait_services "$ROLLBACK_TOPOLOGY" "$ROLLBACK_GATEWAY_VERSION" || exit 26
         printf 'OASES_CPA_BACKUP=%s\\n' "$BACKUP_ROOT"
         printf 'OASES_CPA_TOPOLOGY=%s\\n' "$ROLLBACK_TOPOLOGY"
-        printf 'OASES_CPA_MAINTENANCE_DETAIL=%s\\n' '已恢复上一版原生运行时与网关数据；认证文件和 CPAMP 数据保持不变。'
+        printf 'OASES_CPA_MAINTENANCE_DETAIL=%s\\n' '已恢复上一版原生运行时、网关数据与密钥；CPA Manager Plus 版本变化时也恢复了它的数据（较新的数据移入备份）；认证文件保持不变。'
         """
     }
 
@@ -965,6 +1133,119 @@ struct DeploymentMaintenanceService {
 
     private func shellQuote(_ value: String) -> String {
         "'" + value.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
+    }
+}
+
+/// A failed native upgrade as the script reports it on stderr: `OASES_UPGRADE_FAILURE
+/// stage=<phase> status=<exit>`, `OASES_UPGRADE_OUTCOME changes=<…> running=<…>` and, for a
+/// busy port, `OASES_UPGRADE_PORT_BUSY port=<n>`. Only known values are accepted; the message
+/// is localized and never repeats raw stderr (paths, package names).
+struct UpgradeFailure: Equatable, Sendable {
+    enum Changes: String, Sendable {
+        case unchanged
+        case restored
+        case restoreIncomplete = "restore_incomplete"
+    }
+
+    enum Running: String, Sendable {
+        case yes
+        case no
+        case stopped
+    }
+
+    static let stages: Set<String> = [
+        "prepare", "stop", "ports", "backup", "engine", "cpamp", "node", "gateway", "bootstrap",
+        "migration-config", "migration-engine", "migration-keys", "cpamp-config", "start", "health", "finalize",
+    ]
+
+    let stage: String
+    let status: Int32
+    let changes: Changes
+    let running: Running
+    let busyPort: Int?
+
+    init?(standardError: String) {
+        func fields(_ prefix: String) -> [String: String]? {
+            guard let line = standardError.split(separator: "\n").last(where: { $0.hasPrefix(prefix + " ") }) else { return nil }
+            var values: [String: String] = [:]
+            for part in line.split(separator: " ").dropFirst() {
+                let pair = part.split(separator: "=", maxSplits: 1).map(String.init)
+                if pair.count == 2 { values[pair[0]] = pair[1] }
+            }
+            return values
+        }
+        guard let failure = fields("OASES_UPGRADE_FAILURE"),
+              let stage = failure["stage"], Self.stages.contains(stage),
+              let status = failure["status"].flatMap({ Int32($0) }), (1...255).contains(status),
+              let outcome = fields("OASES_UPGRADE_OUTCOME"),
+              let changes = outcome["changes"].flatMap(Changes.init(rawValue:)),
+              let running = outcome["running"].flatMap(Running.init(rawValue:)) else { return nil }
+        self.stage = stage
+        self.status = status
+        self.changes = changes
+        self.running = running
+        self.busyPort = fields("OASES_UPGRADE_PORT_BUSY")?["port"].flatMap { Int($0) }.flatMap { (1...65535).contains($0) ? $0 : nil }
+    }
+
+    private static func componentName(_ stage: String) -> String {
+        switch stage {
+        case "engine": "CLIProxyAPI"
+        case "cpamp": "CPA Manager Plus"
+        case "node": "Node"
+        default: OasesLocalization.localized("Oases 网关")
+        }
+    }
+
+    /// Why the upgrade stopped.
+    func reason(language: AppLanguage? = nil) -> String {
+        switch (stage, status) {
+        case ("ports", _):
+            return OasesLocalization.localizedFormat("端口 %@ 已被其他程序占用，升级需要这个端口。", language: language, busyPort.map(String.init) ?? "?")
+        case ("stop", 28):
+            return OasesLocalization.localized("停止后目标目录中仍有 Oases CPA 进程在运行（没有可信的 PID 文件）。", language: language)
+        case ("backup", _):
+            return OasesLocalization.localized("升级前的备份没有完成（磁盘空间或权限不足）。", language: language)
+        case ("engine", 18), ("cpamp", 18), ("node", 18):
+            return OasesLocalization.localizedFormat("下载 %@ 失败（网络不通或发布站点不可用）。", language: language, Self.componentName(stage))
+        case ("engine", _), ("cpamp", _), ("node", _):
+            return OasesLocalization.localizedFormat("%@ 的下载包没有通过固定 SHA-256 校验或包结构检查。", language: language, Self.componentName(stage))
+        case ("gateway", _):
+            return OasesLocalization.localized("应用内的 Oases 网关包没有通过校验。", language: language)
+        case ("bootstrap", _):
+            return OasesLocalization.localized("Oases 网关初始化失败（目录权限或密钥文件）。", language: language)
+        case ("migration-config", _):
+            return OasesLocalization.localized("旧部署的引擎配置无法安全迁移（缺少 config.yaml 或端口行，或 host 不是 127.0.0.1）。", language: language)
+        case ("migration-engine", _):
+            return OasesLocalization.localized("新版 CLIProxyAPI 没有在新端口上启动。", language: language)
+        case ("migration-keys", _):
+            return OasesLocalization.localized("无法把 Oases 网关的内部 Key 加入引擎的 api-keys。", language: language)
+        case ("start", _), ("health", _):
+            return OasesLocalization.localized("升级后的服务没有在规定时间内通过健康检查。", language: language)
+        default:
+            return OasesLocalization.localizedFormat("升级在“%@”阶段失败（退出码 %@）。", language: language, stage, String(status))
+        }
+    }
+
+    /// What the target looks like now.
+    func outcome(language: AppLanguage? = nil) -> String {
+        switch (changes, running) {
+        case (.restoreIncomplete, _):
+            return OasesLocalization.localized("自动恢复不完整；请使用回滚，并查看目标目录中的 backups。", language: language)
+        case (_, .stopped):
+            return OasesLocalization.localized("没有做任何改动，服务保持停止；请先结束这些进程再重试。", language: language)
+        case (.unchanged, .yes):
+            return OasesLocalization.localized("没有做任何改动，原来的服务已重新启动并通过健康检查。", language: language)
+        case (.restored, .yes):
+            return OasesLocalization.localized("已自动恢复升级前的版本，原来的服务已重新启动并通过健康检查。", language: language)
+        case (.unchanged, .no):
+            return OasesLocalization.localized("没有做任何改动，但原来的服务重新启动后没有通过健康检查；请查看目标日志，或稍后重试。", language: language)
+        case (.restored, .no):
+            return OasesLocalization.localized("已恢复升级前的文件，但原来的服务没有通过健康检查；请查看目标日志，或稍后重试。", language: language)
+        }
+    }
+
+    func message(language: AppLanguage? = nil) -> String {
+        OasesLocalization.localizedFormat("升级失败：%@%@", language: language, reason(language: language), outcome(language: language))
     }
 }
 

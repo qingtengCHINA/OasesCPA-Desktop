@@ -17,6 +17,13 @@ final class UpgradeScriptTests: XCTestCase {
     // MARK: - Helpers
 
     private let maintenance = DeploymentMaintenanceService()
+    /// Random free loopback ports for every script of a test (never the fixed ports: the
+    /// upgrade checks that its ports are free, and the owner's deployment may hold 8317/18317).
+    /// The legacy engine port stays 8317: only the fakes "listen" there.
+    private lazy var ports: DeploymentScriptPorts = {
+        let free = (try? FakeArtifacts.freeLoopbackPorts(4)) ?? [28_101, 28_102, 28_103, 28_104]
+        return DeploymentScriptPorts(gatewayAPI: free[0], gatewayAdmin: free[1], engine: free[2], cpamp: free[3])
+    }()
 
     /// A gateway deployment installed and started by the real install script.
     private func installed(_ caseName: String, extraEnvironment: [String: String] = [:]) throws -> (FakeArtifacts, URL) {
@@ -24,7 +31,7 @@ final class UpgradeScriptTests: XCTestCase {
         let root = fake.caseDirectory.appendingPathComponent("root", isDirectory: true)
         startedRoots.append((fake, root))
         let result = try fake.run(DeploymentExecutor().scriptForVerification(
-            method: .native, installDirectory: root.path, pins: fake.pins, gatewayPayloadBase64: fake.gatewayPayloadBase64
+            method: .native, installDirectory: root.path, pins: fake.pins, gatewayPayloadBase64: fake.gatewayPayloadBase64, ports: ports
         ), extraEnvironment: extraEnvironment)
         XCTAssertEqual(result.status, 0, result.stderr)
         return (fake, root)
@@ -33,12 +40,12 @@ final class UpgradeScriptTests: XCTestCase {
     private func upgrade(_ fake: FakeArtifacts, _ root: URL, prelude: String = "", extraEnvironment: [String: String] = [:]) throws -> FakeArtifacts.RunResult {
         try fake.run(maintenance.upgradeScriptForVerification(
             method: .native, installDirectory: root.path, pins: fake.pins,
-            gatewayPayloadBase64: fake.gatewayPayloadBase64, healthAttempts: 3
+            gatewayPayloadBase64: fake.gatewayPayloadBase64, ports: ports, healthAttempts: 3
         ), prelude: prelude, extraEnvironment: extraEnvironment)
     }
 
     private func rollback(_ fake: FakeArtifacts, _ root: URL, extraEnvironment: [String: String] = [:]) throws -> FakeArtifacts.RunResult {
-        try fake.run(maintenance.rollbackScriptForVerification(method: .native, installDirectory: root.path, healthAttempts: 3),
+        try fake.run(maintenance.rollbackScriptForVerification(method: .native, installDirectory: root.path, ports: ports, healthAttempts: 3),
                      extraEnvironment: extraEnvironment)
     }
 
@@ -104,13 +111,13 @@ final class UpgradeScriptTests: XCTestCase {
     /// The app 0.1.x layout: engine on 8317 with its config.yaml and a user's client key, CPA
     /// Manager Plus with its config.json inside the versioned runtime directory, no versions
     /// file, no Node, no gateway.
-    private func legacyLayout(_ fake: FakeArtifacts, mode: Int = 0o700) throws -> URL {
+    private func legacyLayout(_ fake: FakeArtifacts, mode: Int = 0o700, managedMarker: String? = "owned-by=oases-cpa\n") throws -> URL {
         let root = fake.caseDirectory.appendingPathComponent("root", isDirectory: true)
         let fileManager = FileManager.default
         try fileManager.createDirectory(at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: mode])
         try fileManager.setAttributes([.posixPermissions: mode], ofItemAtPath: root.path)
         startedRoots.append((fake, root))
-        try write("owned-by=oases-cpa\n", root, ".oases-cpa-managed")
+        if let managedMarker { try write(managedMarker, root, ".oases-cpa-managed") }
         try write("", root, ".oases-cpa-installed")
         try write("cpa_\(String(repeating: "1f", count: 32))\n", root, "secrets/cpa-management-key")
         try write("cpamp_\(String(repeating: "2e", count: 32))\n", root, "secrets/cpamp-admin-key")
@@ -438,7 +445,7 @@ final class UpgradeScriptTests: XCTestCase {
         XCTAssertEqual(result.status, 0, result.stderr)
         XCTAssertTrue(result.stdout.contains("OASES_CPA_TOPOLOGY=gateway"), result.stdout)
         let config = text(root, "cli-proxy-api/config.yaml")
-        XCTAssertTrue(config.contains("\nport: 18316\n"), config)
+        XCTAssertTrue(config.contains("\nport: \(ports.engine)\n"), config)
         XCTAssertFalse(config.contains("port: 8317"))
         XCTAssertTrue(config.contains("response-compression:\n  enabled: false"), config)
         let packKey = text(root, "secrets/pack-engine-key").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -449,7 +456,7 @@ final class UpgradeScriptTests: XCTestCase {
         XCTAssertTrue(FileManager.default.isExecutableFile(atPath: root.appendingPathComponent("gateway/run.sh").path))
         XCTAssertEqual(try versions(root), ["engine": FakeArtifacts.engineTag, "cpamp": FakeArtifacts.cpampTag,
                                              "node": FakeArtifacts.nodeTag, "gateway": fake.gatewayVersion])
-        XCTAssertTrue(text(root, "cpamp/config.json").contains("\"cpaUpstreamUrl\": \"http://127.0.0.1:18316\""))
+        XCTAssertTrue(text(root, "cpamp/config.json").contains("\"cpaUpstreamUrl\": \"http://127.0.0.1:\(ports.engine)\""))
         XCTAssertTrue(text(root, "cpamp/run.sh").contains("export CPA_MANAGER_CONFIG=\(root.path)/cpamp/config.json"))
         XCTAssertEqual(text(root, "cpamp/data/usage.db"), "usage\n", "CPA Manager Plus data untouched")
         XCTAssertNotNil(pid(root, "gateway.pid"))
@@ -509,10 +516,15 @@ final class UpgradeScriptTests: XCTestCase {
         XCTAssertEqual(try upgrade(fake, root, extraEnvironment: migrationEnvironment(root)).status, 0)
         XCTAssertEqual(try rollback(fake, root).status, 0)
         let argv = fake.argv()
-        XCTAssertTrue(argv.contains("curl -K - -fsS -o /dev/null http://127.0.0.1:18316/v0/management/config"), "keyed curl through -K -")
+        XCTAssertTrue(argv.contains("curl -K - -fsS -o /dev/null http://127.0.0.1:\(ports.engine)/v0/management/config"), "keyed curl through -K -")
         XCTAssertTrue(argv.contains("node -e "), "the inline api-keys script ran")
+        // The rollback to the 0.1.x layout moves the gateway's pack keys into the backup.
+        let backup = upgradeBackups(root).last ?? ""
         for name in ["cpa-management-key", "cpamp-admin-key", "pack-engine-key", "pack-store-key"] {
-            let key = text(root, "secrets/\(name)").trimmingCharacters(in: .whitespacesAndNewlines)
+            let current = text(root, "secrets/\(name)").trimmingCharacters(in: .whitespacesAndNewlines)
+            let key = current.isEmpty
+                ? text(root, "backups/\(backup)/secrets-after-upgrade/\(name)").trimmingCharacters(in: .whitespacesAndNewlines)
+                : current
             XCTAssertFalse(key.isEmpty, name)
             XCTAssertFalse(argv.contains(key), "\(name) appears in a process argument")
         }
@@ -951,5 +963,295 @@ final class UpgradeScriptTests: XCTestCase {
         XCTAssertEqual(rolledBack.status, 0, rolledBack.stderr)
         XCTAssertEqual(text(root, "compose.yaml"), "services:\n  cpa:\n    image: before\n", "the older complete backup was used")
         XCTAssertTrue(rolledBack.stdout.contains("OASES_CPA_BACKUP=\(root.appendingPathComponent("backups/\(complete)").path)"), rolledBack.stdout)
+    }
+
+    // MARK: - Legacy migration safety (2026-11-08): data backup, ownership marker, failure reasons
+
+    /// Every regular file under `relative` (path relative to it → bytes).
+    private func snapshot(_ root: URL, _ relative: String) -> [String: Data] {
+        let base = root.appendingPathComponent(relative)
+        var files: [String: Data] = [:]
+        for path in (try? FileManager.default.subpathsOfDirectory(atPath: base.path)) ?? [] {
+            var isDirectory: ObjCBool = false
+            let url = base.appendingPathComponent(path)
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), !isDirectory.boolValue else { continue }
+            files[path] = try? Data(contentsOf: url)
+        }
+        return files
+    }
+
+    private func mode(_ root: URL, _ relative: String) -> Int {
+        ((try? FileManager.default.attributesOfItem(atPath: root.appendingPathComponent(relative).path))?[.posixPermissions] as? NSNumber)?.intValue ?? -1
+    }
+
+    private func exists(_ root: URL, _ relative: String) -> Bool {
+        FileManager.default.fileExists(atPath: root.appendingPathComponent(relative).path)
+    }
+
+    /// CPA Manager Plus data like a 0.1.x deployment has it: the SQLite file with -wal/-shm,
+    /// data.key and an import (synthetic bytes; the fakes never open them).
+    private func addLegacyPanelData(_ root: URL) throws {
+        try write("SQLite format 3\u{0}synthetic-usage-rows\n", root, "cpamp/data/usage.sqlite")
+        try write("synthetic-wal\n", root, "cpamp/data/usage.sqlite-wal")
+        try write("synthetic-shm\n", root, "cpamp/data/usage.sqlite-shm")
+        try write("synthetic-data-key-for-the-fake-panel\n", root, "cpamp/data/data.key")
+        try write("{\"rows\":2}\n", root, "cpamp/data/usage-imports/import-1.json")
+    }
+
+    /// The fake `/healthz` answers one fixed version: after a restore it must be the installed one.
+    private func restoredHealthz(_ fake: FakeArtifacts) -> [String: String] {
+        ["FAKE_HEALTHZ_BODY": "{\"ok\":true,\"version\":\"\(fake.gatewayVersion)\"}"]
+    }
+
+    private func failure(_ result: FakeArtifacts.RunResult) -> UpgradeFailure? {
+        UpgradeFailure(standardError: result.stderr)
+    }
+
+    func testLegacyMigrationBacksUpPanelDataKeysAndMarkersAndRollbackRestoresThem() throws {
+        let fake = try FakeArtifacts.make(caseName: "migrate-data-backup")
+        let root = try legacyLayout(fake, managedMarker: nil)
+        try addLegacyPanelData(root)
+        try startLegacy(fake, root)
+        let dataBefore = snapshot(root, "cpamp/data")
+        let secretsBefore = snapshot(root, "secrets")
+        let installedMarker = data(root, ".oases-cpa-installed")
+        XCTAssertEqual(dataBefore.count, 6)
+        XCTAssertFalse(exists(root, ".oases-cpa-managed"))
+
+        let upgraded = try upgrade(fake, root, extraEnvironment: migrationEnvironment(root))
+        XCTAssertEqual(upgraded.status, 0, upgraded.stderr)
+        let backup = "backups/" + (try XCTUnwrap(upgradeBackups(root).last))
+        XCTAssertEqual(mode(root, backup), 0o700)
+        XCTAssertEqual(snapshot(root, "\(backup)/cpamp-data"), dataBefore, "cpamp/data in the backup byte for byte")
+        XCTAssertEqual(snapshot(root, "\(backup)/secrets"), secretsBefore)
+        XCTAssertEqual(data(root, "\(backup)/root-files/.oases-cpa-installed"), installedMarker)
+        for pidFile in ["cli-proxy-api.pid", "cpa-manager-plus.pid"] {
+            XCTAssertTrue(exists(root, "\(backup)/root-files/\(pidFile)"), pidFile)
+        }
+        XCTAssertTrue(exists(root, "\(backup)/root-files/managed-marker.absent"))
+        // After every health check: the installer's ownership marker, 0600.
+        XCTAssertEqual(text(root, ".oases-cpa-managed"), "owned-by=oases-cpa\n")
+        XCTAssertEqual(mode(root, ".oases-cpa-managed"), 0o600)
+
+        // The newer CPA Manager Plus migrates its database forward and records more usage.
+        try write("SQLite format 3\u{0}migrated-forward\n", root, "cpamp/data/usage.sqlite")
+        try write("new\n", root, "cpamp/data/only-after-upgrade.bin")
+
+        let rolledBack = try rollback(fake, root)
+        XCTAssertEqual(rolledBack.status, 0, rolledBack.stderr)
+        XCTAssertTrue(rolledBack.stdout.contains("OASES_CPA_TOPOLOGY=legacy"))
+        XCTAssertEqual(snapshot(root, "cpamp/data"), dataBefore, "cpamp/data back byte for byte")
+        let keptData = snapshot(root, "\(backup)/cpamp-data-after-upgrade")
+        XCTAssertEqual(keptData["usage.sqlite"], Data("SQLite format 3\u{0}migrated-forward\n".utf8), "moved, not deleted")
+        XCTAssertNotNil(keptData["only-after-upgrade.bin"])
+        XCTAssertEqual(snapshot(root, "secrets"), secretsBefore, "the keys as before the migration")
+        XCTAssertEqual(mode(root, "secrets"), 0o700)
+        for packKey in ["pack-engine-key", "pack-store-key"] {
+            XCTAssertTrue(exists(root, "\(backup)/secrets-after-upgrade/\(packKey)"), "\(packKey) kept in the backup")
+        }
+        XCTAssertFalse(exists(root, ".oases-cpa-managed"), "a restored 0.1.x root has no marker, as before")
+        XCTAssertEqual(text(root, "\(backup)/oases-cpa-managed.after-upgrade"), "owned-by=oases-cpa\n")
+        XCTAssertEqual(data(root, ".oases-cpa-installed"), installedMarker)
+        XCTAssertNotNil(pid(root, "cli-proxy-api.pid"))
+        XCTAssertNotNil(pid(root, "cpa-manager-plus.pid"))
+        XCTAssertNil(pid(root, "gateway.pid"))
+    }
+
+    /// A gateway upgrade with the same CPA Manager Plus keeps the usage recorded since then:
+    /// the data only comes back when the rollback changes the CPA Manager Plus binary.
+    func testRollbackWithTheSamePanelBinaryKeepsTheNewerPanelData() throws {
+        let (fake, root) = try installed("same-panel-data")
+        try write("before\n", root, "cpamp/data/usage.sqlite")
+        XCTAssertEqual(try upgrade(try fake.withGateway(version: "0.9.1-test"), root).status, 0)
+        try write("after\n", root, "cpamp/data/usage.sqlite")
+        XCTAssertEqual(try rollback(fake, root).status, 0)
+        XCTAssertEqual(text(root, "cpamp/data/usage.sqlite"), "after\n")
+        XCTAssertEqual(text(root, ".oases-cpa-managed"), "owned-by=oases-cpa\n", "the installer's marker stays")
+    }
+
+    func testExistingOwnershipMarkersAreKeptAndAForeignOneIsNeverOverwritten() throws {
+        let ours = try FakeArtifacts.make(caseName: "migrate-marker-ours")
+        let oursRoot = try legacyLayout(ours)
+        let result = try upgrade(ours, oursRoot, extraEnvironment: migrationEnvironment(oursRoot))
+        XCTAssertEqual(result.status, 0, result.stderr)
+        XCTAssertEqual(text(oursRoot, ".oases-cpa-managed"), "owned-by=oases-cpa\n")
+        XCTAssertEqual(try rollback(ours, oursRoot).status, 0)
+        XCTAssertEqual(text(oursRoot, ".oases-cpa-managed"), "owned-by=oases-cpa\n", "a marker that was there before stays")
+
+        let foreign = try FakeArtifacts.make(caseName: "migrate-marker-foreign")
+        let foreignRoot = try legacyLayout(foreign, managedMarker: "owned-by=someone-else\n")
+        let foreignResult = try upgrade(foreign, foreignRoot, extraEnvironment: migrationEnvironment(foreignRoot))
+        XCTAssertEqual(foreignResult.status, 0, foreignResult.stderr)
+        XCTAssertEqual(text(foreignRoot, ".oases-cpa-managed"), "owned-by=someone-else\n")
+        XCTAssertTrue(foreignResult.stderr.contains("已有另一个 .oases-cpa-managed 标记"), foreignResult.stderr)
+    }
+
+    func testNoMarkerIsWrittenWithoutTheLegacyInstallMarker() throws {
+        let fake = try FakeArtifacts.make(caseName: "migrate-no-installed")
+        let root = try legacyLayout(fake, managedMarker: nil)
+        try FileManager.default.removeItem(at: root.appendingPathComponent(".oases-cpa-installed"))
+        let result = try upgrade(fake, root, extraEnvironment: migrationEnvironment(root))
+        XCTAssertEqual(result.status, 18, result.stderr)
+        XCTAssertFalse(exists(root, ".oases-cpa-managed"))
+        XCTAssertEqual(upgradeBackups(root), [])
+    }
+
+    /// A migration that fails after the backup (the api-keys step) restores cpamp/data and the
+    /// keys, writes no marker, and reports a localized reason with the outcome.
+    func testFailedMigrationRestoresDataLeavesNoMarkerAndReportsWhy() throws {
+        let fake = try FakeArtifacts.make(caseName: "migrate-fails")
+        let root = try legacyLayout(fake, managedMarker: nil)
+        try addLegacyPanelData(root)
+        try startLegacy(fake, root)
+        let dataBefore = snapshot(root, "cpamp/data")
+        let secretsBefore = snapshot(root, "secrets")
+        let configBefore = data(root, "cli-proxy-api/config.yaml")
+
+        var environment = migrationEnvironment(root)
+        environment["FAKE_NODE_E_EXIT"] = "5"
+        let result = try upgrade(fake, root, extraEnvironment: environment)
+        XCTAssertEqual(result.status, 27, result.stderr)
+        XCTAssertFalse(exists(root, ".oases-cpa-managed"), "no marker after a failed migration")
+        XCTAssertEqual(snapshot(root, "cpamp/data"), dataBefore)
+        XCTAssertEqual(snapshot(root, "secrets"), secretsBefore)
+        XCTAssertEqual(data(root, "cli-proxy-api/config.yaml"), configBefore)
+        XCTAssertNil(pid(root, "gateway.pid"))
+        XCTAssertNotNil(pid(root, "cli-proxy-api.pid"), "the old version runs again")
+
+        let parsed = try XCTUnwrap(failure(result), result.stderr)
+        XCTAssertEqual(parsed.stage, "migration-keys")
+        XCTAssertEqual(parsed.status, 27)
+        XCTAssertEqual(parsed.changes, .restored)
+        XCTAssertEqual(parsed.running, .yes)
+        let error = DeploymentMaintenanceService.mapError(.nonZero(status: 27, standardOutput: "", standardError: result.stderr))
+        guard case .upgradeFailed(let mapped) = error else { return XCTFail("\(error)") }
+        XCTAssertEqual(mapped, parsed)
+        let english = parsed.message(language: .english)
+        XCTAssertTrue(english.hasPrefix("Upgrade failed: The Oases gateway's internal key could not be added"), english)
+        XCTAssertTrue(english.contains("The previous version was restored automatically"), english)
+        XCTAssertTrue(parsed.message(language: .simplifiedChinese).contains("已自动恢复升级前的版本"))
+        XCTAssertFalse(english.contains(root.path), "no raw stderr")
+    }
+
+    /// A port of the gateway topology held by another program: refused before the backup
+    /// (exit 29), nothing changed, the old version started again.
+    func testBusyPortRefusesBeforeTheBackupAndRestartsTheOldVersion() throws {
+        let (fake, root) = try installed("busy-port")
+        let versions = data(root, ".oases-cpa-versions")
+        let busy = try FakeArtifacts.boundLoopbackSocket(port: ports.gatewayAdmin, listen: true)
+        defer { close(busy.fd) }
+        let result = try upgrade(try fake.withGateway(version: "0.9.1-test"), root, extraEnvironment: restoredHealthz(fake))
+        XCTAssertEqual(result.status, 29, result.stderr)
+        XCTAssertTrue(result.stderr.contains("OASES_UPGRADE_PORT_BUSY port=\(ports.gatewayAdmin)"), result.stderr)
+        XCTAssertEqual(upgradeBackups(root), [], "refused before the backup")
+        XCTAssertEqual(data(root, ".oases-cpa-versions"), versions)
+        XCTAssertEqual(link(root, "gateway/current"), fake.gatewayVersion)
+        let pids = DeploymentScriptFragments.managedProcesses(topology: .gateway).compactMap { pid(root, $0.pidFile) }
+        XCTAssertEqual(pids.count, 3)
+        for pid in pids { XCTAssertEqual(kill(pid, 0), 0, "\(pid) runs again") }
+        let parsed = try XCTUnwrap(failure(result), result.stderr)
+        XCTAssertEqual([parsed.stage, parsed.changes.rawValue, parsed.running.rawValue], ["ports", "unchanged", "yes"])
+        XCTAssertEqual(parsed.busyPort, ports.gatewayAdmin)
+        let english = parsed.message(language: .english)
+        XCTAssertTrue(english.contains("Port \(ports.gatewayAdmin) is in use by another program"), english)
+        XCTAssertTrue(english.contains("Nothing was changed"), english)
+        XCTAssertTrue(parsed.message(language: .simplifiedChinese).contains("端口 \(ports.gatewayAdmin) 已被其他程序占用"))
+    }
+
+    /// A download that fails after the backup restores the previous version, which runs again.
+    func testDownloadFailureRestoresAndNamesTheComponent() throws {
+        let (fake, root) = try installed("download-fails")
+        let versions = data(root, ".oases-cpa-versions")
+        let environment = try shadowingTool(fake, "curl", """
+        for arg in "$@"; do case "$arg" in */releases/download/*cpa-manager-plus*) exit 6 ;; esac; done
+        exec '\(fake.binDirectory.appendingPathComponent("curl").path)' "$@"
+
+        """).merging(restoredHealthz(fake)) { $1 }
+        let result = try upgrade(try fake.withGateway(version: "0.9.1-test"), root, extraEnvironment: environment)
+        XCTAssertEqual(result.status, 18, result.stderr)
+        XCTAssertEqual(data(root, ".oases-cpa-versions"), versions)
+        XCTAssertEqual(link(root, "gateway/current"), fake.gatewayVersion)
+        let parsed = try XCTUnwrap(failure(result), result.stderr)
+        XCTAssertEqual([parsed.stage, parsed.changes.rawValue, parsed.running.rawValue], ["cpamp", "restored", "yes"])
+        XCTAssertTrue(parsed.message(language: .english).contains("Downloading CPA Manager Plus failed"), parsed.message(language: .english))
+        XCTAssertTrue(parsed.message(language: .simplifiedChinese).contains("下载 CPA Manager Plus 失败"))
+    }
+
+    func testChecksumFailureRestoresAndNamesTheComponent() throws {
+        let (fake, root) = try installed("checksum-fails")
+        let next = try fake.withGateway(version: "0.9.1-test")
+        let wrongEngine = PinnedArtifact(tag: next.pins.engine.tag, assets: next.pins.engine.assets.mapValues {
+            PinnedAsset(fileName: $0.fileName, sha256: String(repeating: "0", count: 64))
+        })
+        let pins = DeploymentPinSet(engine: wrongEngine, cpamp: next.pins.cpamp, node: next.pins.node, gateway: next.pins.gateway,
+                                    cliDockerImage: next.pins.cliDockerImage, cpampDockerImage: next.pins.cpampDockerImage)
+        let result = try next.run(maintenance.upgradeScriptForVerification(
+            method: .native, installDirectory: root.path, pins: pins,
+            gatewayPayloadBase64: next.gatewayPayloadBase64, ports: ports, healthAttempts: 3), extraEnvironment: restoredHealthz(fake))
+        XCTAssertEqual(result.status, 17, result.stderr)
+        let parsed = try XCTUnwrap(failure(result), result.stderr)
+        XCTAssertEqual([parsed.stage, parsed.changes.rawValue, parsed.running.rawValue], ["engine", "restored", "yes"])
+        XCTAssertTrue(parsed.message(language: .english).contains("The CLIProxyAPI download did not pass the pinned SHA-256 check"))
+        XCTAssertEqual(link(root, "gateway/current"), fake.gatewayVersion)
+    }
+
+    /// The migrated engine never answers on its new port: restored, the legacy engine (its own
+    /// port) answers again.
+    func testMigratedEngineThatDoesNotStartIsReportedAndTheLegacyVersionRunsAgain() throws {
+        let fake = try FakeArtifacts.make(caseName: "migrate-engine-down")
+        let root = try legacyLayout(fake, managedMarker: nil)
+        try startLegacy(fake, root)
+        var environment = try shadowingTool(fake, "curl", """
+        for arg in "$@"; do case "$arg" in *:\(ports.engine)/v0/management/*) exit 7 ;; esac; done
+        exec '\(fake.binDirectory.appendingPathComponent("curl").path)' "$@"
+
+        """)
+        environment.merge(migrationEnvironment(root)) { $1 }
+        let result = try upgrade(fake, root, extraEnvironment: environment)
+        XCTAssertEqual(result.status, 27, result.stderr)
+        XCTAssertTrue(text(root, "cli-proxy-api/config.yaml").contains("port: 8317"))
+        XCTAssertFalse(exists(root, ".oases-cpa-managed"))
+        let parsed = try XCTUnwrap(failure(result), result.stderr)
+        XCTAssertEqual([parsed.stage, parsed.changes.rawValue, parsed.running.rawValue], ["migration-engine", "restored", "yes"])
+        XCTAssertTrue(parsed.message(language: .english).contains("The new CLIProxyAPI did not start on its new port"))
+    }
+
+    /// The upgraded gateway never becomes healthy: everything is restored; the restored gateway
+    /// (same fake setting) fails too, which the outcome says instead of claiming success.
+    func testHealthTimeoutIsReportedWithAnHonestOutcome() throws {
+        let (fake, root) = try installed("health-timeout")
+        let result = try upgrade(try fake.withGateway(version: "0.9.1-test"), root, extraEnvironment: ["FAKE_GATEWAY_EXIT": "1"])
+        XCTAssertEqual(result.status, 26, result.stderr)
+        let parsed = try XCTUnwrap(failure(result), result.stderr)
+        XCTAssertEqual([parsed.stage, parsed.changes.rawValue, parsed.running.rawValue], ["health", "restored", "no"])
+        let english = parsed.message(language: .english)
+        XCTAssertTrue(english.contains("did not pass their health checks in time"), english)
+        XCTAssertTrue(english.contains("but the previous services did not pass their health checks"), english)
+    }
+
+    func testUpgradeFailureParsingAcceptsOnlyKnownValues() {
+        let good = "x\nOASES_UPGRADE_FAILURE stage=engine status=18\nOASES_UPGRADE_OUTCOME changes=restored running=yes\n"
+        XCTAssertNotNil(UpgradeFailure(standardError: good))
+        for bad in [
+            "OASES_UPGRADE_FAILURE stage=$(id) status=18\nOASES_UPGRADE_OUTCOME changes=restored running=yes",
+            "OASES_UPGRADE_FAILURE stage=engine status=x\nOASES_UPGRADE_OUTCOME changes=restored running=yes",
+            "OASES_UPGRADE_FAILURE stage=engine status=18\nOASES_UPGRADE_OUTCOME changes=gone running=yes",
+            "OASES_UPGRADE_FAILURE stage=engine status=18",
+        ] {
+            XCTAssertNil(UpgradeFailure(standardError: bad), bad)
+            guard case .commandFailed = DeploymentMaintenanceService.mapError(.nonZero(status: 18, standardOutput: "", standardError: bad)) else {
+                return XCTFail(bad)
+            }
+        }
+        // Every stage has a reason in both languages; an unknown pair gets a generic one.
+        for stage in UpgradeFailure.stages {
+            let failure = UpgradeFailure(standardError: "OASES_UPGRADE_FAILURE stage=\(stage) status=1\nOASES_UPGRADE_OUTCOME changes=unchanged running=yes")
+            for language in [AppLanguage.simplifiedChinese, .english] {
+                XCTAssertFalse((failure?.reason(language: language) ?? "").isEmpty, stage)
+            }
+        }
+        let generic = UpgradeFailure(standardError: "OASES_UPGRADE_FAILURE stage=finalize status=1\nOASES_UPGRADE_OUTCOME changes=restore_incomplete running=no")
+        XCTAssertEqual(generic?.reason(language: .english), "The upgrade failed in the “finalize” phase (exit code 1).")
+        XCTAssertTrue(generic?.outcome(language: .english).contains("Use Roll Back") == true)
     }
 }
