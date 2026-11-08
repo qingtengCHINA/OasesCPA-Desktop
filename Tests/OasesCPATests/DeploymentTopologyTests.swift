@@ -80,6 +80,73 @@ final class DeploymentTopologyTests: XCTestCase {
         XCTAssertThrowsError(try JSONDecoder().decode(DeploymentProfile.self, from: Data(json.utf8)))
     }
 
+    /// A profile list with one entry this version cannot read (a `topology` from a newer
+    /// version): the readable profiles still load, and saving never drops the unreadable one.
+    @MainActor
+    func testUnknownTopologyKeepsTheOtherProfilesAndIsNeverOverwritten() async throws {
+        let suiteName = "oases-profile-lenient-\(UUID().uuidString)"
+        let suite = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { suite.removePersistentDomain(forName: suiteName) }
+        let readableID = UUID()
+        let futureID = UUID()
+        let stored = """
+        [{"id":"\(readableID.uuidString)","targetKind":"local","deploymentMethod":"native","remoteHost":"","remoteUser":"root",
+          "remotePort":"22","privateKeyPath":"","installDirectory":"/scratch/a","isInstalled":true,"topology":"gateway"},
+         {"id":"\(futureID.uuidString)","targetKind":"local","deploymentMethod":"native","remoteHost":"","remoteUser":"root",
+          "remotePort":"22","privateKeyPath":"","installDirectory":"/scratch/b","isInstalled":true,"topology":"mesh","futureField":[1,2]}]
+        """
+        let profilesKey = "oases.cpa.deployment.profiles"
+        func storedFuture() throws -> [String: Any]? {
+            let data = try XCTUnwrap(suite.data(forKey: profilesKey))
+            let list = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [[String: Any]])
+            return list.first { $0["id"] as? String == futureID.uuidString }
+        }
+        try await DeploymentProfileStore.withDefaultsForTesting(suite) {
+            suite.set(Data(stored.utf8), forKey: profilesKey)
+
+            let loaded = DeploymentProfileStore.loadAll()
+            XCTAssertEqual(loaded.map(\.id), [readableID], "the readable profile loads; the unknown one is not guessed at")
+            XCTAssertTrue(DeploymentProfileStore.hasUnreadableProfiles)
+
+            // Saving another profile keeps the unreadable entry byte-for-byte in content.
+            let added = DeploymentProfile(
+                targetKind: .local, deploymentMethod: .native, remoteHost: "", remoteUser: "root", remotePort: "22",
+                privateKeyPath: "", installDirectory: "/scratch/c", isInstalled: true, lastAttachedAt: nil, topology: .gateway
+            )
+            DeploymentProfileStore.save(added)
+            XCTAssertEqual(Set(DeploymentProfileStore.loadAll().map(\.id)), [readableID, added.id])
+            var future = try XCTUnwrap(try storedFuture(), "the unreadable profile is still stored")
+            XCTAssertEqual(future["topology"] as? String, "mesh")
+            XCTAssertEqual(future["futureField"] as? [Int], [1, 2], "its unknown fields are kept")
+
+            // Removing every readable profile does not clear the list either.
+            DeploymentProfileStore.remove(readableID)
+            DeploymentProfileStore.remove(added.id)
+            XCTAssertEqual(DeploymentProfileStore.loadAll(), [])
+            future = try XCTUnwrap(try storedFuture(), "still stored after the readable ones are gone")
+            XCTAssertEqual(future["installDirectory"] as? String, "/scratch/b")
+        }
+    }
+
+    /// A stored value that is not a list at all is copied aside before the first save replaces it.
+    @MainActor
+    func testUndecodableProfileListIsSetAsideBeforeItIsReplaced() async throws {
+        let suiteName = "oases-profile-garbage-\(UUID().uuidString)"
+        let suite = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { suite.removePersistentDomain(forName: suiteName) }
+        let garbage = Data(#"{"not":"a list"}"#.utf8)
+        await DeploymentProfileStore.withDefaultsForTesting(suite) {
+            suite.set(garbage, forKey: "oases.cpa.deployment.profiles")
+            XCTAssertEqual(DeploymentProfileStore.loadAll(), [])
+            DeploymentProfileStore.save(DeploymentProfile(
+                targetKind: .local, deploymentMethod: .native, remoteHost: "", remoteUser: "root", remotePort: "22",
+                privateKeyPath: "", installDirectory: "/scratch/d", isInstalled: true, lastAttachedAt: nil
+            ))
+            XCTAssertEqual(suite.data(forKey: DeploymentProfileStore.unreadableProfilesKey), garbage)
+            XCTAssertEqual(DeploymentProfileStore.loadAll().count, 1)
+        }
+    }
+
     @MainActor
     func testStoreEndpointsFollowTopologyAndClientURLHasV1() {
         let store = DeploymentStore(autoProbe: false)

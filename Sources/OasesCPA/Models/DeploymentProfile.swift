@@ -176,10 +176,14 @@ enum DeploymentProfileStore {
         return profile
     }
 
+    /// The saved list, element by element. A profile this version cannot read (for example a
+    /// `topology` written by a newer version, or a damaged entry) is left out of the result but
+    /// never lost: `saveAll` writes it back unchanged, in its place at the end of the list.
+    /// Guessing a topology for it instead (`.legacy`) could make the app attach, patrol or
+    /// upgrade the deployment with the wrong ports and processes, so it is not shown at all.
     static func loadAll() -> [DeploymentProfile] {
-        if let data = defaults.data(forKey: profilesKey),
-           let profiles = try? JSONDecoder().decode([DeploymentProfile].self, from: data) {
-            return profiles
+        if let data = defaults.data(forKey: profilesKey) {
+            return decodeLeniently(data).profiles
         }
 
         guard let data = defaults.data(forKey: defaultsKey),
@@ -192,10 +196,58 @@ enum DeploymentProfileStore {
         return migrated
     }
 
+    /// The readable profiles of a stored list and the raw JSON of every element that is not
+    /// one (`unreadable`); `isList` is false when the data is not a JSON array at all.
+    static func decodeLeniently(_ data: Data) -> (profiles: [DeploymentProfile], unreadable: [Any], isList: Bool) {
+        guard let elements = try? JSONSerialization.jsonObject(with: data) as? [Any] else {
+            return ([], [], false)
+        }
+        var profiles: [DeploymentProfile] = []
+        var unreadable: [Any] = []
+        for element in elements {
+            if JSONSerialization.isValidJSONObject(element),
+               let elementData = try? JSONSerialization.data(withJSONObject: element),
+               let profile = try? JSONDecoder().decode(DeploymentProfile.self, from: elementData) {
+                profiles.append(profile)
+            } else {
+                unreadable.append(element)
+            }
+        }
+        return (profiles, unreadable, true)
+    }
+
+    /// The key that keeps a stored list that is not a JSON array at all, before it is replaced.
+    static let unreadableProfilesKey = "oases.cpa.deployment.profiles.unreadable"
+
+    /// Saves `profiles` and keeps whatever of the stored list this version could not read:
+    /// unreadable elements are appended unchanged; a stored value that is not a list at all is
+    /// copied to `unreadableProfilesKey` (once; an existing copy is never overwritten) first.
     static func saveAll(_ profiles: [DeploymentProfile]) {
-        guard let data = try? JSONEncoder().encode(profiles) else { return }
+        guard let encoded = try? JSONEncoder().encode(profiles) else { return }
+        var data = encoded
+        if let stored = defaults.data(forKey: profilesKey) {
+            let previous = decodeLeniently(stored)
+            if !previous.isList {
+                if defaults.data(forKey: unreadableProfilesKey) == nil {
+                    defaults.set(stored, forKey: unreadableProfilesKey)
+                }
+            } else if !previous.unreadable.isEmpty {
+                guard let current = try? JSONSerialization.jsonObject(with: encoded) as? [Any] else { return }
+                let merged = current + previous.unreadable
+                guard JSONSerialization.isValidJSONObject(merged),
+                      let mergedData = try? JSONSerialization.data(withJSONObject: merged) else { return }
+                data = mergedData
+            }
+        }
         defaults.set(data, forKey: profilesKey)
         defaults.removeObject(forKey: defaultsKey)
+    }
+
+    /// Whether the stored list holds profiles this version cannot read (kept, not shown).
+    static var hasUnreadableProfiles: Bool {
+        guard let stored = defaults.data(forKey: profilesKey) else { return false }
+        let result = decodeLeniently(stored)
+        return !result.isList || !result.unreadable.isEmpty
     }
 
     static func setActive(_ id: UUID) {
@@ -204,13 +256,18 @@ enum DeploymentProfileStore {
 
     static func remove(_ id: UUID) {
         let profiles = loadAll().filter { $0.id != id }
-        if profiles.isEmpty {
+        if profiles.isEmpty && !hasUnreadableProfiles {
             clear()
             return
         }
         saveAll(profiles)
+        guard let first = profiles.first else {
+            // Only profiles this version cannot read are left: they stay stored.
+            defaults.removeObject(forKey: activeProfileKey)
+            return
+        }
         if let activeID = UUID(uuidString: defaults.string(forKey: activeProfileKey) ?? ""), activeID == id {
-            setActive(profiles[0].id)
+            setActive(first.id)
         }
     }
 
