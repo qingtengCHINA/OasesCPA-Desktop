@@ -2534,3 +2534,13 @@
 "未发现待确认的 SSH 主机指纹。" = "No SSH host fingerprint is waiting for confirmation.";
 "该服务的其他设置已保存，但优先级没有保存：%@ 列表已刷新，请重新设置优先级。" = "The provider's other settings were saved, but its priority was not: %@ The list was refreshed; set the priority again.";
 "优先级没有保存：%@ 其他设置没有改动，请重新设置优先级。" = "The priority was not saved: %@ Nothing else was changed; set the priority again.";
+"已禁用冷却" = "Cooling disabled";
+"未配置额外请求 Header。" = "No extra request headers configured.";
+"确认 SSH 主机指纹？" = "Confirm the SSH host fingerprint?";
+"确认并记录此指纹" = "Confirm and Record This Fingerprint";
+"拒绝" = "Reject";
+"请输入数值" = "Enter a number";
+"舍弃未保存的 AI 服务配置？" = "Discard unsaved AI service configuration?";
+"关闭窗口会丢失尚未保存的服务地址、密钥、模型和路由设置。" = "Closing the window loses the unsaved service address, keys, models and routing settings.";
+"舍弃未保存的 YAML 修改？" = "Discard unsaved YAML changes?";
+"关闭编辑器会丢失尚未保存到当前 CLIProxyAPI 目标的配置。" = "Closing the editor loses the configuration not yet saved to the current CLIProxyAPI target.";

@@ -168,6 +168,40 @@ final class LocalizationResourceTests: XCTestCase {
         XCTAssertEqual(offenders, [])
     }
 
+    /// A plain Chinese literal given to a SwiftUI initializer or modifier that takes a
+    /// `LocalizedStringKey` (`Text("…")`, `Button("…")`, `.alert("…")`, …) is looked up under
+    /// that very text, so both files must hold it; otherwise the English UI shows Chinese.
+    func testEveryChineseSwiftUILiteralIsTranslated() throws {
+        let chinese = try dictionary("zh-Hans")
+        let english = try dictionary("en")
+        let sources = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/OasesCPA")
+        let literal = try NSRegularExpression(pattern: #"\b(?:Text|Label|Button|LabeledContent|Toggle|Section|TextField|SecureField|Picker|Menu|DisclosureGroup|Stepper|navigationTitle|help|alert|confirmationDialog)\(\s*"((?:[^"\\]|\\.)*)""#)
+        let han = try NSRegularExpression(pattern: #"\p{Han}"#)
+        let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
+        var missing: [String] = []
+        var checked = 0
+        for case let file as URL in enumerator where file.pathExtension == "swift" {
+            let text = try String(contentsOf: file, encoding: .utf8)
+            for match in literal.matches(in: text, range: NSRange(text.startIndex..<text.endIndex, in: text)) {
+                guard let range = Range(match.range(at: 1), in: text) else { continue }
+                let body = String(text[range])
+                // Interpolated literals are testNoSwiftUILiteralInterpolatesChineseText's.
+                guard !body.contains("\\("),
+                      han.firstMatch(in: body, range: NSRange(body.startIndex..<body.endIndex, in: body)) != nil else { continue }
+                let key = body
+                    .replacingOccurrences(of: "\\n", with: "\n")
+                    .replacingOccurrences(of: "\\\"", with: "\"")
+                    .replacingOccurrences(of: "\\\\", with: "\\")
+                checked += 1
+                if chinese[key] == nil || english[key] == nil { missing.append("\(file.lastPathComponent): \(key)") }
+            }
+        }
+        XCTAssertGreaterThan(checked, 300)
+        XCTAssertEqual(missing, [])
+    }
+
     /// The credential health page's fallbacks and captions are looked up (they reached the
     /// English UI as Chinese text).
     func testInspectionPageHasNoRawChineseFallbacks() throws {
