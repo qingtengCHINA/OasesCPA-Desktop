@@ -340,9 +340,15 @@ struct ConfigurationView: View {
 
             LabeledField(
                 title: "CPA Base URL",
-                placeholder: "http://127.0.0.1:8317",
+                placeholder: deploymentStore.endpoints.engineBaseURL.absoluteString,
                 text: baseURLBinding
             )
+            if let upstreamError {
+                Label(upstreamError, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(Color.oasesRed)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             HStack(alignment: .bottom, spacing: 10) {
                 VStack(alignment: .leading, spacing: 5) {
@@ -551,9 +557,17 @@ struct ConfigurationView: View {
             )
     }
 
+    /// Why the engine address CPAMP would use cannot be saved (nil: it can).
+    private var upstreamError: String? {
+        guard let address = draft?.cpaConnection.engineBaseURL,
+              !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return ManagerUpstreamValidation.error(for: address, topology: deploymentStore.topology)
+    }
+
     private var isValidDraft: Bool {
         guard let draft,
               !draft.cpaConnection.engineBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              upstreamError == nil,
               !draft.managementKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               let pollInterval = Int(pollIntervalText), pollInterval > 0,
               let batchSize = Int(batchSizeText), batchSize > 0,
@@ -581,7 +595,11 @@ struct ConfigurationView: View {
               let pollInterval = Int(pollIntervalText), pollInterval > 0,
               let batchSize = Int(batchSizeText), batchSize > 0,
               let queryLimit = Int(queryLimitText), queryLimit > 0,
-              effectiveInspectionPolicyDraft.validationMessage == nil else { return }
+              effectiveInspectionPolicyDraft.validationMessage == nil,
+              ManagerUpstreamValidation.error(
+                  for: draft.cpaConnection.engineBaseURL,
+                  topology: deploymentStore.topology
+              ) == nil else { return }
         draft.collector.pollIntervalMs = pollInterval
         draft.collector.batchSize = batchSize
         draft.collector.queryLimit = queryLimit
@@ -593,10 +611,13 @@ struct ConfigurationView: View {
         let submittedRevision = editState.beginSave()
         Task {
             do {
-                _ = try await runtimeDataStore.saveManagerConfiguration(
+                let response = try await runtimeDataStore.saveManagerConfiguration(
                     draft,
                     using: deploymentStore
                 )
+                // The next save must carry the version this one created (CPAMP's
+                // compare-and-set), even when the page keeps the user's newer edits.
+                self.draft?.updatedAtMs = response.config.updatedAtMs
                 editState.finishSave(revision: submittedRevision, succeeded: true)
             } catch {
                 editState.finishSave(revision: submittedRevision, succeeded: false)

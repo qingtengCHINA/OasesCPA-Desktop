@@ -64,6 +64,34 @@ Observations on the engine's own file handling:
   `config-version` 8 or later makes the two file fields refuse with "use the configuration file
   editor".
 
+## Task 20: conditional writes (re-measured)
+
+Second run, same setup (`start_probe_engine.sh start --archive …`), 2026-11-08:
+
+| Request | Status | Answer | Conclusion |
+|---|---|---|---|
+| `GET /v0/management/config.yaml` | 200 | `Cache-Control: no-store`, `Content-Type: application/yaml; charset=utf-8`, `Content-Length`; no `ETag`, no `Last-Modified` (`Access-Control-Expose-Headers` names `ETag`, none is sent) | Same as the first run. |
+| `PUT config.yaml` (the file just read) without `If-Match` | 200 | `{"changed":["config"],"ok":true}` | Unconditional write. |
+| `PUT config.yaml` with `If-Match: "1"` | 200 | `{"changed":["config"],"ok":true}` | `If-Match` ignored. |
+| `PUT config.yaml` with `If-Match: *` | 200 | `{"changed":["config"],"ok":true}` | Ignored as well. |
+
+What the app does with this:
+
+- `ManagementAPIClient.configYAML` returns `RuntimeConfigYAMLSnapshot(data, etag)`; `saveConfigYAML(_:etag:…)`
+  sends `If-Match` only when the read had an `ETag` and maps 412/428 to `.configConflict`
+  ("配置已被其他人修改，请重新加载。"). Against v8.0.51 no `ETag` arrives, so no `If-Match` is
+  sent and nothing is protected: a `config.yaml` write is **last-writer-wins**. The file editor
+  says so under the editor ("当前引擎不提供文件版本号…最后保存的内容生效。"); the conditional
+  path is kept and tested with stubs (`ConfigYAMLConcurrencyTests`) for a future engine.
+- CPA Manager Plus `PUT /usage-service/config`: derived from source only (CPA Manager Plus was
+  not run here). The oases fork's `managerconfig/handler.go` answers `ETag: "<updatedAtMs>"`,
+  takes the expected version from `If-Match: "<ms>"` (else from the body's
+  `config.updatedAtMs`, else 0) and refuses a stale one with 409
+  `{"error":"manager config conflict","code":"manager_config_conflict"}`; upstream v1.14.10
+  ignores both. The app sends the version it read in both places and maps that 409 to
+  `.managerConfigConflict`; other 409s (for example `connection_env_managed`) stay server errors.
+  UNVERIFIED against a running CPA Manager Plus (Task 23's drill).
+
 ## Open items
 
 - **CPA Manager Plus prices usage events by `coalesce(nullif(resolved_model, ''), model)`**
@@ -88,6 +116,5 @@ Observations on the engine's own file handling:
   (`api_key`) and the upstream credential in `source`; CPA Manager Plus masks `source` when it
   imports. `GET /v0/management/config` leaves out `remote-management`.
 - **Not measured yet:** the request-error log endpoints (`/v0/management/request-error-logs`,
-  Task 21) and the remaining Task 20 requests are left for those tasks; until they are
-  measured, Task 21 lists and downloads only through the routes in `server_management.go` and
-  tolerates unknown fields.
+  Task 21); until they are measured, Task 21 lists and downloads only through the routes in
+  `server_management.go` and tolerates unknown fields.

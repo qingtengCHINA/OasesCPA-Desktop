@@ -51,9 +51,10 @@ extension ManagementAPIClient {
     /// Updates one setting. Endpoint settings use the exact CLIProxyAPI contract:
     /// `PATCH /v0/management/{key}` with `{ "value": ... }`. A config-file setting reads
     /// `config.yaml`, changes that one scalar (`CPAConfigYAMLPatcher`) and writes the file back
-    /// (`PUT /v0/management/config.yaml`; the engine reloads it). The engine has no ETag or
-    /// compare-and-set for the file (measured on v8.0.51): a change another client makes between
-    /// the read and the write is overwritten, so the window is kept to one read and one write.
+    /// (`PUT /v0/management/config.yaml`; the engine reloads it), with `If-Match` when the read
+    /// had an `ETag`. v8.0.51 sends none and ignores `If-Match` (measured): a change another
+    /// client makes between the read and the write is overwritten, so the window is kept to one
+    /// read and one write.
     func updateQuickConfigurationValue(
         _ value: RuntimeCPAQuickConfigValue,
         for field: RuntimeCPAQuickConfigField,
@@ -62,11 +63,12 @@ extension ManagementAPIClient {
     ) async throws {
         guard !field.isReadOnly else { throw QuickConfigWriteError.readOnly(field) }
         if case .yaml(let path) = field.transport {
-            let yaml = try await configYAMLText(baseURL: baseURL, managementKey: managementKey)
+            let snapshot = try await configYAML(baseURL: baseURL, managementKey: managementKey)
+            let yaml = try Self.configYAMLText(snapshot.data)
             try Self.refuseNestedLayout(yaml)
             let patched = try CPAConfigYAMLPatcher.setting(value.yamlScalar, at: path, in: yaml)
             guard patched != yaml else { return }
-            try await saveConfigYAML(Data(patched.utf8), baseURL: baseURL, managementKey: managementKey)
+            try await saveConfigYAML(Data(patched.utf8), etag: snapshot.etag, baseURL: baseURL, managementKey: managementKey)
             return
         }
         let url = try quickConfigurationURL(for: field, baseURL: baseURL)
@@ -160,7 +162,10 @@ extension ManagementAPIClient {
     }
 
     private func configYAMLText(baseURL: URL, managementKey: String) async throws -> String {
-        let data = try await configYAML(baseURL: baseURL, managementKey: managementKey)
+        try Self.configYAMLText(try await configYAML(baseURL: baseURL, managementKey: managementKey).data)
+    }
+
+    private static func configYAMLText(_ data: Data) throws -> String {
         guard let text = String(data: data, encoding: .utf8) else { throw ManagementAPIError.invalidResponse }
         return text
     }

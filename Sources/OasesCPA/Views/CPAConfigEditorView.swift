@@ -18,6 +18,7 @@ struct CPAConfigEditorView: View {
     @State private var exportDocument = RuntimeCPAConfigDocument()
     @State private var exportFileName = "config.yaml"
     @State private var hasLoaded = false
+    @State private var hasConflict = false
 
     var body: some View {
         NavigationStack {
@@ -58,7 +59,10 @@ struct CPAConfigEditorView: View {
                             .foregroundStyle(.secondary)
                     }
                 } footer: {
-                    Text("建议先导出备份再修改。管理密钥、监听端口、代理地址和 Provider 配置都可能影响连接；CLIProxyAPI 服务端会在保存时做 YAML 与配置校验。")
+                    VStack(alignment: .leading, spacing: Oases.Space.xs) {
+                        Text("建议先导出备份再修改。管理密钥、监听端口、代理地址和 Provider 配置都可能影响连接；CLIProxyAPI 服务端会在保存时做 YAML 与配置校验。")
+                        Text(LocalizedStringKey(writeCheckNote))
+                    }
                 }
 
                 if let errorMessage {
@@ -66,6 +70,12 @@ struct CPAConfigEditorView: View {
                         Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(Color.oasesRed)
                             .fixedSize(horizontal: false, vertical: true)
+                        if hasConflict {
+                            Button("重新加载（舍弃我的修改）", systemImage: "arrow.clockwise") {
+                                reloadAfterConflict()
+                            }
+                            .disabled(runtimeDataStore.isLoadingCPAConfig)
+                        }
                     }
                 }
             }
@@ -208,9 +218,31 @@ struct CPAConfigEditorView: View {
                 isDirty = false
                 dismiss()
             } catch {
-                errorMessage = "保存 config.yaml 失败：\(error.localizedDescription)"
+                if case ManagementAPIError.configConflict = error {
+                    hasConflict = true
+                    errorMessage = error.localizedDescription
+                } else {
+                    hasConflict = false
+                    errorMessage = OasesLocalization.localizedFormat("保存 config.yaml 失败：%@", error.localizedDescription)
+                }
             }
         }
+    }
+
+    /// The engine's answer decides whether a save can detect a concurrent change: only a read
+    /// that came with an `ETag` makes the write conditional (CLIProxyAPI v8.0.51 sends none).
+    private var writeCheckNote: String {
+        ManagementAPIClient.configYAMLWritesAreChecked(etag: runtimeDataStore.cpaConfigETag)
+            ? "保存时会核对文件版本；如果期间有人修改过，保存会被拒绝并提示你重新加载。"
+            : "当前引擎不提供文件版本号，保存时无法发现别人在此期间的修改：最后保存的内容生效。"
+    }
+
+    private func reloadAfterConflict() {
+        hasConflict = false
+        errorMessage = nil
+        isDirty = false
+        if let cached = runtimeDataStore.cpaConfigYAML { contents = cached }
+        runtimeDataStore.refreshCPAConfig(using: deploymentStore)
     }
 
     private func requestClose() {

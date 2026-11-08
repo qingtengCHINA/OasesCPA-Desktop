@@ -2344,10 +2344,11 @@ final class RuntimeDecodingTests: XCTestCase {
             baseURL: baseURL,
             managementKey: managementKey
         )
-        XCTAssertFalse(original.isEmpty)
+        XCTAssertFalse(original.data.isEmpty)
 
         try await client.saveConfigYAML(
-            original,
+            original.data,
+            etag: original.etag,
             baseURL: baseURL,
             managementKey: managementKey
         )
@@ -2355,7 +2356,7 @@ final class RuntimeDecodingTests: XCTestCase {
             baseURL: baseURL,
             managementKey: managementKey
         )
-        XCTAssertFalse(reread.isEmpty)
+        XCTAssertFalse(reread.data.isEmpty)
     }
 
     private func assertQuotaManagementContract(

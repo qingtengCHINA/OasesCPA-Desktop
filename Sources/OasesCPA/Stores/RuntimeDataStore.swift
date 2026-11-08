@@ -101,6 +101,9 @@ final class RuntimeDataStore: ObservableObject {
     @Published private(set) var systemStatus: RuntimeSystemStatus?
     @Published private(set) var managerConfiguration: RuntimeManagerConfigResponse?
     @Published private(set) var cpaConfigYAML: String?
+    /// The engine's version token for `cpaConfigYAML` (nil: the engine sent none — v8.0.51 —
+    /// and a save is last-writer-wins).
+    @Published private(set) var cpaConfigETag: String?
     @Published private(set) var quotaCooldowns: [RuntimeQuotaCooldown] = []
     @Published private(set) var quotaEvidence: [String: RuntimeQuotaEvidence] = [:]
     @Published private(set) var isLoading = false
@@ -277,6 +280,7 @@ final class RuntimeDataStore: ObservableObject {
             systemStatus = nil
             managerConfiguration = nil
             cpaConfigYAML = nil
+            cpaConfigETag = nil
             quotaCooldowns = []
             quotaEvidence = [:]
             errorMessage = nil
@@ -2977,6 +2981,7 @@ final class RuntimeDataStore: ObservableObject {
         cpaConfigTask?.cancel()
         guard deploymentStore.stage == .attached, !deploymentStore.managementKey.isEmpty else {
             cpaConfigYAML = nil
+            cpaConfigETag = nil
             cpaConfigErrorMessage = nil
             isLoadingCPAConfig = false
             return
@@ -2988,14 +2993,15 @@ final class RuntimeDataStore: ObservableObject {
         cpaConfigErrorMessage = nil
         cpaConfigTask = Task { [weak self] in
             do {
-                let data = try await ManagementAPIClient().configYAML(
+                let snapshot = try await ManagementAPIClient().configYAML(
                     baseURL: baseURL,
                     managementKey: managementKey
                 )
                 guard !Task.isCancelled,
                       deploymentStore.stage == .attached,
                       deploymentStore.managementKey == managementKey else { return }
-                self?.cpaConfigYAML = String(decoding: data, as: UTF8.self)
+                self?.cpaConfigETag = snapshot.etag
+                self?.cpaConfigYAML = String(decoding: snapshot.data, as: UTF8.self)
                 self?.cpaConfigErrorMessage = nil
                 self?.isLoadingCPAConfig = false
             } catch {
@@ -3019,13 +3025,15 @@ final class RuntimeDataStore: ObservableObject {
         isSavingCPAConfig = true
         cpaConfigErrorMessage = nil
         defer { isSavingCPAConfig = false }
-        try await ManagementAPIClient().saveConfigYAML(
+        let newETag = try await ManagementAPIClient().saveConfigYAML(
             Data(normalized.utf8),
+            etag: cpaConfigETag,
             baseURL: baseURL,
             managementKey: managementKey
         )
         guard deploymentStore.stage == .attached,
               deploymentStore.managementKey == managementKey else { return }
+        cpaConfigETag = newETag
         cpaConfigYAML = normalized
     }
 

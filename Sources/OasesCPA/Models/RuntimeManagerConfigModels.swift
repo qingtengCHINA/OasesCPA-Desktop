@@ -74,6 +74,58 @@ struct RuntimeCPAConnectionConfig: Codable, Equatable {
     }
 }
 
+/// Checks the address CPA Manager Plus uses to reach the engine (`cpaConnection.cpaBaseUrl`)
+/// before it is saved.
+///
+/// Gateway topology: the engine listens on `http://127.0.0.1:18316` only (IPv4 loopback;
+/// `localhost` may resolve to `::1`, where nothing listens). Pointing CPA Manager Plus at the
+/// gateway (8317, 18320) or at itself (18317) breaks monitoring and usage collection.
+/// Legacy topology: any http(s) address (a legacy Docker stack uses the container name).
+enum ManagerUpstreamValidation {
+    static let invalidAddressSource = "请输入完整的 http 地址，例如 %@。"
+    static let gatewayPortSource = "%1$lld 是网关或 CPAMP 自己的端口，不是引擎；CPAMP 的上游应为 %2$@。"
+    static let loopbackOnlySource = "网关部署中的引擎只监听本机 IPv4 回环地址，CPAMP 的上游应为 %@。"
+
+    /// The localization keys of every message (tests check the English translations).
+    static let messageSources = [invalidAddressSource, gatewayPortSource, loopbackOnlySource]
+
+    static func error(for cpaBaseURL: String, topology: DeploymentTopology) -> String? {
+        let engineAddress = DeploymentEndpoints(topology: topology).engineBaseURL.absoluteString
+        let trimmed = cpaBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let components = URLComponents(string: trimmed),
+              let scheme = components.scheme?.lowercased(),
+              let host = components.host, !host.isEmpty else {
+            return OasesLocalization.localizedFormat(invalidAddressSource, engineAddress)
+        }
+        switch topology {
+        case .legacy:
+            return scheme == "http" || scheme == "https"
+                ? nil
+                : OasesLocalization.localizedFormat(invalidAddressSource, engineAddress)
+        case .gateway:
+            guard scheme == "http" else {
+                return OasesLocalization.localizedFormat(invalidAddressSource, engineAddress)
+            }
+            guard host == "127.0.0.1",
+                  components.user == nil, components.password == nil else {
+                return OasesLocalization.localizedFormat(loopbackOnlySource, engineAddress)
+            }
+            guard let port = components.port else {
+                return OasesLocalization.localizedFormat(invalidAddressSource, engineAddress)
+            }
+            if port == DeploymentPorts.engine,
+               components.path.isEmpty || components.path == "/",
+               components.query == nil, components.fragment == nil {
+                return nil
+            }
+            if [DeploymentPorts.gatewayAPI, DeploymentPorts.gatewayAdmin, DeploymentPorts.cpamp].contains(port) {
+                return OasesLocalization.localizedFormat(gatewayPortSource, Int64(port), engineAddress)
+            }
+            return OasesLocalization.localizedFormat(invalidAddressSource, engineAddress)
+        }
+    }
+}
+
 struct RuntimeManagerCollectorConfig: Codable, Equatable {
     var enabled: Bool?
     var collectorMode: String
@@ -299,6 +351,7 @@ struct RuntimeManagerConfigPayload: Encodable {
         case cpaConnection
         case collector
         case codexInspection
+        case updatedAtMs
     }
 
     func encode(to encoder: Encoder) throws {
@@ -317,5 +370,8 @@ struct RuntimeManagerConfigPayload: Encodable {
             config.codexInspection ?? RuntimeCodexInspectionPolicyDraft.defaultConfig(),
             forKey: .codexInspection
         )
+        // The version this config was read at: the oases fork of CPA Manager Plus compares it
+        // (compare-and-set, 409 when stale); upstream ignores it.
+        try configContainer.encodeIfPresent(config.updatedAtMs, forKey: .updatedAtMs)
     }
 }

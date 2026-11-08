@@ -11,6 +11,11 @@ enum ManagementAPIError: LocalizedError {
     case invalidAccountActionCandidateID
     case invalidCodexInspectionRunID
     case restartRequired(message: String)
+    /// `PUT config.yaml` answered 412/428: the file changed since it was read (only possible
+    /// when the engine sent an `ETag`; v8.0.51 sends none, so its writes are last-writer-wins).
+    case configConflict
+    /// CPA Manager Plus refused a stale `updatedAtMs` (409 `manager_config_conflict`).
+    case managerConfigConflict
     case server(status: Int, message: String)
     case invalidResponse
     case decoding(String)
@@ -40,6 +45,10 @@ enum ManagementAPIError: LocalizedError {
             return detail.isEmpty
                 ? OasesLocalization.localized("当前操作需要重启目标服务后再继续。")
                 : "当前操作需要重启目标服务后再继续：\(detail)"
+        case .configConflict:
+            return OasesLocalization.localized("配置已被其他人修改，请重新加载。")
+        case .managerConfigConflict:
+            return OasesLocalization.localized("CPAMP 设置已被其他人修改，请重新读取后再保存。")
         case .server(let status, let message):
             return "当前目标管理 API 返回 HTTP \(status)：\(message)"
         case .invalidResponse:
@@ -48,6 +57,12 @@ enum ManagementAPIError: LocalizedError {
             return "当前目标管理 API 响应格式不兼容：\(detail)"
         }
     }
+}
+
+/// One read of the engine's `config.yaml` with the version token the engine sent, if any.
+struct RuntimeConfigYAMLSnapshot: Sendable, Equatable {
+    let data: Data
+    let etag: String?
 }
 
 struct ManagementAPIClient {
@@ -773,7 +788,7 @@ struct ManagementAPIClient {
         try await performMutation(request)
     }
 
-    func configYAML(baseURL: URL, managementKey: String) async throws -> Data {
+    func configYAML(baseURL: URL, managementKey: String) async throws -> RuntimeConfigYAMLSnapshot {
         guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
             throw ManagementAPIError.invalidURL
         }
@@ -786,14 +801,21 @@ struct ManagementAPIClient {
         request.timeoutInterval = 20
         request.setValue("Bearer \(managementKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/yaml, text/yaml, text/plain;q=0.9, */*;q=0.8", forHTTPHeaderField: "Accept")
-        return try await performData(request)
+        let (data, response) = try await performDataAndResponse(request)
+        return RuntimeConfigYAMLSnapshot(data: data, etag: Self.entityTag(in: response))
     }
 
+    /// Writes `config.yaml`. With an `etag` from the read the write is conditional
+    /// (`If-Match`); a 412/428 answer becomes `.configConflict`. Without one (CLIProxyAPI v8.0.51
+    /// sends none and ignores `If-Match`) the write is unconditional: last writer wins.
+    /// Returns the `ETag` of the written file when the engine sends one.
+    @discardableResult
     func saveConfigYAML(
         _ data: Data,
+        etag: String?,
         baseURL: URL,
         managementKey: String
-    ) async throws {
+    ) async throws -> String? {
         guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
             throw ManagementAPIError.invalidURL
         }
@@ -807,8 +829,28 @@ struct ManagementAPIClient {
         request.setValue("Bearer \(managementKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/yaml; charset=utf-8", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let etag, Self.configYAMLWritesAreChecked(etag: etag) {
+            request.setValue(etag, forHTTPHeaderField: "If-Match")
+        }
         request.httpBody = data
-        try await performMutation(request)
+        do {
+            let (_, response) = try await performDataAndResponse(request)
+            return Self.entityTag(in: response)
+        } catch ManagementAPIError.server(let status, _) where status == 412 || status == 428 {
+            throw ManagementAPIError.configConflict
+        }
+    }
+
+    /// Whether a `config.yaml` write made with this read's `etag` is compare-and-set.
+    static func configYAMLWritesAreChecked(etag: String?) -> Bool {
+        guard let etag else { return false }
+        return !etag.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private static func entityTag(in response: HTTPURLResponse) -> String? {
+        guard let value = response.value(forHTTPHeaderField: "ETag")?
+            .trimmingCharacters(in: .whitespaces), !value.isEmpty else { return nil }
+        return value
     }
 
     func downloadAuthFile(
@@ -1307,6 +1349,10 @@ struct ManagementAPIClient {
         return try await get(url: url, managementKey: managementKey)
     }
 
+    /// Saves CPA Manager Plus's manager config. A config read from the server carries
+    /// `updatedAtMs`; it is sent both in the body and as `If-Match: "<ms>"`, which the oases
+    /// fork uses as the expected version (409 `manager_config_conflict` when stale) and
+    /// upstream v1.14.10 ignores.
     func saveManagerConfig(
         _ config: RuntimeManagerConfig,
         baseURL: URL,
@@ -1325,6 +1371,9 @@ struct ManagementAPIClient {
         request.setValue("Bearer \(managementKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let version = config.updatedAtMs {
+            request.setValue("\"\(version)\"", forHTTPHeaderField: "If-Match")
+        }
         request.httpBody = try JSONEncoder().encode(RuntimeManagerConfigPayload(config: config))
 
         let (data, response) = try await session.data(for: request)
@@ -1335,6 +1384,11 @@ struct ManagementAPIClient {
             let message = String(data: data, encoding: .utf8) ?? OasesLocalization.localized("请求失败")
             if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
                 throw ManagementAPIError.unauthorized
+            }
+            if httpResponse.statusCode == 409,
+               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               object["code"] as? String == "manager_config_conflict" {
+                throw ManagementAPIError.managerConfigConflict
             }
             throw ManagementAPIError.server(status: httpResponse.statusCode, message: message)
         }
@@ -1560,6 +1614,13 @@ struct ManagementAPIClient {
         _ request: URLRequest,
         unauthorizedError: ManagementAPIError = .unauthorized
     ) async throws -> Data {
+        try await performDataAndResponse(request, unauthorizedError: unauthorizedError).0
+    }
+
+    private func performDataAndResponse(
+        _ request: URLRequest,
+        unauthorizedError: ManagementAPIError = .unauthorized
+    ) async throws -> (Data, HTTPURLResponse) {
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ManagementAPIError.invalidResponse
@@ -1578,6 +1639,6 @@ struct ManagementAPIClient {
             }
             throw ManagementAPIError.server(status: httpResponse.statusCode, message: message)
         }
-        return data
+        return (data, httpResponse)
     }
 }

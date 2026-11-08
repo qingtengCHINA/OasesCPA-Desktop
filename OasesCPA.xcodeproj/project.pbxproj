@@ -96,6 +96,7 @@
 		6911849EA065279F794E490C /* RuntimeProviderDraftDiagnosticsContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80C6000AD9FC58BCB173A402 /* RuntimeProviderDraftDiagnosticsContractTests.swift */; };
 		6B017C1904127BC4BAA41BD8 /* OasesCPA.icns in Resources */ = {isa = PBXBuildFile; fileRef = B390BECFAC33611234C4164F /* OasesCPA.icns */; };
 		6B285E4C7F4BCDF44028ADFA /* OnboardingStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D71CF28144C36877997E7F4F /* OnboardingStateTests.swift */; };
+		70941394AB49752510D2E8DA /* ManagerConfigValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F80F95BE5E5763CE7614729D /* ManagerConfigValidationTests.swift */; };
 		7259115F1B20B2312C5F2140 /* DeploymentPins.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DEFAE02AEFEFFEB39788CA6 /* DeploymentPins.swift */; };
 		74AD6F9F1B58003594ABBB6C /* SSHConnectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFC7F942E2BBEE339097DB7B /* SSHConnectionService.swift */; };
 		7560D4E092861D4135CB95CD /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9C24ED7E4E6915EF383CC39 /* DashboardView.swift */; };
@@ -223,6 +224,7 @@
 		FB9EB1DD3F14F5AD0514840C /* CLIProxyAPI-MIT.txt in Resources */ = {isa = PBXBuildFile; fileRef = CA80448BE2BFEE5DCFA741EE /* CLIProxyAPI-MIT.txt */; };
 		FBBE84356CEC99EB4C419C11 /* GatewayKeysStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBDEF83C1CCDD685FCD92387 /* GatewayKeysStore.swift */; };
 		FD0D6AA691C7190D6F0FC46E /* UpgradeScriptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B1773BF45D361376BBC1027 /* UpgradeScriptTests.swift */; };
+		FD86E8720AB32FF8DDD8D7F8 /* ConfigYAMLConcurrencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 520DF52378C504A0E6891BF7 /* ConfigYAMLConcurrencyTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -311,6 +313,7 @@
 		4E25C2AB687CC05FA456EF37 /* GatewayBundleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatewayBundleTests.swift; sourceTree = "<group>"; };
 		4F9EE7F27386C5DB5666AB6A /* CPAConfigYAMLPatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPAConfigYAMLPatcher.swift; sourceTree = "<group>"; };
 		50A2453AA54BCE5E8E428CDE /* URLProtocolStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLProtocolStub.swift; sourceTree = "<group>"; };
+		520DF52378C504A0E6891BF7 /* ConfigYAMLConcurrencyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigYAMLConcurrencyTests.swift; sourceTree = "<group>"; };
 		553C818C94BD4C836715013C /* DeploymentMaintenanceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentMaintenanceService.swift; sourceTree = "<group>"; };
 		569387330C4103211781E8D4 /* OasesBrandIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = OasesBrandIcon.png; sourceTree = "<group>"; };
 		56E355E65C98BB3AE55CCEF9 /* RuntimeDirectProviderContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeDirectProviderContractTests.swift; sourceTree = "<group>"; };
@@ -442,6 +445,7 @@
 		F615D068D4D20305340E278E /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		F66854F06669C9D4AF1D6E3E /* ManagementAPIClient+AuthFilesWorkbench.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ManagementAPIClient+AuthFilesWorkbench.swift"; sourceTree = "<group>"; };
 		F6BC53E6B6EC7E1464FF5F6B /* RuntimeLifecycleService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeLifecycleService.swift; sourceTree = "<group>"; };
+		F80F95BE5E5763CE7614729D /* ManagerConfigValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagerConfigValidationTests.swift; sourceTree = "<group>"; };
 		F83EDFD8161AD114DC4B8248 /* AppLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLanguage.swift; sourceTree = "<group>"; };
 		F936770E886B529B9C40D1C3 /* ModelPacksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPacksView.swift; sourceTree = "<group>"; };
 		FAA2F4AEDC278A02AA06CAA8 /* GatewayAdminClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatewayAdminClient.swift; sourceTree = "<group>"; };
@@ -538,6 +542,7 @@
 				917E8179E65B7B7D3AE365D5 /* AuthFilesWorkbenchTests.swift */,
 				3703C63C9337CC680230FD84 /* BoundedProcessRunnerTests.swift */,
 				66A79A9BA41BD5DA3BAB4F50 /* ConfigurationStateTests.swift */,
+				520DF52378C504A0E6891BF7 /* ConfigYAMLConcurrencyTests.swift */,
 				24659756504B0E525243A2DF /* CPAConfigYAMLPatcherTests.swift */,
 				0EAE2D6DC120131901F8762A /* CPAQuickConfigTests.swift */,
 				33598341B509506D16443FAF /* DeploymentLifecycleServiceTests.swift */,
@@ -554,6 +559,7 @@
 				FD54AEDB0F3900DC83AE5F48 /* GatewayPackContractTests.swift */,
 				2F320B15455C33C0C5DE55A3 /* GatewaySearchContractTests.swift */,
 				814C8F47BC57549132577247 /* GatewayWorkbenchStoreTests.swift */,
+				F80F95BE5E5763CE7614729D /* ManagerConfigValidationTests.swift */,
 				D09F7119B5F92C061D81C5A6 /* ModelDetailStoreTests.swift */,
 				246F32A2ABD823698783FA88 /* ModelPacksStoreTests.swift */,
 				14600603605C6DD2DDE0F8C1 /* ModelsWorkbenchStoreTests.swift */,
@@ -1072,6 +1078,7 @@
 				4F8BF937122A4CB90521C193 /* BoundedProcessRunnerTests.swift in Sources */,
 				409D82AB20C797C419842DB0 /* CPAConfigYAMLPatcherTests.swift in Sources */,
 				DC54E1907EDAF5474119CF21 /* CPAQuickConfigTests.swift in Sources */,
+				FD86E8720AB32FF8DDD8D7F8 /* ConfigYAMLConcurrencyTests.swift in Sources */,
 				D035C1540F2809CC6856203F /* ConfigurationStateTests.swift in Sources */,
 				F17803E741D5EE26459BB164 /* DeploymentLifecycleServiceTests.swift in Sources */,
 				6454F2929FF439E9142833AC /* DeploymentScriptFragmentsTests.swift in Sources */,
@@ -1089,6 +1096,7 @@
 				9C2C86AF89E2E0959DD79C12 /* GatewayPackContractTests.swift in Sources */,
 				4CBD4D3B1BBF9B063F4DD615 /* GatewaySearchContractTests.swift in Sources */,
 				DA377A6D57FD2F7B19AFB086 /* GatewayWorkbenchStoreTests.swift in Sources */,
+				70941394AB49752510D2E8DA /* ManagerConfigValidationTests.swift in Sources */,
 				B056151216A8C3BB45189348 /* ModelDetailStoreTests.swift in Sources */,
 				C74990A64B445310E5951E9C /* ModelPacksStoreTests.swift in Sources */,
 				E4B461A77356C4CB6AC448AD /* ModelsWorkbenchStoreTests.swift in Sources */,

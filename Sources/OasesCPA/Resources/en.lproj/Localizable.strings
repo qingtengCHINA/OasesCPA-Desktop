@@ -2529,3 +2529,12 @@
 "配置文件里 %@ 使用了单行（流式）写法，无法自动修改，请在配置文件编辑器中手动修改。" = "%@ in the configuration file uses the one-line (flow) style and cannot be changed automatically. Change it in the configuration file editor.";
 "%lld 条规则" = "%lld rules";
 "%@：%lld 条规则，只读" = "%@: %lld rules, read-only";
+"配置已被其他人修改，请重新加载。" = "The configuration was changed by someone else. Reload it.";
+"CPAMP 设置已被其他人修改，请重新读取后再保存。" = "The CPAMP settings were changed by someone else. Reload them, then save again.";
+"请输入完整的 http 地址，例如 %@。" = "Enter a complete http address, for example %@.";
+"%1$lld 是网关或 CPAMP 自己的端口，不是引擎；CPAMP 的上游应为 %2$@。" = "%1$lld is a port of the gateway or of CPAMP itself, not the engine; CPAMP's upstream should be %2$@.";
+"网关部署中的引擎只监听本机 IPv4 回环地址，CPAMP 的上游应为 %@。" = "In a gateway deployment the engine listens on IPv4 loopback only; CPAMP's upstream should be %@.";
+"重新加载（舍弃我的修改）" = "Reload (discard my changes)";
+"保存时会核对文件版本；如果期间有人修改过，保存会被拒绝并提示你重新加载。" = "Saving checks the file version: if someone changed the file in the meantime, the save is refused and you are asked to reload.";
+"当前引擎不提供文件版本号，保存时无法发现别人在此期间的修改：最后保存的内容生效。" = "This engine does not provide a file version, so a save cannot detect changes someone else made in the meantime: the last save wins.";
+"保存 config.yaml 失败：%@" = "Failed to save config.yaml: %@";
