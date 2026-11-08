@@ -33,7 +33,12 @@ final class LocalizationResourceTests: XCTestCase {
     /// The keys as written in the file. The property-list parser drops the backslash of `\(`,
     /// so an interpolation is only visible in the raw text.
     private func rawKeys(_ language: String) throws -> [String] {
-        let text = try String(contentsOf: try stringsURL(language), encoding: .utf8)
+        // Xcode compiles `.strings` into a binary property list, so the raw text only exists in
+        // the SwiftPM run of this test (it reads the original file); the Xcode-hosted run checks
+        // the parsed keys instead.
+        guard let text = try? String(contentsOf: try stringsURL(language), encoding: .utf8) else {
+            return Array(try dictionary(language).keys)
+        }
         var keys: [String] = []
         for line in text.split(separator: "\n", omittingEmptySubsequences: true) where line.hasPrefix("\"") {
             var key = ""
