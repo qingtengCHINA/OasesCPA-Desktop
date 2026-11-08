@@ -255,12 +255,6 @@ final class DeploymentStore: ObservableObject {
         DeploymentEndpoints(topology: topology)
     }
 
-    var localPanelURL: String {
-        targetKind == .local || tunnelAttached
-            ? endpoints.cpampBaseURL.appendingPathComponent("management.html").absoluteString
-            : OasesLocalization.localized("SSH 隧道建立后使用本机回环地址")
-    }
-
     /// CPA Manager Plus (usage analytics and monitoring backend), as reached from this Mac.
     var cpampManagementURL: String {
         targetKind == .local || tunnelAttached
@@ -1042,11 +1036,6 @@ final class DeploymentStore: ObservableObject {
             beginNewTarget()
             statusMessage = OasesLocalization.localized("部署目录、服务、凭据与目标记录已彻底删除；可以重新开始")
         }
-    }
-
-    func openPanel() {
-        guard let url = URL(string: localPanelURL), localPanelURL.hasPrefix("http") else { return }
-        NSWorkspace.shared.open(url)
     }
 
     func refreshDeploymentLog() {

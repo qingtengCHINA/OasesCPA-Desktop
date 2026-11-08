@@ -24,13 +24,11 @@
 "API Key 不能包含换行，且长度不能超过 4096 个字符。" = "API Key cannot contain newlines and cannot exceed 4096 characters in length.";
 "API Key 哈希" = "API Key Hash";
 "API Key 已复制" = "API Key copied";
-"API 契约映射" = "API contract mapping";
 "Anthropic Claude API 密钥" = "Anthropic Claude API Key";
 "App 不把 CPA 管理密钥写入普通偏好设置；部署生成的密钥仍由 Keychain 保存。修改后 CPAMP 会先验证连接再保存。" = "Apps do not write CPA management keys to normal preferences; deployment-generated keys are still held by Keychain. After modification, CPAMP will verify the connection before saving.";
 "App 仅创建 OAuth 会话、打开授权页、轮询状态和按需转交回调地址。授权令牌不会写入 App 偏好设置或日志；插件与当前目标 CLIProxyAPI 决定凭证的实际存储位置。" = "The app simply creates an OAuth session, opens the authorization page, polls for status, and forwards the callback address as needed. Authorization tokens are not written to App preferences or logs; the plugin and the current target CLIProxyAPI determine where the credentials are actually stored.";
 "App 会停止当前目标服务并删除本机保存的 CPA / CPAMP 管理密钥，但不会删除目标目录、认证文件或远程部署文件。之后可以选择另一个本机或 VPS 目标。" = "The app will stop the current target service and delete the locally saved CPA/CPAMP management keys, but will not delete the target directory, certification files, or remote deployment files. You can then choose another local or VPS destination.";
 "App 会先停止由本次部署创建的进程或 Compose 服务，再把失败部署文件和日志移动到目标目录的 backups/failed-*，不会直接删除。" = "The App will first stop the process or Compose service created by this deployment, and then move the failed deployment files and logs to backups/failed-* in the target directory, and will not delete them directly.";
-"App 只显示 CLIProxyAPI 返回的脱敏运行日志；如需完整请求错误文件、下载或按请求查看证据，请打开同一目标的 CPAMP 面板。" = "The app only displays the masked run log returned by CLIProxyAPI; if you want to fully request the error file, download or view the evidence upon request, please open the CPAMP panel of the same target.";
 "App 已记录授权失败原因。请回到 Oases CPA 查看并重新开始。" = "The App has recorded the reason for authorization failure. Please go back to Oases CPA to review and start over.";
 "App 正在确认 CLIProxyAPI、CPAMP 和 SSH 隧道状态" = "App is confirming CLIProxyAPI, CPAMP and SSH tunnel status";
 "App 直接调用当前目标的 CLIProxyAPI 管理接口" = "App directly calls the CLIProxyAPI management interface of the current target";
@@ -65,9 +63,6 @@
 "CPAMP 未提供原因摘要。" = "CPAMP did not provide a summary of the reasons.";
 "CPAMP 未返回可展示的脱敏证据。" = "CPAMP returned no demonstrable evidence of desensitization.";
 "CPAMP 返回了无法格式化的证据。" = "CPAMP returned evidence that could not be formatted.";
-"CPAMP 面板" = "CPAMP Panel";
-"CPAMP 面板加载失败" = "CPAMP panel failed to load";
-"CPAMP 面板尚未接入" = "CPAMP panel is not connected yet";
 "Code review · 主窗口" = "Code review · Main window";
 "Code review · 长期窗口" = "Code review · long-term window";
 "Codex / Responses 上游密钥" = "Codex/Responses upstream key";
@@ -82,7 +77,6 @@
 "Header 名称" = "Header Name";
 "JSON 内容" = "JSON content";
 "JSON 配置" = "JSON configuration";
-"Keychain 管理密钥" = "Keychain management keys";
 "Mac 控制台" = "Mac Console";
 "Manager Server 数据采集" = "Manager Server data collection";
 "Manager 数据迁移状态" = "Manager data migration status";
@@ -97,7 +91,6 @@
 "Oases CPA 是用于连接、部署和管理用户自有目标环境的独立 macOS App，不隶属、未获 CLIProxyAPI 或 CPA Manager Plus 背书。下列上游项目的完整 MIT 许可证已随 App 一同提供。" = "Oases CPA is a standalone macOS App for connecting, deploying, and managing user-owned target environments and is not affiliated with or endorsed by CLIProxyAPI or CPA Manager Plus. Full MIT licenses for the following upstream projects are provided with the app.";
 "Oases CPA 状态" = "Oases CPA status";
 "Oases CPA 独立开发，不隶属 CLIProxyAPI 或 CPA Manager Plus；完整 MIT 许可证和上游链接可在“开源许可与致谢”中查看。" = "Oases CPA is developed independently and is not affiliated with CLIProxyAPI or CPA Manager Plus; the full MIT license and upstream links can be viewed in Open Source License and Acknowledgments.";
-"Oases CPA 负责目标连接、生命周期和安全存储；此功能的实际读写由当前目标上的 CPA Manager Plus 面板完成。" = "Oases CPA is responsible for target connectivity, lifecycle, and secure storage; the actual reading and writing of this functionality is done by the CPA Manager Plus panel on the current target.";
 "Oases CPA：目标服务不可用" = "Oases CPA: Target service is unavailable";
 "Oases CPA：目标服务已恢复" = "Oases CPA: Target service recovered";
 "Interactions API 密钥" = "Interactions API Key";
@@ -136,7 +129,6 @@
 "SSH 隧道与远程服务已恢复连接" = "The connection between the SSH tunnel and the remote service has been restored";
 "SSH 隧道与远程服务已自动恢复" = "SSH tunnel and remote services have been automatically restored";
 "SSH 隧道建立后使用本机 %lld 端口" = "After the SSH tunnel is established, use local port %lld";
-"SSH 隧道建立后使用本机回环地址" = "Use the local loopback address after the SSH tunnel is established";
 "SSH 隧道未能建立，请检查远程端口和私钥权限。" = "SSH tunnel failed to be established, please check remote port and private key permissions.";
 "TLS 校验已关闭" = "TLS verification is turned off";
 "TPM（30 分钟）" = "TPM (30 minutes)";
@@ -164,7 +156,6 @@
 "上游模型名" = "Upstream model name";
 "上游类型" = "upstream type";
 "上游连通性检查" = "Upstream connectivity check";
-"下一阶段" = "next stage";
 "下载 JSON" = "Download JSON";
 "下载官方 CLIProxyAPI 与 CPAMP 原生包，并校验 SHA-256" = "Download the official CLIProxyAPI and CPAMP native packages and verify SHA-256";
 "下载并升级" = "Download and upgrade";
@@ -231,7 +222,6 @@
 "保存修改" = "Save changes";
 "保存到当前 CPAMP；手动巡检与定时巡检都会遵守这些策略" = "Save to the current CPAMP; both manual inspection and scheduled inspection will comply with these policies";
 "保存前明确展示可能影响连接的选项" = "Explicitly display options that may affect the connection before saving";
-"保存前重启确认" = "Restart to confirm before saving";
 "保存含 xAI 推理探针的配置？" = "Save configuration with xAI inference probe?";
 "保存含自动删除策略的配置？" = "Save configuration with automatic deletion policy?";
 "保存含自动动作策略的配置？" = "Save configuration with automatic action policy?";
@@ -247,12 +237,10 @@
 "保存空列表会删除该渠道现有的模型排除规则。" = "Saving an empty list will delete existing model exclusions for that channel.";
 "保存配置" = "Save configuration";
 "保留" = "reserve";
-"保留 CPAMP 的业务边界，改用 macOS 交互模型" = "Retain the business boundaries of CPAMP and use the macOS interaction model instead";
 "保留 CPAMP 的兼容恢复策略；仅在服务端确认恢复条件后才可能启用认证文件。" = "Preserve CPAMP-compliant recovery policy; enabling certified files may only be possible after the server confirms recovery conditions.";
 "保留配置，但不让 CLIProxyAPI 选择它。" = "Keep the configuration but don't let CLIProxyAPI select it.";
 "信息" = "information";
 "修改认证文件状态" = "Modify certification file status";
-"候选或未匹配模型未被自动写入，避免把不确定的公开价格错误套用到成本估算。可在高级 CPAMP 面板复核候选后再确认。" = "Candidate or unmatched models are not automatically written to avoid incorrectly applying uncertain public prices to cost estimates. Candidates can be reviewed in the Advanced CPAMP panel before confirmation.";
 "候选由 CPAMP 根据请求监控中的脱敏证据生成。本页不会主动请求 Provider；“重新启用”会在确认后修改目标认证文件并把待办标记为已处理。删除认证文件请从“认证文件”页面进入现有的独立确认流程。" = "Candidates are generated by CPAMP based on evidence of desensitization from request monitoring. This page will not actively request the Provider; \"Re-Enable\" will modify the target authentication file after confirmation and mark the to-do as processed. To delete a certification file, please enter the existing independent confirmation process from the \"Certification Files\" page.";
 "候选账号" = "Candidate account";
 "停止并备份后清理" = "Clean up after stopping and backing up";
@@ -267,10 +255,8 @@
 "停用认证文件" = "Deactivate certification file";
 "先了解两个概念" = "Two ideas to know";
 "先从 /models 读取可用模型，再用选中的模型向 /chat/completions 发送一条最短测试消息。" = "First read the available models from /models, and then use the selected model to send a minimum test message to /chat/completions.";
-"先在“连接与部署”中完成本机或 SSH / VPS 部署，App 会自动通过回环地址或 SSH 隧道加载面板。" = "First complete the local or SSH/VPS deployment in \"Connect and Deploy\", and the App will automatically load the panel through the loopback address or SSH tunnel.";
 "先在“连接与部署”中选择本机终端或 SSH / VPS，并完成 CLIProxyAPI 部署或接入。App 不会绑定当前项目中的 Oases dev。" = "First select the local terminal or SSH/VPS in \"Connection and Deployment\" and complete CLIProxyAPI deployment or access. App will not bind to the Oases dev in the current project.";
 "先在“连接与部署”中选择本机终端或 SSH / VPS；连接完成后，这里只显示当前目标环境的真实数据。" = "First select the local terminal or SSH/VPS in \"Connection and Deployment\"; after the connection is completed, only the real data of the current target environment is displayed here.";
-"先在连接与部署页选择本机终端或 SSH / VPS，完成部署后即可从 App 内打开对应目标的 CPAMP 面板。" = "First select the local terminal or SSH/VPS on the connection and deployment page. After completing the deployment, you can open the CPAMP panel of the corresponding target from within the app.";
 "先填写远程 VPS 主机名或 IP 地址" = "First fill in the remote VPS hostname or IP address";
 "先完成本机或 SSH/VPS 部署；这里不会读取或修改其他目标的密钥。" = "Complete local or SSH/VPS deployment first; keys for other targets will not be read or modified here.";
 "先检测远程目标，再通过 SSH 安装 CLIProxyAPI 和 CPAMP。" = "Detect the remote target first and then install CLIProxyAPI and CPAMP via SSH.";
@@ -340,9 +326,7 @@
 "前往连接与部署" = "Go to Connection & Deployment";
 "前往连接与部署页" = "Open Connect & Deploy";
 "前缀、路由策略、自定义请求头、密钥权重与模型别名" = "Prefixes, routing strategies, custom request headers, key weights and model aliases";
-"加入 YAML Diff" = "Add YAML Diff";
 "加载更多" = "load more";
-"加载资源页面" = "Load resource page";
 "动作状态" = "action state";
 "助力你搭建自己的第一套 Token 工厂" = "Build your first token factory";
 "升级" = "upgrade";
@@ -358,10 +342,8 @@
 "原生二进制" = "native binary";
 "原生二进制适合大多数用户；Docker 用于隔离部署" = "Native binaries suitable for most users; Docker for isolated deployment";
 "原生化阶段" = "native stage";
-"原生工作区已就绪" = "Native workspace is ready";
 "原生操作直连 CLIProxyAPI" = "Direct connection to CLIProxyAPI for native operations";
 "原生读取真实 Provider 额度" = "Natively read the real Provider quota";
-"原生通知反馈" = "Native notification feedback";
 "发起动态插件授权" = "Initiate dynamic plug-in authorization";
 "取消" = "Cancel";
 "取消巡检" = "Cancel inspection";
@@ -371,7 +353,6 @@
 "只保存健康检查结果、建议和日志。" = "Only health check results, recommendations and logs are saved.";
 "只停止 CLIProxyAPI 与 CPAMP，不删除安装目录、认证文件或 Keychain 凭据。" = "Only stops CLIProxyAPI and CPAMP, without deleting the installation directory, authentication files, or Keychain credentials.";
 "只处理已发现的认证异常" = "Only handle discovered authentication exceptions";
-"只展示 CPAMP 返回的已知事件字段；原始响应元数据、错误文件和完整高级筛选保留在 CPAMP 面板。" = "Only known event fields returned by CPAMP are displayed; raw response metadata, error files, and full advanced filtering remain in the CPAMP panel.";
 "只显示 CPAMP 从响应头归一化出的额度、恢复时间、错误码与 trace；不会显示原始 response metadata、响应正文或 Provider 密钥。" = "Only the amount, recovery time, error code and trace normalized by CPAMP from the response header are displayed; the original response metadata, response body or Provider key will not be displayed.";
 "只有供应商明确要求时才需要填写。" = "This is only required if explicitly requested by the supplier.";
 "只移除 App 保存的连接草稿和该目标的 SSH 私钥，不会删除任何远程目录或服务。" = "Only the connection draft saved by the app and the target's SSH private key are removed; any remote directories or services are not deleted.";
@@ -381,7 +362,6 @@
 "只读检查系统、架构、依赖和可写目录" = "Read-only checks system, architecture, dependencies and writable directories";
 "可以添加多把密钥。测试结果会显示在每把密钥旁边。" = "Multiple keys can be added. Test results are displayed next to each key.";
 "可以清除搜索或切换状态筛选，查看其它候选。" = "You can clear the search or toggle the status filter to view other candidates.";
-"可以通过“添加”导入 JSON，或打开 CPAMP 面板开始 OAuth 授权。" = "You can import JSON via Add, or open the CPAMP panel to start OAuth authorization.";
 "可写的安装目录" = "Writable installation directory";
 "可创建渠道规则，隐藏不应对外暴露的模型，或把上游模型映射为统一的客户端模型 ID。" = "You can create channel rules to hide models that should not be exposed to the outside world, or map upstream models to a unified client model ID.";
 "可手动添加模型，或调整自动读取到的别名和模态。" = "Models can be added manually, or automatically read aliases and modalities adjusted.";
@@ -424,8 +404,6 @@
 "回调请求不完整。请返回浏览器继续完成授权。" = "The callback request is incomplete. Please return to the browser to continue completing the authorization.";
 "图像模型" = "image model";
 "在 AI IDE 工具中输入 Base URL 和 API Key，API 格式选择通用兼容（Chat Completions），再填写可用的 Model ID" = "In your AI IDE, enter the Base URL and API key, choose a compatible format (Chat Completions), then enter an available model ID";
-"在 App 内管理你的 CPA 中转站" = "Manage your CPA transfer stations within the app";
-"在 CPAMP 面板中安装、更新或删除插件" = "Install, update, or remove plugins in the CPAMP panel";
 "在原生配置页调整巡检范围、定时策略和自动处理规则" = "Adjust the inspection scope, timing strategy and automatic processing rules on the native configuration page";
 "在当前 Mac 的终端内部署" = "Deploy within the terminal on your current Mac";
 "在这台 Mac 上部署你的 CPA Proxy API。" = "Deploy your CPA Proxy API on this Mac.";
@@ -435,7 +413,6 @@
 "复制" = "copy";
 "复制 Base URL" = "Copy Base URL";
 "复制模型 ID" = "Copy Model ID";
-"复制管理员密钥" = "Copy the administrator key";
 "外观" = "Appearance";
 "多条凭证共存时，CLIProxyAPI 会按其路由策略使用权重。默认权重由服务端处理。" = "When multiple credentials coexist, CLIProxyAPI will use the weight according to its routing policy. The default weight is handled by the server.";
 "失败" = "fail";
@@ -447,7 +424,6 @@
 "如需让外部客户端访问 VPS，请在 VPS 上自行配置反向代理、防火墙和 TLS；这里的 127.0.0.1 地址只供本机 App 与本机客户端使用。" = "If you want to allow external clients to access the VPS, please configure the reverse proxy, firewall and TLS on the VPS yourself; the 127.0.0.1 address here is only used by native apps and native clients.";
 "它可能已在当前目标中被删除。请关闭此窗口后刷新列表。" = "It may have been deleted in the current target. Please close this window and refresh the list.";
 "安全与应用行为" = "Security and Application Behavior";
-"安全存储凭证" = "Securely stored credentials";
 "安装" = "Install";
 "安装会把插件代码写入目标主机" = "The installation will write the plug-in code to the target host";
 "安装前核验来源、仓库和版本；所有条目都需要明确确认" = "Verify sources, repositories and versions before installation; all entries need to be explicitly confirmed";
@@ -474,7 +450,6 @@
 "导入" = "import";
 "导入 JSON" = "Import JSON";
 "导出" = "Export";
-"导出脱敏证据" = "Export desensitization evidence";
 "导航" = "Navigation";
 "将 OpenRouter 授权写入当前目标？" = "Write OpenRouter authorization to current target?";
 "尚未保存具体规则" = "No specific rules have been saved yet";
@@ -576,8 +551,6 @@
 "强制映射" = "forced mapping";
 "当前 API Key 是遮罩值，请重新输入完整密钥。" = "The current API Key is a mask value, please re-enter the complete key.";
 "当前 Bundle 不可注册" = "The current Bundle cannot be registered";
-"当前 CPAMP 返回了更多事件，但没有提供稳定的双字段分页游标；为避免跳过或重复记录，App 只显示当前批次。请升级目标服务或在 CPAMP 面板中继续查看。" = "Currently CPAMP returns more events but does not provide a stable two-field paging cursor; to avoid skipping or duplicate records, the App only displays the current batch. Please upgrade the target service or continue viewing in the CPAMP panel.";
-"当前 CPAMP 重复返回了同一分页游标；为避免重复加载，App 已停止继续翻页。请在 CPAMP 面板中查看完整记录。" = "The current CPAMP returns the same paging cursor repeatedly; to avoid repeated loading, the App has stopped continuing to page. See the full transcript in the CPAMP panel.";
 "当前 Provider 路由" = "Current Provider route";
 "当前会话内已显示完整值" = "Full value shown in current session";
 "当前内容不是有效的 JSON 对象。" = "The current content is not a valid JSON object.";
@@ -585,7 +558,6 @@
 "当前可调用模型 ID" = "Current callable model ID";
 "当前巡检目标不包含 xAI，因此不会使用推理探针。若要修改或关闭它，请先将巡检目标切换为包含 xAI。" = "The current inspection target does not contain xAI, so the inference probe will not be used. To modify or turn it off, first switch the patrol target to include xAI.";
 "当前巡检策略" = "Current inspection strategy";
-"当前工作区直连 CPAMP" = "Current workspace is directly connected to CPAMP";
 "当前已安装版本来自不同或未确认的来源；为避免静默覆盖，此来源不提供更新。" = "The currently installed version comes from a different or unconfirmed source; to avoid silent overwriting, updates are not provided from this source.";
 "当前摘要未返回 Token 构成" = "The current summary does not return the Token composition.";
 "当前摘要未返回时间线数据" = "The current summary is not returning timeline data";
@@ -650,16 +622,10 @@
 "手动提交回调" = "Manually submit callback";
 "手动添加模型" = "Add model manually";
 "打开 CLIProxyAPI config.yaml，调整未在简化表单中展示的高级字段" = "Open CLIProxyAPI config.yaml and adjust advanced fields not shown in the simplified form";
-"打开 CPAMP" = "Open CPAMP";
-"打开 CPAMP 完整面板" = "Open CPAMP full panel";
-"打开 CPAMP 插件页" = "Open the CPAMP plugin page";
-"打开 CPAMP 查看原始配置和诊断工具。" = "Open CPAMP to view the original configuration and diagnostic tools.";
-"打开 CPAMP 面板" = "Open CPAMP Panel";
 "打开 Oases CPA" = "Open Oases CPA";
 "打开仪表盘" = "Open dashboard";
 "打开授权页" = "Open authorization page";
 "打开本页不会主动探测 Provider" = "Opening this page will not actively detect the Provider";
-"打开高级面板" = "Open the advanced panel";
 "执行参数" = "Execution parameters";
 "执行失败" = "Execution failed";
 "执行当前 CPAMP 版本定义的未知自动动作" = "Execute an unknown automatic action defined by the current CPAMP version";
@@ -673,7 +639,6 @@
 "按时间范围聚合" = "Aggregate by time range";
 "按模型拆解" = "Disassembled by model";
 "按照下面的顺序完成配置，就可以在 AI IDE 中开始调用。" = "Follow this order, then connect from your AI IDE.";
-"按请求关联" = "Associate on request";
 "授权会话已结束" = "Authorization session ended";
 "授权回调没有包含 code。" = "Authorization callback does not contain code.";
 "授权回调没有包含 state。" = "The authorization callback does not contain state.";
@@ -689,9 +654,6 @@
 "探测提示词" = "detection prompt word";
 "探测超时必须是大于 0 的整数毫秒。" = "The probe timeout must be an integer millisecond greater than 0.";
 "接入 CPA Manager Plus" = "Access CPA Manager Plus";
-"接入 config API" = "Access config API";
-"接入授权回调" = "Access authorization callback";
-"接入日志端点" = "Access log endpoint";
 "控制 CPA 使用统计如何进入 CPAMP 仪表盘和监控" = "Control how CPA usage statistics enter the CPAMP dashboard and monitor";
 "推理" = "reasoning";
 "推理模型" = "inference model";
@@ -728,7 +690,6 @@
 "操作未完成" = "Operation not completed";
 "支持 fork" = "Support fork";
 "支持 http 或 https" = "Support http or https";
-"支持插件 OAuth" = "Support plug-in OAuth";
 "支持的架构（arm64 或 x86_64）" = "Supported architectures (arm64 or x86_64)";
 "支持的系统（macOS 或 Linux）" = "Supported systems (macOS or Linux)";
 "支持的认证文件会在这里显示窗口与重置时间" = "Supported authentication files will display the window and reset time here";
@@ -751,7 +712,6 @@
 "无密钥" = "No key";
 "无法保存 API Key" = "Unable to save API Key";
 "无法创建 OpenRouter 授权地址。" = "Unable to create OpenRouter authorization address.";
-"无法加载" = "Unable to load";
 "无法完成上游请求；请检查网络、Base URL 或凭证。" = "Unable to complete upstream request; please check network, Base URL, or credentials.";
 "无法完成请求，请检查网络和服务配置。" = "Unable to complete the request, please check your network and service configuration.";
 "无法开始检查" = "Unable to start checking";
@@ -949,12 +909,10 @@
 "搭建并管理你自己的 AI API 中转站" = "Build and run your own AI API gateway";
 "本机一键部署，或经 SSH 连到 VPS。Provider、模型、调用密钥和用量，都在这一处控制面里。" = "Deploy on this Mac, or reach a VPS over SSH. Providers, models, access keys, and usage live in one control plane.";
 "三件事，先记清楚" = "Three pieces, one plane";
-"Oases CPA 是控制面。它不替代网关，也不替代管理面板。" = "Oases CPA is the control plane. It does not replace the gateway or the admin panel.";
 "本机或 SSH" = "This Mac or SSH";
 "把控制面连到你自己的电脑，或一台 VPS。" = "Point the control plane at this Mac, or at a VPS.";
 "运行时网关" = "Runtime gateway";
 "对外提供通用兼容 /v1，默认 :%lld。" = "Serves a widely compatible /v1 API, default :%lld.";
-"管理面板" = "Admin panel";
 "签发密钥、看用量、管 Provider。" = "Issue keys, watch usage, manage providers.";
 "第一次这样走" = "First run, in four steps";
 "四步就能在 AI IDE 里打到你自己的网关。随时可以回来重看。" = "Four steps to hit your own gateway from an AI IDE. You can replay this anytime.";
@@ -1019,7 +977,6 @@
 "正在轮询授权状态" = "Polling for authorization status";
 "正在连接" = "Connecting";
 "正在连接…" = "Connecting…";
-"正在连接当前目标的 CPAMP 面板…" = "Connecting to CPAMP panel for current target...";
 "正在通过 SSH 检测远程终端环境…" = "Detecting remote terminal environment via SSH...";
 "正在通过 SSH 部署到远程目标…" = "Deploying to remote target via SSH...";
 "正在部署" = "Deploying";
@@ -1059,13 +1016,11 @@
 "浏览器 OAuth" = "Browser OAuth";
 "浏览器 OAuth + PKCE" = "Browser OAuth + PKCE";
 "浏览器完成登录后通常会自动进入完成状态；如果当前是 SSH/VPS 目标或浏览器无法回传，请把回调地址粘贴到下方。" = "The browser usually automatically enters the completion state after completing the login; if the current SSH/VPS target or the browser cannot post back, please paste the callback address below.";
-"浏览器打开" = "Browser opens";
 "深色" = "Dark";
 "添加" = "Add to";
 "添加 AI 提供商" = "Add AI provider";
 "添加 AI 服务" = "Add AI service";
 "添加凭证" = "Add credentials";
-"添加后会直接写入当前目标 CLIProxyAPI，不依赖 Oases dev 或浏览器面板。" = "After adding, it will be written directly to the current target CLIProxyAPI, without relying on Oases dev or browser panel.";
 "添加手动价格" = "Add manual price";
 "添加手动价格，或在已有模型/调用记录后同步公开价格目录。" = "Add manual prices, or synchronize public price catalogs after existing model/call records.";
 "添加服务、读取模型并检查连接" = "Add services, read models and check connections";
@@ -1096,7 +1051,6 @@
 "版本维护" = "Version maintenance";
 "状态" = "Status";
 "状态已建立" = "Status has been established";
-"状态持久化" = "state persistence";
 "状态未知" = "Status unknown";
 "独立代理" = "independent agent";
 "独立代理地址（可选）" = "Independent proxy address (optional)";
@@ -1151,7 +1105,6 @@
 "目标终端维护命令失败。" = "The target terminal maintenance command failed.";
 "目标终端部署命令失败。" = "The target terminal deployment command failed.";
 "直接管理 CLIProxyAPI 的密钥池与基础路由" = "Directly manage the key pool and basic routing of CLIProxyAPI";
-"真实数据刷新" = "Real data refresh";
 "确认 CLIProxyAPI 版本、Management Key 和网络连接后重试" = "Confirm the CLIProxyAPI version, Management Key and network connection and try again";
 "确认保存" = "Confirm to save";
 "确认取消" = "Confirm cancellation";
@@ -1192,7 +1145,6 @@
 "管理" = "Manage";
 "管理密钥和 SSH 私钥内容使用 macOS Keychain；普通偏好设置只保存目标地址、端口和安装目录。启动 App 或切换已保存目标时不会读取钥匙串，只有点击“连接已保存目标”后才会访问凭据。" = "Manage key and SSH private key content using macOS Keychain; normal preferences only save the target address, port, and installation directory. The keychain is not read when launching the app or switching saved targets, and the credentials are only accessed after clicking \"Connect Saved Target\".";
 "管理访问" = "Administrative access";
-"管理面板地址无效。" = "The admin panel address is invalid.";
 "粘贴包含 code 和 state 的完整回调 URL" = "Paste the complete callback URL including code and state";
 "粘贴完整 API Key" = "Paste the complete API Key";
 "粘贴服务地址和 API Key，App 会自动读取模型并检查连接。" = "Paste the service address and API Key, and the app will automatically read the model and check the connection.";
@@ -1245,7 +1197,6 @@
 "补充价格" = "Supplementary price";
 "补齐中" = "Completing";
 "补齐历史汇总" = "Complete historical summary";
-"补齐失败恢复" = "Complement failure recovery";
 "补齐最多 5,000 条记录" = "Complete up to 5,000 records";
 "补齐认证历史汇总？" = "Complete the certification history summary?";
 "要写入的兼容 Provider 缺少名称或 Base URL。" = "The compatible Provider to write is missing a name or Base URL.";
@@ -1271,7 +1222,6 @@
 "认证文件只从当前目标环境读取。完成本机或 SSH 部署后，这里会显示文件名、类型和启用状态，并可直接导入、编辑、下载、删除和启停认证文件。" = "Authentication files are only read from the current target environment. After completing local or SSH deployment, the file name, type and activation status will be displayed here, and authentication files can be directly imported, edited, downloaded, deleted, and started and stopped.";
 "认证文件只在当前编辑会话内加载；不会写入 App 偏好设置。请确认 JSON 内含 CLIProxyAPI 支持的认证字段，保存前 App 会校验顶层对象格式。" = "Authentication files are only loaded within the current editing session; app preferences are not written to them. Please confirm that the JSON contains authentication fields supported by CLIProxyAPI. The App will verify the top-level object format before saving.";
 "认证文件名必须是安全的 .json 文件名。" = "The authentication file name must be a safe .json file name.";
-"认证文件导入、JSON 替换、下载、删除、启停，以及 OAuth 模型排除和别名规则都会直接调用当前目标的 Management API；OAuth 授权和其它高级流程仍可在 CPAMP 面板继续完成。" = "Authentication file import, JSON replacement, download, deletion, start and stop, as well as OAuth model exclusion and alias rules will directly call the Management API of the current target; OAuth authorization and other advanced processes can still be completed in the CPAMP panel.";
 "认证文件操作" = "Authentication file operations";
 "认证文件操作失败" = "Auth File Operation Failed";
 "认证文件读取失败" = "Failed to read authentication file";
@@ -1336,7 +1286,6 @@
 "读取中…" = "Reading…";
 "读取失败" = "Read failed";
 "读取成功后才允许启动，避免未知的自动动作策略。" = "Start only after successful reading to avoid unknown automatic action strategies.";
-"读取插件目录" = "Read plugin directory";
 "读取日志" = "read log";
 "读取目标日志失败。" = "Failed to read target log.";
 "调整筛选条件后重试。" = "Adjust the filter conditions and try again.";
@@ -1406,11 +1355,6 @@
 "这是 CLIProxyAPI 的完整配置入口" = "This is the complete configuration entry of CLIProxyAPI";
 "这是设备授权流程。打开授权页并完成确认后，App 会每 3 秒查询目标服务的授权状态。" = "This is the device authorization process. After opening the authorization page and completing the confirmation, the App will query the authorization status of the target service every 3 seconds.";
 "这次巡检可能按 CPAMP 当前策略修改认证文件状态。" = "This inspection may modify the certification file status according to the current CPAMP policy.";
-"这里会承接 CPA Base URL、面板版本、引擎版本、连接测试与本机运行信息。" = "CPA Base URL, panel version, engine version, connection test and local operation information will be accepted here.";
-"这里会承接 OpenRouter、GitHub Copilot 等第三方授权流程，并把凭证写入对应 Provider。" = "This will take over third-party authorization processes such as OpenRouter and GitHub Copilot, and write the credentials to the corresponding Provider.";
-"这里会承接 config.yaml 的可视化编辑、Diff、重启策略以及未保存变更保护。" = "This will take over the visual editing, Diff, restart strategy and unsaved change protection of config.yaml.";
-"这里会承接插件资源、插件页面和 OAuth 能力，保留 CPAMP 的扩展边界。" = "Plug-in resources, plug-in pages and OAuth capabilities will be taken over here, and the extension boundaries of CPAMP will be retained.";
-"这里会承接运行日志、版本化证据和脱敏错误详情，方便从请求一路追到服务。" = "Operation logs, versioned evidence, and desensitized error details will be collected here to facilitate tracing all the way from the request to the service.";
 "这里只读取 CPAMP 已保存的巡检历史、结果与日志。只有在你确认“开始巡检”后，目标服务才会使用认证文件向 Codex / xAI 等 Provider 进行真实健康检查。" = "Only the inspection history, results and logs saved by CPAMP are read here. Only after you confirm \"Start Inspection\", the target service will use the certification file to perform a real health check to Providers such as Codex/xAI.";
 "这里提供 API Key、Base URL、模型前缀、独立代理和流量权重。已有凭证编辑使用 PATCH，只提交实际改动；headers、模型映射等高级字段会被保留，可从完整配置继续调整。" = "API Key, Base URL, model prefix, independent proxy and traffic weight are provided here. Use PATCH to edit existing credentials and only submit actual changes; advanced fields such as headers and model mapping will be retained, and you can continue to adjust from the complete configuration.";
 "进入软件" = "Open Oases CPA";
@@ -1427,7 +1371,6 @@
 "连接与部署" = "Connect & Deploy";
 "连接中" = "Connecting";
 "连接信息保存在本机；私钥内容进入 macOS Keychain" = "The connection information is saved locally; the private key content enters macOS Keychain";
-"连接健康检查" = "Connection health check";
 "连接后显示" = "Displayed after connecting";
 "连接后显示真实模型拆解" = "After connection, the real model disassembly is displayed.";
 "连接后检测" = "Detection after connection";
@@ -1443,7 +1386,6 @@
 "连接成功后显示真实流量趋势" = "Display real traffic trend after successful connection";
 "连接成功后，就能在这里添加 AI 服务地址和密钥。Oases CPA 会自动读取模型并帮你检查是否可用。" = "After the connection is successful, you can add the AI ​​service address and key here. Oases CPA will automatically read the model and check if it is available for you.";
 "连接成功后，这里会显示 CPAMP 服务、采集器、事件和数据迁移状态。" = "After the connection is successful, the CPAMP service, collector, event and data migration status will be displayed here.";
-"连接成功后，这里显示所选范围内的 CPAMP 摘要与脱敏请求事件；原始响应和完整高级筛选仍可在 CPAMP 面板中查看。" = "After a successful connection, the CPAMP summary and masked request events for the selected range are shown here; the original response and full advanced filtering are still viewable in the CPAMP panel.";
 "连接未完成" = "Connection not completed";
 "连接本机或 SSH / VPS 目标后，Oases CPA 会读取目标 CLIProxyAPI 的真实 Provider 密钥池。" = "After connecting to a native or SSH/VPS target, Oases CPA reads the real Provider key pool for the target CLIProxyAPI.";
 "连接本机或 SSH / VPS 目标后，可按 OAuth 渠道排除上游模型，并为客户端建立稳定的模型别名。" = "After connecting to a native or SSH/VPS target, you can exclude upstream models by OAuth channel and establish stable model aliases for clients.";
@@ -1461,7 +1403,6 @@
 "连接目标后读取模型目录。" = "Read the model directory after connecting to the target.";
 "连接目标环境" = "Connect to the target environment";
 "连接目标环境后使用凭证健康巡检" = "Use credential health inspection after connecting to the target environment";
-"连接目标环境后可用" = "Available after connecting to the target environment";
 "连接目标环境后显示每个认证身份最新的额度、恢复时间和结构化错误信号" = "After connecting to the target environment, the latest quota, recovery time and structured error signals of each authentication identity are displayed.";
 "连接目标环境后显示真实排行" = "Display the real ranking after connecting to the target environment";
 "连接目标环境后显示真实时间线" = "Display the real timeline after connecting to the target environment";
@@ -1573,7 +1514,6 @@
 "首次发现" = "first discovered";
 "首次记录" = "first record";
 "验证 8317 管理 API 与本机回环访问" = "Verify 8317 management API with native loopback access";
-"高级 CPAMP 面板" = "Advanced CPAMP Panel";
 "高级 headers、模型映射和其它未展示字段会保留。" = "Advanced headers, model mappings, and other unexposed fields are retained.";
 "高级工具" = "Advanced tools";
 "高级探测设置" = "Advanced detection settings";
@@ -1581,7 +1521,6 @@
 "高级选项" = "Advanced options";
 "默认值适合大多数本机部署；RESP 模式需要 CPA 端口直接可达，远程反向代理场景通常使用自动或 HTTP。" = "The default is suitable for most native deployments; RESP mode requires the CPA port to be directly reachable, and remote reverse proxy scenarios typically use Auto or HTTP.";
 "默认权重" = "Default weight";
-"停止服务、打开高级面板或解除目标绑定" = "Stop the service, open the advanced panel, or unbind the target";
 "当前目标管理" = "Current target management";
 "语言" = "Language";
 "显示语言" = "Display language";
@@ -1700,7 +1639,6 @@
 "清除选择" = "Clear Selection";
 "暂无认证文件" = "No Auth Files";
 "没有匹配结果" = "No Matching Results";
-"可以从“更多”导入 JSON，或先在 CPAMP 面板完成 OAuth 登录。" = "Import JSON from More, or complete OAuth sign-in in the CPAMP panel first.";
 "试试清空搜索词或切换状态筛选。" = "Clear the search or change the status filter.";
 "更多" = "More";
 "导出 JSON" = "Export JSON";
@@ -1794,7 +1732,6 @@
 "快捷链接" = "Quick Links";
 "访问项目仓库与官方文档，获取帮助和更新" = "Open project repositories and official documentation for help and updates";
 "核心网关项目" = "Core Gateway Project";
-"管理面板项目" = "Management Panel Project";
 "使用教程" = "User Guide";
 "官方配置与使用说明" = "Official setup and usage documentation";
 "当前网关模型目录" = "Current Gateway Model Directory";

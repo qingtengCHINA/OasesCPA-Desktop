@@ -189,8 +189,6 @@ struct DetailWorkspaceView: View {
         switch section {
         case .environments:
             ConnectionCenterView()
-        case .panel:
-            PanelView()
         case .dashboard:
             DashboardView()
         case .usageAnalytics:

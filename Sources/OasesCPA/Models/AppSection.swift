@@ -28,14 +28,13 @@ enum SectionGroup: String, CaseIterable, Identifiable {
         case .accounts: [.authFiles, .oauth, .quota, .accountActions, .codexInspection]
         case .gateway: [.accessKeys, .models, .modelPacks, .webSearch, .aiProviders]
         case .configuration: [.config, .modelPrices, .plugins]
-        case .operations: [.environments, .panel, .logs, .system]
+        case .operations: [.environments, .logs, .system]
         }
     }
 }
 
 enum AppSection: String, CaseIterable, Identifiable, Hashable {
     case environments
-    case panel
     case dashboard
     case usageAnalytics
     case monitoring
@@ -60,7 +59,6 @@ enum AppSection: String, CaseIterable, Identifiable, Hashable {
     var title: String {
         switch self {
         case .environments: OasesLocalization.localized("连接与部署")
-        case .panel: OasesLocalization.localized("CPAMP 面板")
         case .dashboard: OasesLocalization.localized("仪表盘")
         case .usageAnalytics: OasesLocalization.localized("用量分析")
         case .monitoring: OasesLocalization.localized("请求监控")
@@ -85,7 +83,6 @@ enum AppSection: String, CaseIterable, Identifiable, Hashable {
     var subtitle: String {
         switch self {
         case .environments: OasesLocalization.localized("本机或 SSH / VPS 部署 CLIProxyAPI")
-        case .panel: OasesLocalization.localized("在 App 内管理你的 CPA 中转站")
         case .dashboard: OasesLocalization.localized("CPA 网关与资源概览")
         case .usageAnalytics: OasesLocalization.localized("Token、成本与调用趋势")
         case .monitoring: OasesLocalization.localized("请求链路与失败诊断")
@@ -110,7 +107,6 @@ enum AppSection: String, CaseIterable, Identifiable, Hashable {
     var systemImage: String {
         switch self {
         case .environments: "arrow.triangle.branch"
-        case .panel: "rectangle.on.rectangle"
         case .dashboard: "square.grid.2x2"
         case .usageAnalytics: "chart.bar.xaxis"
         case .monitoring: "waveform.path.ecg"
