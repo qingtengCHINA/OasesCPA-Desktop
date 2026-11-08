@@ -622,17 +622,17 @@ struct DeploymentMaintenanceService {
         """
     }
 
-    /// Sets `TARGET_TOPOLOGY`. A gateway deployment stays one; a legacy 0.1.x deployment keeps
-    /// its layout (engine on 8317, no gateway).
+    /// Sets `TARGET_TOPOLOGY`: every native upgrade ends in the gateway topology; a legacy
+    /// 0.1.x deployment is migrated (`nativeTopologyStep`).
     private func nativeTargetTopologyDecision() -> String {
         """
-        TARGET_TOPOLOGY="$PREVIOUS_TOPOLOGY"
+        TARGET_TOPOLOGY="gateway"
         """
     }
 
     /// The topology-specific install step after the engine and CPA Manager Plus: Node, the
     /// gateway package, `gateway/run.sh` (following the new versions), private directories and
-    /// the idempotent bootstrap.
+    /// the idempotent bootstrap; then, for a legacy 0.1.x deployment, the migration.
     private func nativeTopologyStep() -> String {
         """
         if [ "$TARGET_TOPOLOGY" = gateway ]; then
@@ -642,8 +642,102 @@ struct DeploymentMaintenanceService {
           oases_secure_private_directories "$ROOT"
           oases_run_bootstrap "$ROOT"
         fi
+        if [ "$PREVIOUS_TOPOLOGY" = legacy ] && [ "$TARGET_TOPOLOGY" = gateway ]; then
+          \(legacyMigrationStep())
+        fi
         """
     }
+
+    /// The 0.1.x layout to the gateway topology: the engine moves from 8317 to the engine port
+    /// (only the line `port: 8317` changes; nothing to change fails closed with 27, L6), gets
+    /// `response-compression` like the fresh install, starts alone, and the gateway's internal
+    /// key is added to its top-level `api-keys` through the management API (GET, PUT with the
+    /// user's keys kept, GET again). The keys reach the inline Node script only through its
+    /// environment (`OASES_MANAGEMENT_KEY`, `PACK_ENGINE_KEY`); its text holds none.
+    private func legacyMigrationStep() -> String {
+        """
+        ENGINE_CONFIG="$ROOT/cli-proxy-api/config.yaml"
+          [ -f "$ENGINE_CONFIG" ] || { printf '%s\\n' '旧部署缺少引擎配置 config.yaml，无法迁移。' >&2; exit 27; }
+          sed "s/^port: 8317$/port: $ENGINE_PORT/" "$ENGINE_CONFIG" > "$ENGINE_CONFIG.migrate.$$"
+          if cmp -s "$ENGINE_CONFIG" "$ENGINE_CONFIG.migrate.$$"; then
+            rm -f "$ENGINE_CONFIG.migrate.$$"
+            printf '%s\\n' '引擎配置中没有 port: 8317 这一行，无法安全迁移端口，已停止并恢复原版本。' >&2
+            exit 27
+          fi
+          if ! grep -q '^response-compression:' "$ENGINE_CONFIG.migrate.$$"; then
+            printf '\\nresponse-compression:\\n  enabled: false\\n' >> "$ENGINE_CONFIG.migrate.$$"
+          fi
+          chmod 600 "$ENGINE_CONFIG.migrate.$$"
+          mv "$ENGINE_CONFIG.migrate.$$" "$ENGINE_CONFIG"
+
+          nohup "$ROOT/cli-proxy-api/run.sh" >> "$ROOT/logs/cli-proxy-api.log" 2>&1 &
+          printf '%s\\n' "$!" > "$ROOT/cli-proxy-api.pid"
+          MIGRATION_ENGINE_READY=0
+          for _ in $(seq 1 "$HEALTH_ATTEMPTS"); do
+            if oases_mgmt_curl "$ROOT/secrets/cpa-management-key" -fsS -o /dev/null "http://127.0.0.1:$ENGINE_PORT/v0/management/config" >/dev/null 2>&1; then
+              MIGRATION_ENGINE_READY=1
+              break
+            fi
+            sleep 1
+          done
+          [ "$MIGRATION_ENGINE_READY" -eq 1 ] || { printf '%s\\n' '迁移后的引擎没有在新端口上就绪。' >&2; exit 27; }
+
+          # The script has no single quote (checked by a test), so it fits a single-quoted word.
+          OASES_API_KEYS_SCRIPT='\(Self.apiKeysMigrationScript)'
+          MIGRATION_MANAGEMENT_KEY=""
+          MIGRATION_PACK_KEY=""
+          IFS= read -r MIGRATION_MANAGEMENT_KEY < "$ROOT/secrets/cpa-management-key" || true
+          IFS= read -r MIGRATION_PACK_KEY < "$ROOT/secrets/pack-engine-key" || true
+          [ -n "$MIGRATION_MANAGEMENT_KEY" ] && [ -n "$MIGRATION_PACK_KEY" ] || { printf '%s\\n' '迁移缺少管理密钥或内部引擎 Key。' >&2; exit 27; }
+          if ! OASES_ENGINE_URL="http://127.0.0.1:$ENGINE_PORT" OASES_MANAGEMENT_KEY="$MIGRATION_MANAGEMENT_KEY" PACK_ENGINE_KEY="$MIGRATION_PACK_KEY" \\
+               "$NODE_BIN" -e "$OASES_API_KEYS_SCRIPT" 3>&- 4>&-; then
+            MIGRATION_MANAGEMENT_KEY=""
+            MIGRATION_PACK_KEY=""
+            printf '%s\\n' '无法把内部引擎 Key 加入引擎的 api-keys，已停止并恢复原版本。' >&2
+            exit 27
+          fi
+          MIGRATION_MANAGEMENT_KEY=""
+          MIGRATION_PACK_KEY=""
+        """
+    }
+
+    /// Node 24 (built-in `fetch`): reads `OASES_ENGINE_URL`, `OASES_MANAGEMENT_KEY` and
+    /// `PACK_ENGINE_KEY` from its environment, keeps every existing client key, adds the
+    /// internal key once, and verifies the result. Exit 27 on any failure; messages never
+    /// contain a key. The engine's list API: GET `{"api-keys":[…]}`, PUT a JSON array.
+    static let apiKeysMigrationScript = """
+    const base = process.env.OASES_ENGINE_URL;
+    const managementKey = process.env.OASES_MANAGEMENT_KEY;
+    const packKey = process.env.PACK_ENGINE_KEY;
+    const url = base + "/v0/management/api-keys";
+    const headers = { Authorization: "Bearer " + managementKey };
+    async function list() {
+      const response = await fetch(url, { headers });
+      if (!response.ok) throw new Error("GET api-keys answered " + response.status);
+      const body = await response.json();
+      const keys = body["api-keys"];
+      if (!Array.isArray(keys) || !keys.every((key) => typeof key === "string")) throw new Error("unexpected api-keys shape");
+      return keys;
+    }
+    (async () => {
+      if (!base || !managementKey || !packKey) throw new Error("missing environment");
+      const before = await list();
+      if (!before.includes(packKey)) {
+        const response = await fetch(url, {
+          method: "PUT",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify([...before, packKey]),
+        });
+        if (!response.ok) throw new Error("PUT api-keys answered " + response.status);
+      }
+      const after = await list();
+      if (!after.includes(packKey) || !before.every((key) => after.includes(key))) throw new Error("api-keys check failed");
+      console.log(JSON.stringify({ ok: true, keys: after.length }));
+    })().catch((error) => {
+      console.error("api-keys migration failed: " + (error && error.message ? error.message : "unknown error"));
+      process.exit(27);
+    });
+    """
 
     // MARK: - Native rollback
 

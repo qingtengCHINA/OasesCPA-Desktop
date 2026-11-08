@@ -326,6 +326,153 @@ final class UpgradeScriptTests: XCTestCase {
         XCTAssertNil(pid(root, "gateway.pid"))
     }
 
+    // MARK: - Legacy migration (10b)
+
+    private func startLegacy(_ fake: FakeArtifacts, _ root: URL) throws {
+        let start = try fake.run(RuntimeLifecycleService().startScriptForVerification(method: .native, installDirectory: root.path))
+        XCTAssertEqual(start.status, 0, start.stderr)
+        XCTAssertNotNil(pid(root, "cli-proxy-api.pid"))
+        XCTAssertNil(pid(root, "gateway.pid"), "a 0.1.x deployment has no gateway")
+    }
+
+    private func migrationEnvironment(_ root: URL) -> [String: String] {
+        ["FAKE_ENGINE_CONFIG": root.appendingPathComponent("cli-proxy-api/config.yaml").path]
+    }
+
+    func testLegacyMigrationMovesEngineAndInstallsGateway() throws {
+        let fake = try FakeArtifacts.make(caseName: "migrate")
+        let root = try legacyLayout(fake)
+        try startLegacy(fake, root)
+        let originalConfig = text(root, "cli-proxy-api/config.yaml")
+
+        let result = try upgrade(fake, root, extraEnvironment: migrationEnvironment(root))
+        XCTAssertEqual(result.status, 0, result.stderr)
+        XCTAssertTrue(result.stdout.contains("OASES_CPA_TOPOLOGY=gateway"), result.stdout)
+        let config = text(root, "cli-proxy-api/config.yaml")
+        XCTAssertTrue(config.contains("\nport: 18316\n"), config)
+        XCTAssertFalse(config.contains("port: 8317"))
+        XCTAssertTrue(config.contains("response-compression:\n  enabled: false"), config)
+        let packKey = text(root, "secrets/pack-engine-key").trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertFalse(packKey.isEmpty)
+        XCTAssertTrue(config.contains("  - \"\(Self.legacyUserKey)\""), "the user's key stays")
+        XCTAssertTrue(config.contains("  - \"\(packKey)\""), "the internal key was added")
+        XCTAssertTrue(config.contains("api-keys:\n"), "top-level api-keys (legacy layout, R14)")
+        XCTAssertTrue(FileManager.default.isExecutableFile(atPath: root.appendingPathComponent("gateway/run.sh").path))
+        XCTAssertEqual(try versions(root), ["engine": FakeArtifacts.engineTag, "cpamp": FakeArtifacts.cpampTag,
+                                             "node": FakeArtifacts.nodeTag, "gateway": fake.gatewayVersion])
+        XCTAssertTrue(text(root, "cpamp/config.json").contains("\"cpaUpstreamUrl\": \"http://127.0.0.1:18316\""))
+        XCTAssertTrue(text(root, "cpamp/run.sh").contains("export CPA_MANAGER_CONFIG=\(root.path)/cpamp/config.json"))
+        XCTAssertEqual(text(root, "cpamp/data/usage.db"), "usage\n", "CPA Manager Plus data untouched")
+        XCTAssertNotNil(pid(root, "gateway.pid"))
+        let backup = try XCTUnwrap(upgradeBackups(root).last)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("backups/\(backup)/versions.absent").path))
+        XCTAssertEqual(text(root, "backups/\(backup)/cli-proxy-api-config.yaml"), originalConfig)
+        XCTAssertEqual(text(root, "backups/\(backup)/topology"), "legacy\n")
+        XCTAssertNotNil(maintenance.parseResultForVerification(result.stdout).packEngineKeyFingerprint)
+    }
+
+    /// L6: a config without the line `port: 8317` is not guessed at; the upgrade fails closed
+    /// with 27 and puts everything back.
+    func testLegacyMigrationWithoutPort8317FailsClosedWith27() throws {
+        let fake = try FakeArtifacts.make(caseName: "migrate-no-port")
+        let root = try legacyLayout(fake)
+        let edited = Self.legacyConfig(root: root).replacingOccurrences(of: "port: 8317", with: "port: 9999")
+        try write(edited, root, "cli-proxy-api/config.yaml")
+        let result = try upgrade(fake, root, extraEnvironment: migrationEnvironment(root))
+        XCTAssertEqual(result.status, 27, result.stderr)
+        XCTAssertTrue(result.stderr.contains("port: 8317"), result.stderr)
+        XCTAssertEqual(text(root, "cli-proxy-api/config.yaml"), edited)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("gateway/run.sh").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(".oases-cpa-versions").path))
+    }
+
+    func testRollbackToLegacyBackupReturnsLegacyTopology() throws {
+        let fake = try FakeArtifacts.make(caseName: "rollback-legacy")
+        let root = try legacyLayout(fake)
+        let originalConfig = text(root, "cli-proxy-api/config.yaml")
+        let originalPanelRun = text(root, "cpamp/run.sh")
+        let upgraded = try upgrade(fake, root, extraEnvironment: migrationEnvironment(root))
+        XCTAssertEqual(upgraded.status, 0, upgraded.stderr)
+        XCTAssertNotNil(pid(root, "gateway.pid"))
+
+        let result = try rollback(fake, root)
+        XCTAssertEqual(result.status, 0, result.stderr)
+        XCTAssertTrue(result.stdout.contains("OASES_CPA_TOPOLOGY=legacy"), result.stdout)
+        XCTAssertEqual(text(root, "cli-proxy-api/config.yaml"), originalConfig, "engine back on 8317 without the internal key")
+        XCTAssertEqual(text(root, "cpamp/run.sh"), originalPanelRun)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("gateway/run.sh").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(".oases-cpa-versions").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("gateway-data").path))
+        let backup = try XCTUnwrap(upgradeBackups(root).last)
+        for moved in ["gateway-run.sh.after-upgrade", "versions-after-upgrade.json", "gateway-data-after-upgrade", "cpamp-config.json.after-upgrade"] {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("backups/\(backup)/\(moved)").path), moved)
+        }
+        XCTAssertNil(pid(root, "gateway.pid"), "no gateway runs in the legacy layout")
+        XCTAssertNotNil(pid(root, "cli-proxy-api.pid"))
+    }
+
+    func testUpgradeRollbackAndMigrationNeverPassKeysInArgv() throws {
+        let fake = try FakeArtifacts.make(caseName: "maintenance-argv")
+        let root = try legacyLayout(fake)
+        try startLegacy(fake, root)
+        XCTAssertEqual(try upgrade(fake, root, extraEnvironment: migrationEnvironment(root)).status, 0)
+        XCTAssertEqual(try rollback(fake, root).status, 0)
+        let argv = fake.argv()
+        XCTAssertTrue(argv.contains("curl -K - -fsS -o /dev/null http://127.0.0.1:18316/v0/management/config"), "keyed curl through -K -")
+        XCTAssertTrue(argv.contains("node -e "), "the inline api-keys script ran")
+        for name in ["cpa-management-key", "cpamp-admin-key", "pack-engine-key", "pack-store-key"] {
+            let key = text(root, "secrets/\(name)").trimmingCharacters(in: .whitespacesAndNewlines)
+            XCTAssertFalse(key.isEmpty, name)
+            XCTAssertFalse(argv.contains(key), "\(name) appears in a process argument")
+        }
+        let script = maintenance.upgradeScriptForVerification(method: .native, installDirectory: "/x", gatewayPayloadBase64: "")
+        XCTAssertFalse(script.contains("-H \"Authorization"), "no key in a curl argument")
+        XCTAssertFalse(maintenance.rollbackScriptForVerification(method: .native, installDirectory: "/x").contains("-H \"Authorization"))
+        XCTAssertFalse(DeploymentMaintenanceService.apiKeysMigrationScript.contains("\'"), "fits a single-quoted shell word")
+        XCTAssertTrue(DeploymentMaintenanceService.apiKeysMigrationScript.contains("process.env.OASES_MANAGEMENT_KEY"))
+        XCTAssertTrue(DeploymentMaintenanceService.apiKeysMigrationScript.contains("process.env.PACK_ENGINE_KEY"))
+    }
+
+    func testLegacyMigrationSucceedsUnderUmask002() throws {
+        let fake = try FakeArtifacts.make(caseName: "migrate-umask")
+        let root = try legacyLayout(fake, mode: 0o775)
+        let mode = { (relative: String) -> Int in
+            ((try? FileManager.default.attributesOfItem(atPath: root.appendingPathComponent(relative).path))?[.posixPermissions] as? NSNumber)?.intValue ?? -1
+        }
+        XCTAssertEqual(mode("secrets"), 0o775)
+        let result = try upgrade(fake, root, prelude: "umask 002", extraEnvironment: migrationEnvironment(root))
+        XCTAssertEqual(result.status, 0, result.stderr)
+        XCTAssertEqual(mode("secrets"), 0o700)
+        XCTAssertEqual(mode("gateway-data"), 0o700)
+        XCTAssertEqual(mode("") & 0o022, 0, "the root lost group/other write")
+        XCTAssertEqual(mode("secrets/pack-engine-key"), 0o600)
+    }
+
+    // MARK: - Tunnel after maintenance (10b)
+
+    func testTopologyChangeAfterUpgradeRestartsTunnel() {
+        XCTAssertEqual(DeploymentStore.tunnelAction(previous: .legacy, result: .gateway, target: .ssh), .restart(.gateway))
+        XCTAssertEqual(DeploymentStore.tunnelAction(previous: .gateway, result: .legacy, target: .ssh), .restart(.legacy))
+        XCTAssertEqual(DeploymentStore.tunnelAction(previous: .gateway, result: .gateway, target: .ssh), .none)
+        XCTAssertEqual(DeploymentStore.tunnelAction(previous: .legacy, result: .gateway, target: .local), .none, "no tunnel on this Mac")
+    }
+
+    func testLegacyNativeUpgradeIsOfferedAsTheFullEditionAndDockerGetsTheNotice() {
+        XCTAssertEqual(MaintenanceLabels.upgradeButtonTitle(method: .native, topology: .legacy, language: .simplifiedChinese), "升级到完整版（加入 Oases 网关）")
+        XCTAssertEqual(MaintenanceLabels.upgradeButtonTitle(method: .native, topology: .legacy, language: .english), "Upgrade to the full edition (adds the Oases gateway)")
+        XCTAssertEqual(MaintenanceLabels.upgradeButtonTitle(method: .native, topology: .gateway, language: .simplifiedChinese), "升级运行时")
+        XCTAssertEqual(MaintenanceLabels.upgradeButtonTitle(method: .docker, topology: .legacy, language: .simplifiedChinese), "升级运行时")
+        let migration = MaintenanceLabels.upgradeConfirmationMessage(method: .native, topology: .legacy, language: .simplifiedChinese)
+        for fact in ["8317", "18316", "18320", "SSH 隧道"] { XCTAssertTrue(migration.contains(fact), fact) }
+        XCTAssertTrue(MaintenanceLabels.upgradeConfirmationMessage(method: .native, topology: .legacy, language: .english).contains("18316"))
+        let notice = "Oases 网关只支持原生部署；Docker 部署只包含上游 CLIProxyAPI 与 CPA Manager Plus"
+        XCTAssertEqual(MaintenanceLabels.dockerGatewayNotice(language: .simplifiedChinese), notice)
+        XCTAssertTrue(MaintenanceLabels.planConfirmationMessage(method: .docker, language: .simplifiedChinese).contains(notice))
+        XCTAssertFalse(MaintenanceLabels.planConfirmationMessage(method: .native, language: .simplifiedChinese).contains(notice))
+        XCTAssertTrue(MaintenanceLabels.upgradeConfirmationMessage(method: .docker, topology: .legacy, language: .simplifiedChinese).contains("Oases 网关只支持原生部署"))
+        XCTAssertTrue(MaintenanceLabels.dockerGatewayNotice(language: .english).contains("native deployments only"))
+    }
+
     // MARK: - Docker (10a)
 
     func testDockerUpgradeRefusesDowngradeFromVersionsFile() throws {

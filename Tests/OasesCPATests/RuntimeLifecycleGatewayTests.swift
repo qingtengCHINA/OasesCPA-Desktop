@@ -611,6 +611,31 @@ final class DeploymentStoreTopologyTests: XCTestCase {
         }
     }
 
+    /// The store takes the topology a maintenance run reports (upgrade of a 0.1.x deployment →
+    /// gateway; its rollback → legacy), saves it, and checks health with it.
+    func testMaintenanceResultSwitchesTheTopology() async throws {
+        for (start, reported) in [(DeploymentTopology.legacy, DeploymentTopology.gateway), (.gateway, .legacy)] {
+            try await withIsolation {
+                let directory = scratchDirectory
+                var services = services(probe: readyProbe(directory: directory, managed: true, gateway: false),
+                                        result: DeploymentExecutionResult(cpaManagementKey: "cpa_m", cpampAdminKey: "cpamp_m"))
+                let maintenance = DeploymentMaintenanceResult(backupName: "upgrade-x", detail: "done", topology: reported,
+                                                              packEngineKeyFingerprint: reported == .gateway ? Self.fingerprint : nil)
+                services.upgrade = { _ in maintenance }
+                services.rollback = { _ in maintenance }
+                let store = DeploymentStore(autoProbe: false, services: services)
+                store.installDirectory = directory
+                store.attachForTesting(topology: start, managementKey: "cpa_m", adminKey: "cpamp_m", installed: true)
+                start == .legacy ? store.upgradeDeployment() : store.rollbackDeployment()
+                try await waitUntil({ !store.isMaintaining && store.stage == .attached }, "maintenance: \(store.maintenanceError ?? "")")
+                XCTAssertEqual(store.topology, reported)
+                XCTAssertEqual(DeploymentProfileStore.load()?.topology, reported)
+                XCTAssertEqual(URLProtocolStub.recordedRequests.contains { $0.0.url?.port == 18320 }, reported == .gateway)
+                if reported == .gateway { XCTAssertEqual(store.packEngineKeyFingerprint, Self.fingerprint) }
+            }
+        }
+    }
+
     func testAdoptionTakesTheProbedTopologyAndFingerprint() async throws {
         for gateway in [true, false] {
             try await withIsolation {

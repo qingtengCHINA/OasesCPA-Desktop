@@ -85,7 +85,7 @@ struct ConnectionCenterView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("后续执行器会在你选择的目标终端中运行下载、配置和启动命令。已有配置不会被静默覆盖。")
+            Text(MaintenanceLabels.planConfirmationMessage(method: deploymentStore.deploymentMethod))
         }
         .modifier(SSHHostKeyConfirmationDialog(deploymentStore: deploymentStore))
         .confirmationDialog(
@@ -152,16 +152,16 @@ struct ConnectionCenterView: View {
             Text("App 会停止当前目标服务并删除本机保存的 CPA / CPAMP 管理密钥，但不会删除目标目录、认证文件或远程部署文件。之后可以选择另一个本机或 VPS 目标。")
         }
         .confirmationDialog(
-            "升级当前目标运行时？",
+            MaintenanceLabels.upgradeConfirmationTitle(method: deploymentStore.deploymentMethod, topology: deploymentStore.topology),
             isPresented: $confirmUpgrade,
             titleVisibility: .visible
         ) {
-            Button("下载并升级", role: .destructive) {
+            Button(OasesLocalization.localized("下载并升级"), role: .destructive) {
                 deploymentStore.upgradeDeployment()
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("App 会先保存当前启动脚本和运行时到目标目录的 backups/upgrade-*，再下载官方最新 CLIProxyAPI 与 CPA Manager Plus。配置、认证文件和 CPAMP 数据会保留。")
+            Text(MaintenanceLabels.upgradeConfirmationMessage(method: deploymentStore.deploymentMethod, topology: deploymentStore.topology))
         }
         .confirmationDialog(
             "回滚到上一版运行时？",
@@ -737,6 +737,13 @@ struct ConnectionCenterView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
+            if deploymentStore.deploymentMethod == .docker {
+                Label(MaintenanceLabels.dockerGatewayNotice, systemImage: "info.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             HStack(spacing: 16) {
                 runtimePortFacts
                 DeploymentChoiceFact(title: "管理访问", value: "本机回环 / SSH 隧道")
@@ -905,7 +912,10 @@ struct ConnectionCenterView: View {
             }
 
             HStack {
-                Button("升级运行时", systemImage: "arrow.down.circle") {
+                Button(
+                    MaintenanceLabels.upgradeButtonTitle(method: deploymentStore.deploymentMethod, topology: deploymentStore.topology),
+                    systemImage: "arrow.down.circle"
+                ) {
                     confirmUpgrade = true
                 }
                 .buttonStyle(.oasesPrimary)
@@ -926,9 +936,61 @@ struct ConnectionCenterView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+
+            if deploymentStore.deploymentMethod == .docker {
+                Label(MaintenanceLabels.dockerGatewayNotice, systemImage: "info.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(20)
         .oasesCard()
+    }
+}
+
+/// The texts of the maintenance actions, by deployment method and topology.
+enum MaintenanceLabels {
+    static var dockerGatewayNotice: String {
+        dockerGatewayNotice(language: nil)
+    }
+
+    static func dockerGatewayNotice(language: AppLanguage?) -> String {
+        OasesLocalization.localized("Oases 网关只支持原生部署；Docker 部署只包含上游 CLIProxyAPI 与 CPA Manager Plus", language: language)
+    }
+
+    /// A legacy native deployment is upgraded to the full edition (the gateway joins).
+    static func isMigration(method: DeploymentMethod, topology: DeploymentTopology) -> Bool {
+        method == .native && topology == .legacy
+    }
+
+    static func upgradeButtonTitle(method: DeploymentMethod, topology: DeploymentTopology, language: AppLanguage? = nil) -> String {
+        isMigration(method: method, topology: topology)
+            ? OasesLocalization.localized("升级到完整版（加入 Oases 网关）", language: language)
+            : OasesLocalization.localized("升级运行时", language: language)
+    }
+
+    static func upgradeConfirmationTitle(method: DeploymentMethod, topology: DeploymentTopology, language: AppLanguage? = nil) -> String {
+        isMigration(method: method, topology: topology)
+            ? OasesLocalization.localized("升级到完整版？", language: language)
+            : OasesLocalization.localized("升级当前目标运行时？", language: language)
+    }
+
+    static func upgradeConfirmationMessage(method: DeploymentMethod, topology: DeploymentTopology, language: AppLanguage? = nil) -> String {
+        switch (method, topology) {
+        case (.native, .legacy):
+            OasesLocalization.localized("App 会先把启动脚本、引擎配置和运行时备份到目标目录的 backups/upgrade-*，再安装 Node 与 Oases 网关。端口会迁移：CLIProxyAPI 从 8317 改到 18316，8317 改由 Oases 网关提供 /v1，网关管理口是 18320；SSH 隧道会按新端口重新建立。认证文件、客户端 Key 和 CPAMP 数据会保留，之后可以回滚。", language: language)
+        case (.native, .gateway):
+            OasesLocalization.localized("App 会先把启动脚本、版本记录、运行时和 gateway-data 备份到目标目录的 backups/upgrade-*，再升级到本应用固定的 CLIProxyAPI、CPA Manager Plus、Node 与 Oases 网关版本；目标上已有更新的版本时会拒绝降级。配置、认证文件和 CPAMP 数据会保留。", language: language)
+        case (.docker, _):
+            OasesLocalization.localized("App 会先保存 Compose 文件和版本记录到目标目录的 backups/upgrade-*，再拉取本应用固定的 CLIProxyAPI 与 CPA Manager Plus 镜像。Oases 网关只支持原生部署；Docker 部署只包含上游 CLIProxyAPI 与 CPA Manager Plus。", language: language)
+        }
+    }
+
+    static func planConfirmationMessage(method: DeploymentMethod, language: AppLanguage? = nil) -> String {
+        let base = OasesLocalization.localized("后续执行器会在你选择的目标终端中运行下载、配置和启动命令。已有配置不会被静默覆盖。", language: language)
+        guard method == .docker else { return base }
+        return base + "\n" + dockerGatewayNotice(language: language)
     }
 }
 

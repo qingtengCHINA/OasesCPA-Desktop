@@ -174,7 +174,8 @@ final class DeploymentStore: ObservableObject {
         topology: DeploymentTopology,
         managementKey: String,
         adminKey: String,
-        method: DeploymentMethod = .native
+        method: DeploymentMethod = .native,
+        installed: Bool = false
     ) {
         isApplyingProfileConfiguration = true
         deploymentMethod = method
@@ -182,6 +183,7 @@ final class DeploymentStore: ObservableObject {
         self.topology = topology
         self.managementKey = managementKey
         cpampAdminKey = adminKey
+        profileIsInstalled = installed
         stage = .attached
     }
 #endif
@@ -1198,6 +1200,13 @@ final class DeploymentStore: ObservableObject {
                 }
 
                 guard let self else { return }
+                // An upgrade of a 0.1.x deployment ends in the gateway topology, a rollback of
+                // it back in the legacy one: the tunnel and the health checks follow.
+                let previousTopology = self.topology
+                self.applyMaintenanceResult(result)
+                if case .restart = Self.tunnelAction(previous: previousTopology, result: result.topology, target: request.target) {
+                    self.stopTunnel()
+                }
                 if request.target == .ssh {
                     try await self.startTunnel(for: request)
                 }
@@ -1232,6 +1241,38 @@ final class DeploymentStore: ObservableObject {
     }
 
     var hasInstalledDeployment: Bool { profileIsInstalled }
+
+    enum TunnelAction: Equatable {
+        case none
+        /// Stop the tunnel and open it again with the ports of this topology.
+        case restart(DeploymentTopology)
+    }
+
+    /// After a maintenance run: an SSH target whose topology changed needs the tunnel of the
+    /// new topology (otherwise 18316 and 18320 stay unreachable until the user reconnects).
+    nonisolated static func tunnelAction(
+        previous: DeploymentTopology,
+        result: DeploymentTopology,
+        target: DeploymentTargetKind
+    ) -> TunnelAction {
+        guard target == .ssh, previous != result else { return .none }
+        return .restart(result)
+    }
+
+    /// Takes the topology (and the internal key's fingerprint) a maintenance run reports and
+    /// saves the profile when they changed.
+    private func applyMaintenanceResult(_ result: DeploymentMaintenanceResult) {
+        var changed = false
+        if result.topology != topology {
+            topology = result.topology
+            changed = true
+        }
+        if let fingerprint = result.packEngineKeyFingerprint, fingerprint != packEngineKeyFingerprint {
+            packEngineKeyFingerprint = fingerprint
+            changed = true
+        }
+        if changed { saveProfile() }
+    }
 
     func stopServices() {
         guard profileIsInstalled, !isDeploying, !isMaintaining, !isRemovingDeployment else { return }

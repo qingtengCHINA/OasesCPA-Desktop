@@ -24,7 +24,9 @@ import XCTest
 /// - `curl` (first on PATH): copies the matching fake package for `/releases/download/` and
 ///   `nodejs.org/dist/` URLs to `-o`, answers health URLs with success (`/healthz` with the
 ///   gateway's JSON), and reads and discards the config that `-K -` passes on stdin.
-/// - Fake `curl` and fake `node` append their complete argv to `argv.log`.
+/// - Fake `curl` and fake `node` append their complete argv to `argv.log`. `node -e` (the
+///   upgrade's inline api-keys script) requires the keys in its environment and appends the
+///   internal key under `api-keys:` of `$FAKE_ENGINE_CONFIG`, as the engine's PUT would.
 struct FakeArtifacts {
     let caseDirectory: URL
     let artifactsDirectory: URL
@@ -348,6 +350,26 @@ struct FakeArtifacts {
     printf '%s\n' "$line" >> "$OASES_FAKE_ARGV_LOG"
     if [ "${1:-}" = "--version" ]; then
       printf '%s\n' "${FAKE_NODE_VERSION:-v24.99.0}"
+      exit 0
+    fi
+    if [ "${1:-}" = "-e" ]; then
+      # The upgrade's inline api-keys script: the keys must come from the environment.
+      if [ -z "${OASES_MANAGEMENT_KEY:-}" ] || [ -z "${PACK_ENGINE_KEY:-}" ] || [ -z "${OASES_ENGINE_URL:-}" ]; then
+        printf '%s\n' 'fake node: the keys are missing from the environment' >&2
+        exit 27
+      fi
+      if [ -n "${FAKE_NODE_E_EXIT:-}" ]; then exit "$FAKE_NODE_E_EXIT"; fi
+      # What the engine does on PUT /v0/management/api-keys: it rewrites its config.yaml.
+      if [ -n "${FAKE_ENGINE_CONFIG:-}" ]; then
+        rewritten="$FAKE_ENGINE_CONFIG.fake.$$"
+        : > "$rewritten"
+        while IFS= read -r config_line || [ -n "$config_line" ]; do
+          printf '%s\n' "$config_line" >> "$rewritten"
+          if [ "$config_line" = "api-keys:" ]; then printf '  - "%s"\n' "$PACK_ENGINE_KEY" >> "$rewritten"; fi
+        done < "$FAKE_ENGINE_CONFIG"
+        mv "$rewritten" "$FAKE_ENGINE_CONFIG"
+      fi
+      printf '%s\n' '{"ok":true}'
       exit 0
     fi
     mode=""
