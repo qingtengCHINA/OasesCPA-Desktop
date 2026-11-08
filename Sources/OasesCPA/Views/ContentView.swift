@@ -30,32 +30,11 @@ struct ContentView: View {
 
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
-                    store.refresh()
-                    runtimeDataStore.refresh(using: deploymentStore)
-                    if store.selectedSection == .aiProviders {
-                        runtimeDataStore.refreshProviders(using: deploymentStore)
-                        runtimeDataStore.refreshDirectProviderCredentials(using: deploymentStore)
-                    }
-                    if store.selectedSection == .authFiles {
-                        runtimeDataStore.refreshOAuthModelPolicies(using: deploymentStore)
-                    }
-                    if store.selectedSection == .modelPrices {
-                        runtimeDataStore.refreshModelPrices(using: deploymentStore)
-                    }
-                    if store.selectedSection == .accountActions {
-                        runtimeDataStore.refreshAccountActionCandidates(
-                            using: deploymentStore,
-                            status: runtimeDataStore.accountActionsFilter
-                        )
-                    }
-                    if store.selectedSection == .codexInspection {
-                        runtimeDataStore.refreshManagerConfiguration(using: deploymentStore)
-                        runtimeDataStore.refreshCodexInspectionRuns(using: deploymentStore)
-                    }
-                    if store.selectedSection == .plugins {
-                        runtimeDataStore.refreshPlugins(using: deploymentStore)
-                        runtimeDataStore.refreshPluginStore(using: deploymentStore)
-                    }
+                    WorkspaceRefresh.refreshCurrentSection(
+                        store: store,
+                        deploymentStore: deploymentStore,
+                        runtimeDataStore: runtimeDataStore
+                    )
                 } label: {
                     Label("刷新", systemImage: "arrow.clockwise")
                 }
@@ -86,6 +65,48 @@ struct ContentView: View {
                 runtimeDataStore.automaticallySyncModelPricesIfNeeded(using: deploymentStore)
             }
         }
+    }
+}
+
+/// ⌘R, shared by the toolbar button and the 导航 menu: refreshes the runtime data the current
+/// section shows and tells the gateway pages (`GatewayWorkbenchStore`) to read again.
+@MainActor
+enum WorkspaceRefresh {
+    static func refreshCurrentSection(
+        store: AppStore,
+        deploymentStore: DeploymentStore,
+        runtimeDataStore: RuntimeDataStore
+    ) {
+        let section = store.selectedSection
+        store.refresh()
+        runtimeDataStore.refresh(using: deploymentStore)
+        switch section {
+        case .aiProviders:
+            runtimeDataStore.refreshProviders(using: deploymentStore)
+            runtimeDataStore.refreshDirectProviderCredentials(using: deploymentStore)
+        case .authFiles:
+            runtimeDataStore.refreshOAuthModelPolicies(using: deploymentStore)
+        case .modelPrices:
+            runtimeDataStore.refreshModelPrices(using: deploymentStore)
+        case .accountActions:
+            runtimeDataStore.refreshAccountActionCandidates(
+                using: deploymentStore,
+                status: runtimeDataStore.accountActionsFilter
+            )
+        case .codexInspection:
+            runtimeDataStore.refreshManagerConfiguration(using: deploymentStore)
+            runtimeDataStore.refreshCodexInspectionRuns(using: deploymentStore)
+        case .plugins:
+            runtimeDataStore.refreshPlugins(using: deploymentStore)
+            runtimeDataStore.refreshPluginStore(using: deploymentStore)
+        default:
+            break
+        }
+        NotificationCenter.default.post(
+            name: .oasesRefreshCurrentSection,
+            object: nil,
+            userInfo: ["section": section.rawValue]
+        )
     }
 }
 

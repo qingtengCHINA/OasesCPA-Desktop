@@ -198,28 +198,11 @@ struct OasesCommands: Commands {
             Divider()
 
             Button("刷新当前数据") {
-                store.refresh()
-                runtimeDataStore.refresh(using: deploymentStore)
-                if store.selectedSection == .aiProviders {
-                    runtimeDataStore.refreshProviders(using: deploymentStore)
-                    runtimeDataStore.refreshDirectProviderCredentials(using: deploymentStore)
-                }
-                if store.selectedSection == .authFiles {
-                    runtimeDataStore.refreshOAuthModelPolicies(using: deploymentStore)
-                }
-                if store.selectedSection == .modelPrices {
-                    runtimeDataStore.refreshModelPrices(using: deploymentStore)
-                }
-                if store.selectedSection == .accountActions {
-                    runtimeDataStore.refreshAccountActionCandidates(
-                        using: deploymentStore,
-                        status: runtimeDataStore.accountActionsFilter
-                    )
-                }
-                if store.selectedSection == .plugins {
-                    runtimeDataStore.refreshPlugins(using: deploymentStore)
-                    runtimeDataStore.refreshPluginStore(using: deploymentStore)
-                }
+                WorkspaceRefresh.refreshCurrentSection(
+                    store: store,
+                    deploymentStore: deploymentStore,
+                    runtimeDataStore: runtimeDataStore
+                )
             }
             .keyboardShortcut("r", modifiers: .command)
         }

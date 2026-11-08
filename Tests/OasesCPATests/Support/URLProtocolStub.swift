@@ -104,7 +104,8 @@ final class URLProtocolStub: URLProtocol {
             var redirectedRequest = request
             redirectedRequest.url = redirectURL
             client?.urlProtocol(self, wasRedirectedTo: redirectedRequest, redirectResponse: result.response)
-            return
+            // A followed redirect stops this load and starts a new one for `redirectURL`; when the
+            // task's delegate refuses it, the 3xx below is the answer.
         }
         client?.urlProtocol(self, didReceive: result.response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: result.data)

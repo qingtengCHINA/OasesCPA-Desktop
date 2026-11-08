@@ -2162,3 +2162,14 @@
 "DMG 验证失败。" = "DMG verification failed.";
 "更新包完整性验证失败。" = "The update package failed its integrity check.";
 "Oases 网关" = "Oases gateway";
+"网关拒绝了当前管理密钥。为避免触发网关的全局退避，App 已停止使用这把密钥自动请求；请检查密钥后点“重新验证”。" = "The gateway rejected the current management key. To avoid triggering the gateway's global back-off, the app has stopped sending requests with this key; check the key, then click “Verify Again”.";
+"网关返回 HTTP %lld：%@" = "The gateway returned HTTP %lld: %@";
+"网关返回的数据格式不兼容：%@" = "The gateway returned data in an incompatible format: %@";
+"网关返回了无法解析的响应。" = "The gateway returned a response that could not be read.";
+"无法连接网关管理接口：%@" = "Cannot reach the gateway admin API: %@";
+"这把 Key 是网关内部使用的引擎 Key，由网关自己管理，不能修改或删除。" = "This is the engine key the gateway uses internally. The gateway manages it; it cannot be changed or deleted.";
+"至少要保留一把 API Key（网关内部使用的引擎 Key 也算在内），这把 Key 不能删除。" = "At least one API key must remain (the gateway's internal engine key counts too), so this key cannot be deleted.";
+"网关暂时连不上引擎的管理接口，本次操作没有生效；请确认引擎在运行后重试。" = "The gateway cannot reach the engine's management API right now, so nothing was changed; make sure the engine is running, then try again.";
+"网关访问引擎的管理接口超时，本次操作没有生效；请稍后重试。" = "The gateway timed out reaching the engine's management API, so nothing was changed; try again later.";
+"网关的 Key 策略文件暂时不可用，本次修改没有保存；请检查网关数据目录后重试。" = "The gateway's key policy store is unavailable, so the change was not saved; check the gateway data directory, then try again.";
+"网关缺少内部引擎 Key，无法测试模型；请检查部署是否完整。" = "The gateway has no internal engine key, so models cannot be tested; check that the deployment is complete.";

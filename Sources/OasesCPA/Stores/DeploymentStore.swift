@@ -71,7 +71,14 @@ final class DeploymentStore: ObservableObject {
     @Published private(set) var isCancellingDeployment = false
     @Published private(set) var isRemovingDeployment = false
     @Published private(set) var removalError: String?
-    @Published private(set) var managementKey = ""
+    @Published private(set) var managementKey = "" {
+        didSet {
+            // A different key gets its own first try against the gateway.
+            if managementKey != oldValue { gatewayAuthLatch.clear() }
+        }
+    }
+    /// The management key the gateway rejected (fingerprint only); see `GatewayAuthLatch`.
+    @Published private var gatewayAuthLatch = GatewayAuthLatch()
     @Published private(set) var cpampAdminKey = ""
     /// The layout of the current target. Comes from the saved profile when a target is
     /// selected or attached; new targets start as `legacy` until a probe says otherwise.
@@ -159,7 +166,15 @@ final class DeploymentStore: ObservableObject {
 
     /// Puts the store into the attached state with the given topology and credentials, without
     /// Keychain, network or saved profiles.
-    func attachForTesting(topology: DeploymentTopology, managementKey: String, adminKey: String) {
+    func attachForTesting(
+        topology: DeploymentTopology,
+        managementKey: String,
+        adminKey: String,
+        method: DeploymentMethod = .native
+    ) {
+        isApplyingProfileConfiguration = true
+        deploymentMethod = method
+        isApplyingProfileConfiguration = false
         self.topology = topology
         self.managementKey = managementKey
         cpampAdminKey = adminKey
@@ -1938,5 +1953,32 @@ final class DeploymentStore: ObservableObject {
             refreshDeploymentLog()
             startHealthMonitor()
         }
+    }
+}
+
+// MARK: - Gateway admin access
+
+extension DeploymentStore: GatewayClientProviding {
+    var gatewayAvailability: GatewayAvailability {
+        guard stage == .attached, !managementKey.isEmpty else { return .notAttached }
+        switch topology {
+        case .legacy:
+            return deploymentMethod == .docker ? .dockerUnsupported : .needsUpgrade
+        case .gateway:
+            return gatewayAuthLatch.allows(key: managementKey) ? .ready : .credentialsRejected
+        }
+    }
+
+    func gatewayAdminClient() -> GatewayAdminClient? {
+        guard gatewayAvailability == .ready, let baseURL = endpoints.gatewayAdminBaseURL else { return nil }
+        return GatewayAdminClient(baseURL: baseURL, managementKey: managementKey)
+    }
+
+    func reportGatewayUnauthorized() {
+        gatewayAuthLatch.reject(key: managementKey)
+    }
+
+    func retryGatewayAuthentication() {
+        gatewayAuthLatch.clear()
     }
 }
