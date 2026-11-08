@@ -26,6 +26,11 @@ struct OpenAICompatibilityEditorView: View {
     @State private var discoveryMessage: String?
     @State private var discoveryFailed = false
     @State private var testMessage: String?
+    @State private var priorityText: String
+    /// New provider: the prefix field shows the allocated prefix until the user types one.
+    @State private var prefixIsAutomatic: Bool
+    @State private var saveError: String?
+    @State private var prefixChangeConfirmationPresented = false
 
     init(
         provider: RuntimeOpenAICompatibility,
@@ -49,6 +54,8 @@ struct OpenAICompatibilityEditorView: View {
             RuntimeProviderHeaderDraft(key: $0, value: provider.headers[$0] ?? "")
         })
         _testModel = State(initialValue: provider.models.first?.name ?? "")
+        _priorityText = State(initialValue: provider.priority == 0 ? "" : String(provider.priority))
+        _prefixIsAutomatic = State(initialValue: index == nil && provider.prefix.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
     var body: some View {
@@ -56,6 +63,16 @@ struct OpenAICompatibilityEditorView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     editorHeader
+
+                    if let saveError {
+                        Label(saveError, systemImage: "exclamationmark.triangle.fill")
+                            .font(.callout)
+                            .foregroundStyle(Oases.Color.dangerText)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(Oases.Space.m)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Oases.Color.dangerBg, in: RoundedRectangle(cornerRadius: Oases.Radius.panel))
+                    }
 
                     ProviderEditorSection(
                         title: "填写服务信息",
@@ -212,7 +229,7 @@ struct OpenAICompatibilityEditorView: View {
                     Button("取消") { onClose() }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button("保存") { save() }
+                    Button("保存") { requestSave() }
                         .buttonStyle(.oasesPrimary)
                         .disabled(!isValid || runtimeDataStore.isSavingProviders || isDiscoveringModels || isTestingKeys)
                 }
@@ -221,6 +238,17 @@ struct OpenAICompatibilityEditorView: View {
         .frame(minWidth: 640, minHeight: 480)
         .onAppear {
             onDirtyChange(false)
+            loadPrefixInventoryIfNeeded()
+        }
+        .confirmationDialog(
+            "修改这项服务的前缀？",
+            isPresented: $prefixChangeConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("仍然修改") { save() }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("按 Key 指定到这家供应商的设置可能失效：网关通过前缀把请求只送到这家供应商。")
         }
         .onChange(of: editorDraftSignature) { _, _ in
             onDirtyChange(true)
@@ -266,10 +294,27 @@ struct OpenAICompatibilityEditorView: View {
             Text("路由与密钥策略")
                 .font(.headline)
 
-            EditorField(title: "模型前缀", detail: "可选，例如 team-a；普通用户建议留空") {
-                TextField("例如：relay", text: $prefix)
+            EditorField(title: "模型前缀", detail: prefixDetail) {
+                TextField("例如：relay", text: prefixBinding)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
+            }
+            if let prefixWarning {
+                Text(prefixWarning)
+                    .font(.caption)
+                    .foregroundStyle(Oases.Color.warningText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            EditorField(title: "优先级", detail: "数值越大越优先；调整多个模型的先后顺序请用模型详情页的拖动排序") {
+                TextField("0", text: $priorityText)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+            }
+            if parsedPriority == nil {
+                Text("优先级必须是整数，或留空表示 0。")
+                    .font(.caption)
+                    .foregroundStyle(Oases.Color.dangerText)
             }
 
             ProviderEditorToggle(
@@ -437,7 +482,8 @@ struct OpenAICompatibilityEditorView: View {
         return [
             name,
             baseURL,
-            prefix,
+            prefixIsAutomatic ? "" : prefix,
+            priorityText,
             String(disabled),
             String(disableCooling),
             keyPart,
@@ -634,13 +680,82 @@ struct OpenAICompatibilityEditorView: View {
             let value = draft.value.trimmingCharacters(in: .whitespacesAndNewlines)
             return (!key.isEmpty && !value.isEmpty) || (key.isEmpty && value.isEmpty)
         }) else { return false }
+        guard parsedPriority != nil else { return false }
         return models.allSatisfy { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
 
-    private func save() {
+    // MARK: - Prefix and priority
+
+    /// Prefixes other providers use; nil while a provider list is not known.
+    private var takenPrefixes: [String]? {
+        ProviderPrefixAllocator.takenPrefixes(from: runtimeDataStore, excludingProviderNamed: index == nil ? nil : provider.name)
+    }
+
+    /// The prefix a new provider gets when the user types none.
+    private var allocatedPrefix: String? {
+        guard let takenPrefixes else { return nil }
+        return ProviderPrefixAllocator.resolve(prefix: nil, name: name, taken: takenPrefixes)
+    }
+
+    private var prefixBinding: Binding<String> {
+        Binding(
+            get: { prefixIsAutomatic ? (allocatedPrefix ?? "") : prefix },
+            set: { value in
+                prefix = value
+                prefixIsAutomatic = false
+                saveError = nil
+            }
+        )
+    }
+
+    private var prefixDetail: String {
+        // EditorField localizes the text (a key, not a localized string).
+        if index == nil && prefixIsAutomatic {
+            return takenPrefixes == nil ? "正在读取已在使用的前缀…" : "自动分配，供按 Key 指定供应商使用；也可以改成自己的前缀"
+        }
+        return "用于按 Key 指定供应商；修改后已有的指定可能失效"
+    }
+
+    /// A typed prefix that another provider already carries: the gateway then cannot pin through it.
+    private var prefixWarning: String? {
+        guard !prefixIsAutomatic, let takenPrefixes else { return nil }
+        let typed = ProviderPrefixAllocator.comparable(prefix)
+        guard !typed.isEmpty, takenPrefixes.contains(where: { ProviderPrefixAllocator.comparable($0) == typed }) else { return nil }
+        return OasesLocalization.localized("其他供应商也在使用这个前缀；按 Key 指定供应商时，网关只认只属于一家供应商的前缀。")
+    }
+
+    /// Empty is 0 (the engine's default); otherwise a whole number (negative allowed).
+    private var parsedPriority: Int? {
+        let text = priorityText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? 0 : Int(text)
+    }
+
+    /// When an existing prefix is changed, ask first (pins through it may stop working).
+    private func requestSave() {
         guard isValid else { return }
+        let original = provider.prefix.trimmingCharacters(in: .whitespacesAndNewlines)
+        let edited = prefix.trimmingCharacters(in: .whitespacesAndNewlines)
+        if index != nil && !original.isEmpty && edited != original {
+            prefixChangeConfirmationPresented = true
+            return
+        }
+        save()
+    }
+
+    /// A new provider needs the prefixes in use; read the lists once if they are not known.
+    private func loadPrefixInventoryIfNeeded() {
+        guard index == nil, deploymentStore.stage == .attached else { return }
+        if !runtimeDataStore.hasLoadedOpenAICompatibility && !runtimeDataStore.isLoadingProviders {
+            runtimeDataStore.refreshProviders(using: deploymentStore)
+        }
+        if !runtimeDataStore.hasLoadedDirectProviderCredentials && !runtimeDataStore.isLoadingDirectProviders {
+            runtimeDataStore.refreshDirectProviderCredentials(using: deploymentStore)
+        }
+    }
+
+    private func save() {
+        guard isValid, let priority = parsedPriority else { return }
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedPrefix = prefix.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedBaseURL = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let keyPayloads = apiKeys
             .filter { !$0.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -653,7 +768,8 @@ struct OpenAICompatibilityEditorView: View {
                 index: index,
                 value: RuntimeOpenAICompatibilityPatch(
                     name: trimmedName,
-                    prefix: trimmedPrefix,
+                    prefix: prefix.trimmingCharacters(in: .whitespacesAndNewlines),
+                    priority: priority == provider.priority ? nil : priority,
                     disabled: disabled,
                     disableCooling: disableCooling,
                     baseURL: trimmedBaseURL,
@@ -664,21 +780,40 @@ struct OpenAICompatibilityEditorView: View {
                 using: deploymentStore
             )
         } else {
+            let typed = prefixIsAutomatic ? "" : prefix
+            let resolvedPrefix: String
+            switch ProviderPrefixAllocator.prefixForNewProvider(typed: typed, name: trimmedName, taken: takenPrefixes) {
+            case .success(let value):
+                resolvedPrefix = value
+            case .failure(let error):
+                saveError = error.localizedDescription
+                loadPrefixInventoryIfNeeded()
+                return
+            }
+            // An allocated prefix is allocated again against the latest stored list when it is
+            // written; the direct providers' prefixes come from the lists read here.
+            let directPrefixes = ProviderPrefixAllocator.takenPrefixes(
+                openAICompatibility: [],
+                directCredentials: runtimeDataStore.directProviderCredentials,
+                excludingProviderNamed: nil
+            ) ?? []
             runtimeDataStore.createOpenAICompatibility(
                 RuntimeOpenAICompatibilityWrite(
                     name: trimmedName,
-                    priority: provider.priority,
+                    priority: priority,
                     disabled: disabled,
-                    prefix: trimmedPrefix,
+                    prefix: resolvedPrefix,
                     baseURL: trimmedBaseURL,
                     apiKeyEntries: keyPayloads,
                     models: modelPayloads,
                     headers: configuredHeaders,
                     disableCooling: disableCooling
                 ),
+                allocatePrefixAgainst: typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? directPrefixes : nil,
                 using: deploymentStore
             )
         }
+        saveError = nil
         onDirtyChange(false)
         onClose()
     }

@@ -1034,17 +1034,21 @@ struct ManagementAPIClient {
     /// CLIProxyAPI currently exposes list replacement rather than a dedicated
     /// append endpoint. Read the raw list immediately before writing so fields
     /// introduced by newer targets are passed through untouched.
+    /// Reads the whole list from `GET /v0/management/config` (complete raw entries; the list
+    /// endpoint's GET may leave fields out) and PUTs it back with `provider` appended.
     func appendOpenAICompatibility(
         _ provider: RuntimeOpenAICompatibilityWrite,
+        allocatePrefixAgainst otherPrefixes: [String]? = nil,
         baseURL: URL,
         managementKey: String
     ) async throws -> RuntimeOpenAICompatibilityListAppendOutcome {
         let url = try openAICompatibilityURL(baseURL: baseURL)
-        let getRequest = managementRequest(url: url, method: "GET", managementKey: managementKey)
+        let getRequest = managementRequest(url: try configURL(baseURL: baseURL), method: "GET", managementKey: managementKey)
         let responseData = try await performData(getRequest)
         let payload = try RuntimeOpenAICompatibilityListMutation.append(
             provider,
-            to: responseData
+            to: responseData,
+            allocatePrefixAgainst: otherPrefixes
         )
         guard case .appended = payload.outcome else {
             return payload.outcome
@@ -1057,6 +1061,36 @@ struct ManagementAPIClient {
         request.httpBody = requestBody
         try await performMutation(request)
         return .appended
+    }
+
+    /// Gives one provider `priority` through a read-modify-write of the whole list (GET
+    /// `/v0/management/config`, PUT `/v0/management/openai-compatibility`), for engines whose PATCH
+    /// does not take `priority`. Nothing is written when the stored value already matches.
+    func setOpenAICompatibilityPriority(
+        _ priority: Int,
+        providerNamed name: String,
+        index: Int?,
+        baseURL: URL,
+        managementKey: String
+    ) async throws {
+        let getRequest = managementRequest(url: try configURL(baseURL: baseURL), method: "GET", managementKey: managementKey)
+        let responseData = try await performData(getRequest)
+        guard let body = try RuntimeOpenAICompatibilityListMutation.settingPriority(
+            priority, ofProviderNamed: name, index: index, in: responseData
+        ) else { return }
+        var request = managementRequest(url: try openAICompatibilityURL(baseURL: baseURL), method: "PUT", managementKey: managementKey)
+        request.httpBody = body
+        try await performMutation(request)
+    }
+
+    private func configURL(baseURL: URL) throws -> URL {
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            throw ManagementAPIError.invalidURL
+        }
+        components.path = "/v0/management/config"
+        components.queryItems = nil
+        guard let url = components.url else { throw ManagementAPIError.invalidURL }
+        return url
     }
 
     func deleteOpenAICompatibility(

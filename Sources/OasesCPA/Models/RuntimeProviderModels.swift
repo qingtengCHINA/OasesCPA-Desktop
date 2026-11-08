@@ -88,6 +88,14 @@ struct RuntimeOpenAICompatibility: Decodable, Identifiable, Sendable {
 }
 
 struct RuntimeOpenAICompatibilityWrite: Encodable, Sendable {
+    /// A copy with another prefix.
+    func withPrefix(_ prefix: String) -> RuntimeOpenAICompatibilityWrite {
+        RuntimeOpenAICompatibilityWrite(
+            name: name, priority: priority, disabled: disabled, prefix: prefix, baseURL: baseURL,
+            apiKeyEntries: apiKeyEntries, models: models, headers: headers, disableCooling: disableCooling
+        )
+    }
+
     let name: String
     let priority: Int
     let disabled: Bool
@@ -273,6 +281,8 @@ enum RuntimeJSONValue: Codable, Equatable, Sendable {
 struct RuntimeOpenAICompatibilityPatch: Encodable, Sendable {
     let name: String?
     let prefix: String?
+    /// Higher is tried first. nil is not encoded (the engine keeps the stored value).
+    let priority: Int?
     let disabled: Bool?
     let disableCooling: Bool?
     let baseURL: String?
@@ -281,17 +291,19 @@ struct RuntimeOpenAICompatibilityPatch: Encodable, Sendable {
     let headers: [String: String]?
 
     init(
-        name: String?,
-        prefix: String?,
-        disabled: Bool?,
-        disableCooling: Bool?,
-        baseURL: String?,
+        name: String? = nil,
+        prefix: String? = nil,
+        priority: Int? = nil,
+        disabled: Bool? = nil,
+        disableCooling: Bool? = nil,
+        baseURL: String? = nil,
         apiKeyEntries: [RuntimeProviderAPIKey]? = nil,
         models: [RuntimeProviderModel]? = nil,
         headers: [String: String]? = nil
     ) {
         self.name = name
         self.prefix = prefix
+        self.priority = priority
         self.disabled = disabled
         self.disableCooling = disableCooling
         self.baseURL = baseURL
@@ -303,6 +315,7 @@ struct RuntimeOpenAICompatibilityPatch: Encodable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case name
         case prefix
+        case priority
         case disabled
         case disableCooling = "disable-cooling"
         case baseURL = "base-url"
@@ -355,12 +368,31 @@ enum RuntimeOpenAICompatibilityListMutation {
         "openAICompatibility"
     ]
 
+    /// The raw entries of a response that carries the list: `GET /v0/management/config` (the
+    /// whole engine config; the list is written back from it because the list endpoint's GET may
+    /// leave out fields, see the panel's `providers.ts`) or `GET /v0/management/openai-compatibility`.
+    /// A JSON null list (an engine config without providers) is an empty list.
+    static func entries(in responseData: Data) throws -> [Any] {
+        guard let envelope = try JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+              let responseKey = responseKeys.first(where: { envelope[$0] != nil }) else {
+            throw RuntimeOpenAICompatibilityListMutationError.invalidResponse
+        }
+        if envelope[responseKey] is NSNull { return [] }
+        guard let entries = envelope[responseKey] as? [Any] else {
+            throw RuntimeOpenAICompatibilityListMutationError.invalidResponse
+        }
+        return entries
+    }
+
     /// Creates a PUT payload from the just-read raw response. Existing entries
     /// are intentionally not decoded into the app's UI model so newer
     /// CLIProxyAPI fields and auth-index metadata survive an append operation.
+    /// With `allocatePrefixAgainst` (prefixes in use outside this list, i.e. the direct
+    /// providers'), the provider's prefix is allocated again against the entries just read.
     static func append(
         _ provider: RuntimeOpenAICompatibilityWrite,
-        to responseData: Data
+        to responseData: Data,
+        allocatePrefixAgainst otherPrefixes: [String]? = nil
     ) throws -> RuntimeOpenAICompatibilityListAppendPayload {
         let providerName = provider.name.trimmingCharacters(in: .whitespacesAndNewlines)
         let baseURL = provider.baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -368,10 +400,13 @@ enum RuntimeOpenAICompatibilityListMutation {
             throw RuntimeOpenAICompatibilityListMutationError.invalidProvider
         }
 
-        guard let envelope = try JSONSerialization.jsonObject(with: responseData) as? [String: Any],
-              let responseKey = responseKeys.first(where: { envelope[$0] != nil }),
-              var entries = envelope[responseKey] as? [Any] else {
-            throw RuntimeOpenAICompatibilityListMutationError.invalidResponse
+        var entries = try Self.entries(in: responseData)
+        var provider = provider
+        if let otherPrefixes {
+            let listPrefixes = entries.compactMap { ($0 as? [String: Any])?["prefix"] as? String }
+            if let allocated = ProviderPrefixAllocator.resolve(prefix: nil, name: providerName, taken: listPrefixes + otherPrefixes) {
+                provider = provider.withPrefix(allocated)
+            }
         }
 
         let normalizedName = providerName.lowercased()
@@ -397,5 +432,39 @@ enum RuntimeOpenAICompatibilityListMutation {
             outcome: .appended,
             requestBody: try JSONSerialization.data(withJSONObject: entries)
         )
+    }
+
+    /// The PUT body that gives the entry `priority`: the entry at `index` when its name is
+    /// `name` (trimmed), otherwise the first entry of that name. Every other field and entry is
+    /// sent back exactly as read (unknown fields, integers as integers). nil when the entry
+    /// already has that priority (nothing to write); `.invalidProvider` when it is not there.
+    static func settingPriority(
+        _ priority: Int,
+        ofProviderNamed name: String,
+        index: Int?,
+        in responseData: Data
+    ) throws -> Data? {
+        var entries = try Self.entries(in: responseData)
+        let wanted = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        func matches(_ entry: Any) -> Bool {
+            ((entry as? [String: Any])?["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) == wanted
+        }
+        let target: Int?
+        if let index, entries.indices.contains(index), matches(entries[index]) {
+            target = index
+        } else {
+            target = entries.firstIndex(where: matches)
+        }
+        guard !wanted.isEmpty, let target, var entry = entries[target] as? [String: Any] else {
+            throw RuntimeOpenAICompatibilityListMutationError.invalidProvider
+        }
+        let current = (entry["priority"] as? NSNumber)?.intValue ?? 0
+        guard current != priority else { return nil }
+        entry["priority"] = priority
+        entries[target] = entry
+        guard JSONSerialization.isValidJSONObject(entries) else {
+            throw RuntimeOpenAICompatibilityListMutationError.invalidProvider
+        }
+        return try JSONSerialization.data(withJSONObject: entries)
     }
 }

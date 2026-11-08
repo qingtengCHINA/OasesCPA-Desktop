@@ -2321,3 +2321,13 @@
 "重命名" = "Rename";
 "重命名 Key" = "Rename Key";
 "限额" = "Limits";
+"请先刷新供应商列表，再保存新的 AI 服务（需要知道已在使用的前缀）。" = "Refresh the provider list first, then save the new AI service (the prefixes already in use must be known).";
+"修改这项服务的前缀？" = "Change This Service's Prefix?";
+"仍然修改" = "Change Anyway";
+"按 Key 指定到这家供应商的设置可能失效：网关通过前缀把请求只送到这家供应商。" = "Keys pinned to this provider may stop working: the gateway uses the prefix to send requests to this provider only.";
+"数值越大越优先；调整多个模型的先后顺序请用模型详情页的拖动排序" = "Higher values are tried first; to reorder providers for several models, drag them on the model detail page";
+"优先级必须是整数，或留空表示 0。" = "The priority must be a whole number, or empty for 0.";
+"正在读取已在使用的前缀…" = "Reading the prefixes already in use…";
+"自动分配，供按 Key 指定供应商使用；也可以改成自己的前缀" = "Assigned automatically so keys can be pinned to this provider; you can also enter your own";
+"用于按 Key 指定供应商；修改后已有的指定可能失效" = "Used to pin keys to this provider; changing it may break existing pins";
+"其他供应商也在使用这个前缀；按 Key 指定供应商时，网关只认只属于一家供应商的前缀。" = "Another provider uses this prefix too; to pin keys to a provider, the gateway only accepts a prefix that belongs to one provider.";

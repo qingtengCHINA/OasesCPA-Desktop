@@ -87,6 +87,11 @@ final class RuntimeDataStore: ObservableObject {
     @Published private(set) var pluginCatalog: RuntimePluginsResponse?
     @Published private(set) var pluginStoreCatalog: RuntimePluginStoreResponse?
     @Published private(set) var openAICompatibility: [RuntimeOpenAICompatibility] = []
+    /// True after the last read of `openAICompatibility` succeeded (false while reading, after a
+    /// failed read and when nothing is attached): prefixes are only allocated from a known list.
+    @Published private(set) var hasLoadedOpenAICompatibility = false
+    /// True after the last read of every direct provider list succeeded.
+    @Published private(set) var hasLoadedDirectProviderCredentials = false
     @Published private(set) var directProviderCredentials: [RuntimeDirectProviderKind: [RuntimeDirectProviderCredential]] = [:]
     @Published private(set) var directProviderErrors: [RuntimeDirectProviderKind: String] = [:]
     @Published private(set) var providerConnectivityResults: [RuntimeProviderConnectivityResult] = []
@@ -262,7 +267,9 @@ final class RuntimeDataStore: ObservableObject {
             pluginCatalog = nil
             pluginStoreCatalog = nil
             openAICompatibility = []
+            hasLoadedOpenAICompatibility = false
             directProviderCredentials = [:]
+            hasLoadedDirectProviderCredentials = false
             directProviderErrors = [:]
             logs = nil
             systemStatus = nil
@@ -2269,6 +2276,7 @@ final class RuntimeDataStore: ObservableObject {
     func refreshProviders(using deploymentStore: DeploymentStore) {
         providerTask?.cancel()
         resetProviderConnectivity()
+        hasLoadedOpenAICompatibility = false
         guard deploymentStore.stage == .attached, !deploymentStore.managementKey.isEmpty else {
             openAICompatibility = []
             providerErrorMessage = nil
@@ -2290,6 +2298,7 @@ final class RuntimeDataStore: ObservableObject {
                       deploymentStore.stage == .attached,
                       deploymentStore.managementKey == managementKey else { return }
                 self?.openAICompatibility = response.providers
+                self?.hasLoadedOpenAICompatibility = true
                 self?.providerErrorMessage = nil
                 self?.isLoadingProviders = false
             } catch {
@@ -2311,6 +2320,7 @@ final class RuntimeDataStore: ObservableObject {
     func refreshDirectProviderCredentials(using deploymentStore: DeploymentStore) {
         directProviderTask?.cancel()
         resetProviderConnectivity()
+        hasLoadedDirectProviderCredentials = false
         guard deploymentStore.stage == .attached, !deploymentStore.managementKey.isEmpty else {
             directProviderCredentials = [:]
             directProviderErrors = [:]
@@ -2349,6 +2359,7 @@ final class RuntimeDataStore: ObservableObject {
             }
             self?.directProviderCredentials = loaded
             self?.directProviderErrors = failures
+            self?.hasLoadedDirectProviderCredentials = failures.isEmpty
             self?.isLoadingDirectProviders = false
         }
     }
@@ -2597,13 +2608,25 @@ final class RuntimeDataStore: ObservableObject {
         providerErrorMessage = nil
         Task { [weak self] in
             do {
-                try await ManagementAPIClient().patchOpenAICompatibility(
+                let client = ManagementAPIClient()
+                try await client.patchOpenAICompatibility(
                     name: name,
                     index: index,
                     value: value,
                     baseURL: baseURL,
                     managementKey: managementKey
                 )
+                // The engine's PATCH may not know `priority`: the priority is then written by
+                // a read-modify-write of the whole list (only that field of that entry changes).
+                if let priority = value.priority {
+                    try await client.setOpenAICompatibilityPriority(
+                        priority,
+                        providerNamed: value.name ?? name,
+                        index: index,
+                        baseURL: baseURL,
+                        managementKey: managementKey
+                    )
+                }
                 guard !Task.isCancelled,
                       deploymentStore.stage == .attached,
                       deploymentStore.managementKey == managementKey else { return }
@@ -2733,8 +2756,12 @@ final class RuntimeDataStore: ObservableObject {
         }
     }
 
+    /// Appends `provider` to the latest list. With `allocatePrefixAgainst` (the direct
+    /// providers' prefixes) its prefix is allocated again against the latest stored list at write
+    /// time, so two clients saving together cannot both take the same one.
     func createOpenAICompatibility(
         _ provider: RuntimeOpenAICompatibilityWrite,
+        allocatePrefixAgainst directPrefixes: [String]? = nil,
         using deploymentStore: DeploymentStore
     ) {
         guard deploymentStore.stage == .attached, !deploymentStore.managementKey.isEmpty else {
@@ -2750,6 +2777,7 @@ final class RuntimeDataStore: ObservableObject {
             do {
                 let outcome = try await ManagementAPIClient().appendOpenAICompatibility(
                     provider,
+                    allocatePrefixAgainst: directPrefixes,
                     baseURL: baseURL,
                     managementKey: managementKey
                 )
@@ -2801,6 +2829,7 @@ final class RuntimeDataStore: ObservableObject {
                 throw RuntimeDataStoreError.openAICompatibilityProviderDeletionNotConfirmed
             }
             openAICompatibility = response.providers
+            hasLoadedOpenAICompatibility = true
             providerErrorMessage = nil
         } catch {
             if !Task.isCancelled {
