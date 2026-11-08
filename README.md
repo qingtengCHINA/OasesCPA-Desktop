@@ -153,7 +153,7 @@ open "OasesCPA.xcodeproj"
 
 ### 本机运行的隔离
 
-开发机上若已有一套在用的部署（默认目录 `~/.oases-cpa`），App 一启动就可能检测并接管它：首次运行时会自动检测默认安装目录，接管后的 30 秒巡检会调用 `ensureRunning` 重启服务。测试进程（环境变量 `XCTestConfigurationFilePath`）或带启动参数 `-OasesDisableAutoProbe` 运行时，`DeploymentStore` 不做自动检测、不自动接管、也不启动巡检。图形界面调试请同时做到：
+开发机上若已有一套在用的部署（默认目录 `~/.oases-cpa`），App 一启动就可能检测并接管它：首次运行时会自动检测默认安装目录，接管后的 30 秒巡检会调用 `ensureRunning` 重启服务。测试进程或带启动参数 `-OasesDisableAutoProbe` 运行时，`DeploymentStore` 不做自动检测、不自动接管、也不启动巡检。测试进程按两种方式识别：只有 Xcode 的测试宿主会设置环境变量 `XCTestConfigurationFilePath`；`swift test` 不设置它，这时靠进程里已加载 XCTest（`NSClassFromString("XCTestCase")` 不为空）来识别，正常启动的 App 不链接 XCTest。图形界面调试请同时做到：
 
 - 使用单独的包标识（`Config/Local.xcconfig` 中的 `OASES_BUNDLE_ID_PREFIX`，或构建时在命令行传入 `OASES_BUNDLE_ID_PREFIX=dev.example.oases-e2e OASES_UPDATE_REPOSITORY=`），这样不会读到正式构建保存的目标；
 - 同时把 `HOME` 和 `CFFIXED_USER_HOME` 设为一个临时目录（子 shell 通过 `$HOME` 展开 `~`），并加上 `-OasesDisableAutoProbe`：

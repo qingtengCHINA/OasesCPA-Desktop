@@ -131,6 +131,9 @@ official_without OASES_BUNDLE_ID
 run_expect_refusal "explicit OASES_BUNDLE_ID" env -u OASES_BUNDLE_ID "${WITHOUT[@]}" bash "$SCRIPT" --validate-policy
 run_expect_refusal "neutral com.example" env "${OFFICIAL[@]}" OASES_BUNDLE_ID=com.example.cpa.macos bash "$SCRIPT" --validate-policy
 run_expect_refusal "neutral com.example" env "${OFFICIAL[@]}" OASES_BUNDLE_ID=com.example bash "$SCRIPT" --validate-policy
+# Bundle identifiers are case-insensitive, so the neutral prefix is refused in any case.
+run_expect_refusal "neutral com.example" env "${OFFICIAL[@]}" OASES_BUNDLE_ID=Com.Example.app bash "$SCRIPT" --validate-policy
+run_expect_refusal "neutral com.example" env "${OFFICIAL[@]}" OASES_BUNDLE_ID=COM.EXAMPLE bash "$SCRIPT" --validate-policy
 run_expect_refusal "no OASES_UPDATE_REPOSITORY" env "${OFFICIAL[@]}" OASES_UPDATE_REPOSITORY= bash "$SCRIPT" --validate-policy
 run_expect_refusal '"owner/name"' env "${OFFICIAL[@]}" OASES_UPDATE_REPOSITORY=no-slash bash "$SCRIPT" --validate-policy
 run_expect_refusal "ALLOW_RELEASE_WITHOUT_UPDATER must be 0 or 1" env "${OFFICIAL[@]}" ALLOW_RELEASE_WITHOUT_UPDATER=yes bash "$SCRIPT" --validate-policy
@@ -139,6 +142,36 @@ output="$(env "${OFFICIAL[@]}" OASES_UPDATE_REPOSITORY= ALLOW_RELEASE_WITHOUT_UP
   echo "an official release without updater must say so" >&2
   exit 1
 }
+
+# Without OASES_UPDATE_REPOSITORY in the environment the repository comes from the xcconfig
+# files: Config/Local.xcconfig first, else Config/Base.xcconfig. A copy of the script in a
+# scratch tree keeps this independent of the developer's own (git-ignored) Local.xcconfig.
+FALLBACK_SCRATCH="${OASES_SCRATCH:-${TMPDIR:-/tmp}/oases-b-scratch}"
+mkdir -p "$FALLBACK_SCRATCH"
+FALLBACK_ROOT="$(mktemp -d "$FALLBACK_SCRATCH/release-fallback.XXXXXX")"
+mkdir -p "$FALLBACK_ROOT/script" "$FALLBACK_ROOT/Config"
+cp "$SCRIPT" "$FALLBACK_ROOT/script/package_release.sh"
+cp "$SCRIPT_DIR/../project.yml" "$FALLBACK_ROOT/project.yml"
+printf 'OASES_UPDATE_REPOSITORY = BaseOwner/BaseRepo // the committed default\n' > "$FALLBACK_ROOT/Config/Base.xcconfig"
+official_without OASES_UPDATE_REPOSITORY
+output="$(env -u OASES_UPDATE_REPOSITORY "${WITHOUT[@]}" bash "$FALLBACK_ROOT/script/package_release.sh" --validate-policy 2>&1)"
+[[ "$output" == *"Updater: enabled, reads the releases of BaseOwner/BaseRepo"* ]] || {
+  echo "without OASES_UPDATE_REPOSITORY the repository must come from Config/Base.xcconfig" >&2
+  exit 1
+}
+printf 'OASES_UPDATE_REPOSITORY = LocalOwner/LocalRepo\n' > "$FALLBACK_ROOT/Config/Local.xcconfig"
+output="$(env -u OASES_UPDATE_REPOSITORY "${WITHOUT[@]}" bash "$FALLBACK_ROOT/script/package_release.sh" --validate-policy 2>&1)"
+[[ "$output" == *"Updater: enabled, reads the releases of LocalOwner/LocalRepo"* ]] || {
+  echo "Config/Local.xcconfig must win over Config/Base.xcconfig" >&2
+  exit 1
+}
+output="$(env "${WITHOUT[@]}" OASES_UPDATE_REPOSITORY=EnvOwner/EnvRepo bash "$FALLBACK_ROOT/script/package_release.sh" --validate-policy 2>&1)"
+[[ "$output" == *"Updater: enabled, reads the releases of EnvOwner/EnvRepo"* ]] || {
+  echo "a set OASES_UPDATE_REPOSITORY must win over the xcconfig files" >&2
+  exit 1
+}
+printf 'OASES_UPDATE_REPOSITORY =\n' > "$FALLBACK_ROOT/Config/Local.xcconfig"
+run_expect_refusal "no OASES_UPDATE_REPOSITORY" env -u OASES_UPDATE_REPOSITORY "${WITHOUT[@]}" bash "$FALLBACK_ROOT/script/package_release.sh" --validate-policy
 
 run_expect_failure env \
   ALLOW_UNTRUSTED_LOCAL_RELEASE=1 \

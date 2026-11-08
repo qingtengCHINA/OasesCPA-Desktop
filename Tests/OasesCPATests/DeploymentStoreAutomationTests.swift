@@ -7,23 +7,43 @@ import XCTest
 @MainActor
 final class DeploymentStoreAutomationTests: XCTestCase {
     func testAutomaticActivityIsOffUnderXCTestOrWithTheLaunchFlag() {
-        XCTAssertTrue(DeploymentStore.automaticActivityAllowed(environment: [:], arguments: ["Oases CPA"]))
+        XCTAssertTrue(DeploymentStore.automaticActivityAllowed(
+            environment: [:], arguments: ["Oases CPA"], testFrameworkLoaded: false
+        ))
         XCTAssertFalse(DeploymentStore.automaticActivityAllowed(
             environment: ["XCTestConfigurationFilePath": "/tmp/x.xctestconfiguration"],
-            arguments: ["Oases CPA"]
+            arguments: ["Oases CPA"],
+            testFrameworkLoaded: false
         ))
         XCTAssertFalse(DeploymentStore.automaticActivityAllowed(
             environment: ["XCTestConfigurationFilePath": ""],
-            arguments: ["Oases CPA"]
+            arguments: ["Oases CPA"],
+            testFrameworkLoaded: false
         ))
         XCTAssertFalse(DeploymentStore.automaticActivityAllowed(
             environment: [:],
-            arguments: ["Oases CPA", "-OasesDisableAutoProbe"]
+            arguments: ["Oases CPA", "-OasesDisableAutoProbe"],
+            testFrameworkLoaded: false
         ))
         XCTAssertTrue(DeploymentStore.automaticActivityAllowed(
             environment: [:],
-            arguments: ["Oases CPA", "-OasesDisableAutoProbeX"]
+            arguments: ["Oases CPA", "-OasesDisableAutoProbeX"],
+            testFrameworkLoaded: false
         ))
+    }
+
+    /// `swift test` sets no environment variable; a loaded XCTest framework alone is enough.
+    func testLoadedTestFrameworkAloneDisablesAutomaticActivity() {
+        XCTAssertFalse(DeploymentStore.automaticActivityAllowed(
+            environment: [:], arguments: ["Oases CPA"], testFrameworkLoaded: true
+        ))
+    }
+
+    /// The live value inside this test process. `swift test` does not set
+    /// `XCTestConfigurationFilePath` (only the Xcode test host does), so the guard must also
+    /// recognise a process that has XCTest loaded.
+    func testLiveTestProcessNeverAllowsAutomaticActivity() {
+        XCTAssertFalse(DeploymentStore.automaticActivityAllowed)
     }
 
     func testStoreWithoutAutoProbeNeverProbesOnInit() async {

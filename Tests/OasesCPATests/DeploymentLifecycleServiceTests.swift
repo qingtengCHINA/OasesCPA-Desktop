@@ -141,19 +141,25 @@ final class DeploymentLifecycleServiceTests: XCTestCase {
         writeManagedRoot(at: managed)
         let link = sandbox.root.appendingPathComponent("link")
         try FileManager.default.createSymbolicLink(at: link, withDestinationURL: managed)
+        // The sandbox home carries a valid managed marker, so a missing marker cannot be what
+        // refuses it: only the home-directory guard stands between the home and rm.
+        writeManagedRoot(at: sandbox.home)
 
-        // "/" is refused by the script's first guard; the fake rm is the backstop. Every other
-        // case must resolve inside the sandbox before the script may run at all.
-        let cases: [(String, URL?)] = [
-            ("/", nil),
-            ("~", sandbox.home),
-            ("$HOME", sandbox.home),
-            (sandbox.home.path, sandbox.home),
-            (sandbox.home.path + "/", sandbox.home),
-            (unmanaged.path, unmanaged),
-            (link.path, link)
+        // Each case names the guard that must refuse it (its message on stderr). "/" is refused
+        // by the root guard (the fake rm is the backstop); every other case must resolve
+        // inside the sandbox before the script may run at all.
+        let rootGuard = "为保护系统文件，不能卸载文件系统根目录。"
+        let homeGuard = "为保护用户文件，不能卸载用户主目录。"
+        let cases: [(String, URL?, String)] = [
+            ("/", nil, rootGuard),
+            ("~", sandbox.home, homeGuard),
+            ("$HOME", sandbox.home, homeGuard),
+            (sandbox.home.path, sandbox.home, homeGuard),
+            (sandbox.home.path + "/", sandbox.home, homeGuard),
+            (unmanaged.path, unmanaged, "目标目录没有可信的 Oases CPA 受管标记。"),
+            (link.path, link, "目标目录不存在，或目标目录是符号链接。")
         ]
-        for (directory, target) in cases {
+        for (directory, target, guardMessage) in cases {
             if let target {
                 guard isInside(target, sandbox.root) else {
                     return XCTFail("refusing to run the removal script for a root outside the sandbox: \(directory)")
@@ -164,8 +170,10 @@ final class DeploymentLifecycleServiceTests: XCTestCase {
                 environment: sandbox.environment
             )
             XCTAssertNotEqual(result.status, 0, directory)
+            XCTAssertTrue(result.stderr.contains(guardMessage), "\(directory) was not refused by its guard: \(result.stderr)")
             XCTAssertFalse(FileManager.default.fileExists(atPath: sandbox.rmLog.path), "rm must not run for \(directory)")
         }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sandbox.home.appendingPathComponent(".oases-cpa-managed").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: sandbox.home.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: unmanaged.appendingPathComponent("keep.txt").path))
 

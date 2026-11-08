@@ -157,15 +157,37 @@ expect_status "GitHub's web-UI address fails on an author line" 1 "$st"
 expect_contains "the author line is an email finding" "$out" "<stdin>:1: email:"
 out=$(printf 'committer: %s\n' "$CONTRIB" | (cd "$R4" && bash "$SCANNER" --stdin 2>&1)); st=$?
 expect_status "a contributor noreply address is not allowed without its own row" 1 "$st"
+# The committer row is scoped to the <stdin> stream: the same line in a file still fails.
+printf 'committer: %s\n' "$GH_WEB" >"$R4/identities.txt"
+out=$(cd "$R4" && bash "$SCANNER" --tree 2>&1); st=$?
+expect_status "a committer line in a tracked-or-new file is not allowlisted" 1 "$st"
+expect_contains "the file line is an email finding" "$out" "identities.txt:1: email:"
+mv "$R4/identities.txt" "$WORK/identities.txt.moved"
 GIT_COMMITTER_EMAIL="$GH_WEB" git -C "$R4" -c user.name=Contract -c "user.email=$NOREPLY" \
   -c commit.gpgsign=false -c core.hooksPath=/dev/null commit -q --allow-empty -m "web merge" >/dev/null 2>&1
 out=$(cd "$R4" && bash "$SCANNER" --history 2>&1); st=$?
 expect_status "--history allows GitHub's address as committer" 0 "$st"
+# The CI e-mail step and the allowlist row belong together: CI must print one
+# "committer: %ce" line per commit (private-scan.yml), and its exact format, run on a
+# web-UI commit, must pass while the same address as author fails.
+CI_WORKFLOW="$REPO/.github/workflows/private-scan.yml"
+CI_FORMAT=$(sed -n "s/.*git log --format='\([^']*%ce[^']*\)'.*/\1/p" "$CI_WORKFLOW" 2>/dev/null)
+expect_status "private-scan.yml has exactly one e-mail format with %ce" 1 "$(printf '%s' "$CI_FORMAT" | grep -c '%ce')"
+expect_contains "the CI e-mail format prints committer lines" "$CI_FORMAT" "committer: %ce"
+expect_contains "the CI e-mail format prints author lines" "$CI_FORMAT" "author: %ae"
+out=$(git -C "$R4" log -1 --format="$CI_FORMAT" | (cd "$R4" && bash "$SCANNER" --stdin 2>&1)); st=$?
+expect_status "the CI format passes a web-UI committer" 0 "$st"
+ROW=$(grep -F 'noreply@github' "$REPO/script/private-allowlist.txt" | grep -v '^#' | grep -F 'committer: ')
+expect_status "the committer-line row exists exactly once" 1 "$(printf '%s\n' "$ROW" | grep -c .)"
+expect_contains "the committer-line row is scoped to <stdin>" "${ROW%%$'\t'*}" "<stdin>"
+expect_status "the committer-line row has no other glob" 0 "$([ "${ROW%%$'\t'*}" = "<stdin>" ]; echo $?)"
 GIT_AUTHOR_EMAIL="$GH_WEB" git -C "$R4" -c user.name=Contract -c "user.email=$NOREPLY" \
   -c commit.gpgsign=false -c core.hooksPath=/dev/null commit -q --allow-empty -m "bad author" >/dev/null 2>&1
 out=$(cd "$R4" && bash "$SCANNER" --history 2>&1); st=$?
 expect_status "--history rejects GitHub's address as author" 1 "$st"
 expect_contains "the author is an author-email finding" "$out" ":author:1: author-email:"
+out=$(git -C "$R4" log -1 --format="$CI_FORMAT" | (cd "$R4" && bash "$SCANNER" --stdin 2>&1)); st=$?
+expect_status "the CI format fails GitHub's address as author" 1 "$st"
 
 printf '\n%d passed, %d failed (scratch: %s)\n' "$PASS" "$FAIL" "$WORK"
 [ "$FAIL" -eq 0 ]

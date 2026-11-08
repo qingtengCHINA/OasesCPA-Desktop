@@ -99,16 +99,26 @@ final class DeploymentStore: ObservableObject {
     /// calls `ensureRunning`). Explicit user actions still work.
     let automaticActivityEnabled: Bool
 
-    /// Whether this process may run automatic deployment activity at all.
+    /// Whether this process may run automatic deployment activity at all. A test process is
+    /// recognised in two ways: the Xcode test host sets `XCTestConfigurationFilePath`, and
+    /// `swift test` (which does not set it) has the XCTest framework loaded, so the
+    /// `XCTestCase` class exists. A normal launch of the app links neither.
     nonisolated static var automaticActivityAllowed: Bool {
         automaticActivityAllowed(
             environment: ProcessInfo.processInfo.environment,
-            arguments: ProcessInfo.processInfo.arguments
+            arguments: ProcessInfo.processInfo.arguments,
+            testFrameworkLoaded: NSClassFromString("XCTestCase") != nil
         )
     }
 
-    nonisolated static func automaticActivityAllowed(environment: [String: String], arguments: [String]) -> Bool {
-        environment["XCTestConfigurationFilePath"] == nil && !arguments.contains("-OasesDisableAutoProbe")
+    nonisolated static func automaticActivityAllowed(
+        environment: [String: String],
+        arguments: [String],
+        testFrameworkLoaded: Bool
+    ) -> Bool {
+        !testFrameworkLoaded
+            && environment["XCTestConfigurationFilePath"] == nil
+            && !arguments.contains("-OasesDisableAutoProbe")
     }
 
     var isHealthMonitorRunningForTesting: Bool {

@@ -25,9 +25,11 @@
 # Narrow on purpose: only as committer, only this exact lowercase address; as an author or as
 # text in a file it still fails. The first row is the Server repo's row for --history; CI
 # scans e-mails through --stdin as "author: <a>" / "committer: <c>" lines (private-scan.yml),
-# which the second row matches as a whole line.
+# which the second row matches as a whole line, on standard input only (glob "<stdin>"; the
+# same line in a file still fails). check_no_private_contract_test.sh pins this row to the CI
+# format, so the two change together.
 (committer)	^noreply@github\.com$	GitHub's own committer address on commits made in the web UI (merge, squash, rebase and web edits); a public GitHub identity, allowed as committer only
-*	^committer: noreply@github\.com$	The same GitHub web-UI committer address in CI's --stdin e-mail stream, where each line names its role; allowed only on a committer line
+<stdin>	^committer: noreply@github\.com$	The same GitHub web-UI committer address in CI's --stdin e-mail stream, where each line names its role; allowed only on a committer line of standard input
 #
 # Synthetic account addresses in the test fixtures. example.com is reserved for
 # documentation (RFC 2606); no mailbox exists there.

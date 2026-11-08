@@ -177,7 +177,9 @@ else
   if [[ -z "${OASES_BUNDLE_ID:-}" ]]; then
     die "Official release requires an explicit OASES_BUNDLE_ID (your own bundle identifier)."
   fi
-  if [[ "$BUNDLE_ID" == "com.example" || "$BUNDLE_ID" == com.example.* ]]; then
+  # Bundle identifiers compare case-insensitively (bash 3.2 has no ${var,,}).
+  BUNDLE_ID_LOWER="$(printf '%s' "$BUNDLE_ID" | /usr/bin/tr '[:upper:]' '[:lower:]')"
+  if [[ "$BUNDLE_ID_LOWER" == "com.example" || "$BUNDLE_ID_LOWER" == com.example.* ]]; then
     die "Official release refuses the neutral com.example bundle identifier; set OASES_BUNDLE_ID to your own."
   fi
   if [[ -z "$UPDATE_REPOSITORY" && "$ALLOW_RELEASE_WITHOUT_UPDATER" != "1" ]]; then
