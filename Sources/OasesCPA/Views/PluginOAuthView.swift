@@ -26,11 +26,11 @@ struct PluginOAuthView: View {
 
         var title: String {
             switch self {
-            case .idle: "未开始"
-            case .starting: "正在创建会话"
-            case .waiting: "等待授权"
-            case .success: "授权完成"
-            case .failed: "授权失败"
+            case .idle: OasesLocalization.localized("未开始")
+            case .starting: OasesLocalization.localized("正在创建会话")
+            case .waiting: OasesLocalization.localized("等待授权")
+            case .success: OasesLocalization.localized("授权完成")
+            case .failed: OasesLocalization.localized("授权失败")
             }
         }
 
@@ -246,7 +246,7 @@ struct PluginOAuthView: View {
 
     private func startAuthorization() {
         guard deploymentStore.stage == .attached, !deploymentStore.managementKey.isEmpty else {
-            errorMessage = "请先完成本机或 SSH/VPS 部署，并确认 CPA 管理密钥可用。"
+            errorMessage = OasesLocalization.localized("请先完成本机或 SSH/VPS 部署，并确认 CPA 管理密钥可用。")
             return
         }
 
@@ -311,7 +311,7 @@ struct PluginOAuthView: View {
                     flowState = .waiting
                 case .error, .unknown:
                     flowState = .failed
-                    errorMessage = response.error ?? "目标服务未能完成插件 OAuth 授权。"
+                    errorMessage = response.error ?? OasesLocalization.localized("目标服务未能完成插件 OAuth 授权。")
                     activePollingState = nil
                 }
                 if activePollingState == nil { return }
@@ -335,7 +335,7 @@ struct PluginOAuthView: View {
         guard deploymentStore.stage == .attached,
               !deploymentStore.managementKey.isEmpty,
               !oauthState.isEmpty else {
-            errorMessage = "请先开始一个插件 OAuth 会话。"
+            errorMessage = OasesLocalization.localized("请先开始一个插件 OAuth 会话。")
             return
         }
 
@@ -364,7 +364,7 @@ struct PluginOAuthView: View {
                     }
                 } else {
                     flowState = .failed
-                    errorMessage = response.error ?? "目标服务拒绝了插件 OAuth 回调。"
+                    errorMessage = response.error ?? OasesLocalization.localized("目标服务拒绝了插件 OAuth 回调。")
                 }
             } catch {
                 isSubmittingCallback = false
@@ -376,7 +376,7 @@ struct PluginOAuthView: View {
 
     private func openAuthorizationURL() {
         guard let url = URL(string: authorizationURL) else {
-            errorMessage = "授权地址格式无效。"
+            errorMessage = OasesLocalization.localized("授权地址格式无效。")
             return
         }
         openURL(url)

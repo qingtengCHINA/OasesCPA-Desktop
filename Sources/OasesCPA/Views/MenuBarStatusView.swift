@@ -131,7 +131,7 @@ struct MenuBarStatusView: View {
                     .locale(language.locale)
             )
         }
-        return "尚未读取"
+        return OasesLocalization.localized("尚未读取")
     }
 
     private func openMainWindow() {

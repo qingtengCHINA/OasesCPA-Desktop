@@ -232,6 +232,11 @@ final class DeploymentStore: ObservableObject {
         }
 
         bindPersistence()
+        NotificationCenter.default.publisher(for: .oasesLanguageDidChange)
+            .sink { [weak self] _ in
+                MainActor.assumeIsolated { self?.relocalizeForLanguageChange() }
+            }
+            .store(in: &cancellables)
         if automaticActivityEnabled, targetKind == .local {
             // Local probing is read-only, so make the common first-run path
             // auto-adopt or reconnect a managed deployment without an early
@@ -243,6 +248,35 @@ final class DeploymentStore: ObservableObject {
     }
 
     var targetTitle: String { targetKind.title }
+
+    /// Translates the text this store already holds into the newly chosen language: the plan
+    /// steps (rebuilt, statuses kept) and the status and error lines (see
+    /// `OasesLocalization.relocalized`; raw output of a target stays as it is).
+    func relocalizeForLanguageChange() {
+        let rebuilt = DeploymentPlanFactory.makeSteps(target: targetKind, method: deploymentMethod)
+        if rebuilt.count == steps.count {
+            steps = zip(rebuilt, steps).map { fresh, old in
+                DeploymentStep(title: fresh.title, detail: fresh.detail, systemImage: fresh.systemImage, status: old.status)
+            }
+        } else {
+            steps = steps.map { step in
+                DeploymentStep(
+                    title: OasesLocalization.relocalized(step.title),
+                    detail: OasesLocalization.relocalized(step.detail),
+                    systemImage: step.systemImage,
+                    status: step.status
+                )
+            }
+        }
+        statusMessage = OasesLocalization.relocalized(statusMessage)
+        probeError = OasesLocalization.relocalized(probeError)
+        removalError = OasesLocalization.relocalized(removalError)
+        deploymentError = OasesLocalization.relocalized(deploymentError)
+        deploymentLogError = OasesLocalization.relocalized(deploymentLogError)
+        maintenanceError = OasesLocalization.relocalized(maintenanceError)
+        maintenanceMessage = OasesLocalization.relocalized(maintenanceMessage)
+        healthError = OasesLocalization.relocalized(healthError)
+    }
 
     func prepareForApplicationTermination() {
         stopHealthMonitor()

@@ -197,7 +197,7 @@ struct PluginConfigEditorView: View {
     private func formatJSON() {
         guard let data = RuntimePluginConfigValidator.canonicalData(from: contents),
               let text = RuntimePluginConfigValidator.formattedText(from: data) else {
-            errorMessage = "当前内容不是有效的 JSON 对象。"
+            errorMessage = OasesLocalization.localized("当前内容不是有效的 JSON 对象。")
             return
         }
         contents = text
@@ -206,7 +206,7 @@ struct PluginConfigEditorView: View {
 
     private func save() {
         guard RuntimePluginConfigValidator.canonicalData(from: contents) != nil else {
-            errorMessage = "当前内容不是有效的 JSON 对象。"
+            errorMessage = OasesLocalization.localized("当前内容不是有效的 JSON 对象。")
             return
         }
 

@@ -323,7 +323,7 @@ struct ConnectionCenterView: View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .top, spacing: 12) {
                 CardTitle(
-                    title: deploymentStore.targetKind == .local ? "部署到本机" : "部署到远程目标",
+                    title: deploymentStore.targetKind == .local ? OasesLocalization.localized("部署到本机") : OasesLocalization.localized("部署到远程目标"),
                     subtitle: deploymentStore.targetKind == .local
                         ? "自动检测环境，然后在当前 Mac 上安装 CLIProxyAPI 和 CPAMP。"
                         : "先检测远程目标，再通过 SSH 安装 CLIProxyAPI 和 CPAMP。",
@@ -336,7 +336,7 @@ struct ConnectionCenterView: View {
                 runtimePortFacts
                 DeploymentChoiceFact(
                     title: "部署方式",
-                    value: deploymentStore.targetKind == .local ? "本机原生" : deploymentStore.deploymentMethod.title
+                    value: deploymentStore.targetKind == .local ? OasesLocalization.localized("本机原生") : deploymentStore.deploymentMethod.title
                 )
             }
 
@@ -771,7 +771,7 @@ struct ConnectionCenterView: View {
                     deploymentStore.probeTarget()
                 } label: {
                     Label(
-                        deploymentStore.isProbing ? "检测中…" : "重新检测",
+                        deploymentStore.isProbing ? OasesLocalization.localized("检测中…") : OasesLocalization.localized("重新检测"),
                         systemImage: deploymentStore.isProbing ? "hourglass" : "arrow.clockwise"
                     )
                 }
@@ -820,7 +820,7 @@ struct ConnectionCenterView: View {
             HStack {
                 CardTitle(
                     title: "部署日志",
-                    subtitle: deploymentStore.deploymentLogSource.isEmpty ? "部署失败后可读取目标目录中的日志" : deploymentStore.deploymentLogSource,
+                    subtitle: deploymentStore.deploymentLogSource.isEmpty ? OasesLocalization.localized("部署失败后可读取目标目录中的日志") : deploymentStore.deploymentLogSource,
                     icon: "doc.text.magnifyingglass"
                 )
                 Spacer()
@@ -828,7 +828,7 @@ struct ConnectionCenterView: View {
                     deploymentStore.refreshDeploymentLog()
                 } label: {
                     Label(
-                        deploymentStore.isLoadingDeploymentLog ? "读取中…" : "读取日志",
+                        deploymentStore.isLoadingDeploymentLog ? OasesLocalization.localized("读取中…") : OasesLocalization.localized("读取日志"),
                         systemImage: deploymentStore.isLoadingDeploymentLog ? "hourglass" : "arrow.clockwise"
                     )
                 }
@@ -1129,7 +1129,7 @@ struct SavedTargetRow: View {
             Spacer()
 
             StatusPill(
-                title: isActive ? (profile.isInstalled ? "当前目标" : "正在配置") : (profile.isInstalled ? "已保存" : "未部署"),
+                title: isActive ? (profile.isInstalled ? OasesLocalization.localized("当前目标") : OasesLocalization.localized("正在配置")) : (profile.isInstalled ? OasesLocalization.localized("已保存") : OasesLocalization.localized("未部署")),
                 tint: isActive ? Color.oasesBlue : (profile.isInstalled ? Color.oasesGreen : Color.secondary),
                 systemImage: isActive ? "checkmark.circle.fill" : "circle"
             )

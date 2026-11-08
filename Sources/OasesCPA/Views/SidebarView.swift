@@ -53,7 +53,7 @@ struct SidebarView: View {
                 StatusDot(tone: deploymentStore.stage == .attached ? .success : .warning, size: 8)
 
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(deploymentStore.stage == .attached ? "已接入" : store.connectionLabel)
+                    Text(deploymentStore.stage == .attached ? OasesLocalization.localized("已接入") : store.connectionLabel)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Oases.Color.textPrimary)
                     Text(deploymentStore.stage == .attached ? deploymentStore.targetTitle : store.connectionDetail)

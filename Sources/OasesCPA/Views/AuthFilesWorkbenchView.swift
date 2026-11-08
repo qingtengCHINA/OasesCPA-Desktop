@@ -193,22 +193,7 @@ struct AuthFilesWorkbenchView: View {
     }
 
     private var authFilterPickers: some View {
-        HStack(spacing: 12) {
-            Picker("排序", selection: $workbench.sort) {
-                ForEach(AuthFilesWorkbenchSort.allCases) { sort in
-                    Text(sort.title).tag(sort)
-                }
-            }
-            .frame(width: 140)
-
-            Picker("显示", selection: $workbench.displayMode) {
-                ForEach(AuthFilesWorkbenchDisplayMode.allCases) { mode in
-                    Text(mode.title).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 150)
-        }
+        AuthFilesWorkbenchFilterPickers(workbench: workbench)
     }
 
     private var filters: some View {
@@ -276,7 +261,7 @@ struct AuthFilesWorkbenchView: View {
                 workbench.setVisibleSelection(workbench.selectedVisibleCount != workbench.filteredFiles.count)
             } label: {
                 Label(
-                    workbench.selectedVisibleCount == workbench.filteredFiles.count && !workbench.filteredFiles.isEmpty ? "取消全选" : "选择当前结果",
+                    workbench.selectedVisibleCount == workbench.filteredFiles.count && !workbench.filteredFiles.isEmpty ? OasesLocalization.localized("取消全选") : OasesLocalization.localized("选择当前结果"),
                     systemImage: workbench.selectedVisibleCount == workbench.filteredFiles.count && !workbench.filteredFiles.isEmpty ? "checkmark.square" : "square"
                 )
             }
@@ -308,7 +293,7 @@ struct AuthFilesWorkbenchView: View {
     private var content: some View {
         if workbench.filteredFiles.isEmpty {
             ContentUnavailableView(
-                workbench.files.isEmpty ? "暂无认证文件" : "没有匹配结果",
+                workbench.files.isEmpty ? OasesLocalization.localized("暂无认证文件") : OasesLocalization.localized("没有匹配结果"),
                 systemImage: workbench.files.isEmpty ? "doc.badge.plus" : "line.3.horizontal.decrease.circle",
                 description: Text(workbench.files.isEmpty ? "可以从“更多”导入 JSON，或先在“OAuth 登录”中完成授权。" : "试试清空搜索词或切换状态筛选。")
             )
@@ -346,8 +331,8 @@ struct AuthFilesWorkbenchView: View {
     ) -> some View {
         Label {
             VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.headline)
-                Text(message).font(.subheadline).foregroundStyle(.secondary)
+                Text(OasesLocalization.localized(title)).font(.headline)
+                Text(OasesLocalization.localized(message)).font(.subheadline).foregroundStyle(.secondary)
             }
         } icon: {
             Image(systemName: systemImage).foregroundStyle(tint)
@@ -418,7 +403,7 @@ struct AuthFilesWorkbenchView: View {
 
     private func exportFile(_ file: AuthFilesWorkbenchFile) {
         guard let runtimeFile = runtimeDataStore.authFiles.first(where: { $0.name == file.name }) else {
-            operationError = "当前列表项还没有对应的 RuntimeAuthFile，暂时无法导出。"
+            operationError = OasesLocalization.localized("当前列表项还没有对应的 RuntimeAuthFile，暂时无法导出。")
             return
         }
         operationError = nil
@@ -567,7 +552,7 @@ private struct AuthFilesWorkbenchRow: View {
         Group {
             if let value, !value.isEmpty {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.caption2).foregroundStyle(.tertiary)
+                    Text(OasesLocalization.localized(title)).font(.caption2).foregroundStyle(.tertiary)
                     Text(value).font(.caption).textSelection(.enabled)
                 }
             }
@@ -734,5 +719,31 @@ private struct AuthFilesWorkbenchMetadataEditor: View {
             }
         }
         .frame(minWidth: 520, minHeight: 360)
+    }
+}
+
+/// Sort and display pickers of the auth-file toolbar. Both keep their ideal width
+/// (`fixedSize`): squeezed into a fixed frame, the "Display" label of the segmented picker
+/// collapsed to zero width in English and its letters stacked vertically.
+struct AuthFilesWorkbenchFilterPickers: View {
+    @ObservedObject var workbench: AuthFilesWorkbenchStore
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Picker(OasesLocalization.localized("排序"), selection: $workbench.sort) {
+                ForEach(AuthFilesWorkbenchSort.allCases) { sort in
+                    Text(sort.title).tag(sort)
+                }
+            }
+            .fixedSize() // the label keeps its width in every language
+
+            Picker(OasesLocalization.localized("显示"), selection: $workbench.displayMode) {
+                ForEach(AuthFilesWorkbenchDisplayMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .fixedSize() // the label keeps its width in every language
+        }
     }
 }

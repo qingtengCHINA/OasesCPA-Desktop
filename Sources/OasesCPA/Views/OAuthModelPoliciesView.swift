@@ -167,7 +167,7 @@ private struct OAuthModelPolicyChannelRow: View {
     private var summary: String {
         switch (excludedModelCount, aliasCount) {
         case (0, 0):
-            return "尚未保存具体规则"
+            return OasesLocalization.localized("尚未保存具体规则")
         case (0, _):
             return OasesLocalization.localizedFormat("%lld 条客户端模型别名", aliasCount)
         case (_, 0):
@@ -223,10 +223,10 @@ private struct OAuthModelPolicyEditorView: View {
 
     private var channelValidationMessage: String? {
         guard let normalizedChannel else {
-            return "请填写渠道标识（例如 codex、claude 或 gemini），且不要包含空格或换行。"
+            return OasesLocalization.localized("请填写渠道标识（例如 codex、claude 或 gemini），且不要包含空格或换行。")
         }
         if !ownsChannel, occupiedChannels.contains(normalizedChannel) {
-            return "该渠道已有规则。请关闭此窗口后，从规则列表打开它，避免用空白表单覆盖已有设置。"
+            return OasesLocalization.localized("该渠道已有规则。请关闭此窗口后，从规则列表打开它，避免用空白表单覆盖已有设置。")
         }
         return nil
     }
@@ -364,7 +364,7 @@ private struct OAuthModelPolicyEditorView: View {
                 }
                 Spacer()
                 StatusPill(
-                    title: "(normalizedExcludedModels.count) 个模型",
+                    title: OasesLocalization.localizedFormat("%lld 个模型", normalizedExcludedModels.count),
                     tint: normalizedExcludedModels.isEmpty ? .oasesOrange : .oasesGreen,
                     systemImage: "eye.slash"
                 )

@@ -1081,7 +1081,7 @@ final class AppUpdateService: ObservableObject {
                 throw NSError(
                     domain: NSPOSIXErrorDomain,
                     code: Int(errorNumber),
-                    userInfo: [NSLocalizedDescriptionKey: "无法创建下载文件。"]
+                    userInfo: [NSLocalizedDescriptionKey: OasesLocalization.localized("无法创建下载文件。")]
                 )
             }
             index += 1

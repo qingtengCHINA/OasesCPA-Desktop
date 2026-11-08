@@ -255,7 +255,7 @@ struct PluginStoreView: View {
                     }
                 }
                 .pickerStyle(.menu)
-                .frame(width: 110)
+                .fixedSize() // the label keeps its width in every language
                 TextField("筛选插件", text: $searchText)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 210)
@@ -263,7 +263,7 @@ struct PluginStoreView: View {
 
             if filteredEntries.isEmpty {
                 ContentUnavailableView(
-                    searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "暂无匹配插件" : "没有匹配的插件",
+                    searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? OasesLocalization.localized("暂无匹配插件") : OasesLocalization.localized("没有匹配的插件"),
                     systemImage: "shippingbox",
                     description: Text("调整筛选条件或刷新当前目标的插件商店。")
                 )
@@ -339,8 +339,8 @@ struct PluginStoreView: View {
     }
 
     private var installConfirmationTitle: String {
-        guard let entry = installingEntry else { return "安装插件？" }
-        return entry.installed ? "更新插件？" : "安装插件？"
+        guard let entry = installingEntry else { return OasesLocalization.localized("安装插件？") }
+        return entry.installed ? OasesLocalization.localized("更新插件？") : OasesLocalization.localized("安装插件？")
     }
 
     private func installConfirmationMessage(for entry: RuntimePluginStoreEntry) -> String {
@@ -370,14 +370,18 @@ struct PluginStoreView: View {
                     )
                 } else {
                     operationNotice = PluginStoreNotice(
-                        title: entry.installed ? "插件已更新" : "插件已安装",
+                        title: entry.installed ? OasesLocalization.localized("插件已更新") : OasesLocalization.localized("插件已安装"),
                         message: OasesLocalization.localizedFormat("%@ 已由当前目标的 CLIProxyAPI 保存并应用。状态列表正在刷新。", entry.displayTitle),
                         systemImage: "checkmark.circle",
                         tint: .oasesGreen
                     )
                 }
             } catch {
-                operationErrorMessage = "\(entry.installed ? "更新" : "安装") \(entry.displayTitle) 失败：\(error.localizedDescription)"
+                operationErrorMessage = OasesLocalization.localizedFormat(
+                    entry.installed ? "更新 %@ 失败：%@" : "安装 %@ 失败：%@",
+                    entry.displayTitle,
+                    error.localizedDescription
+                )
             }
         }
     }
@@ -392,7 +396,7 @@ struct PluginStoreView: View {
                     using: deploymentStore
                 )
                 operationNotice = PluginStoreNotice(
-                    title: result.restartRequired ? "需要重启后继续" : "插件已删除",
+                    title: result.restartRequired ? OasesLocalization.localized("需要重启后继续") : OasesLocalization.localized("插件已删除"),
                     message: result.restartRequired
                         ? OasesLocalization.localizedFormat("CLIProxyAPI 要求先重启服务，才能完成 %@ 的删除。", entry.displayTitle)
                         : OasesLocalization.localizedFormat("%@ 的目标文件和已保存配置已删除。", entry.displayTitle),
@@ -471,7 +475,7 @@ private struct PluginStoreEntryRow: View {
                     Text(entry.displayTitle)
                         .font(.headline)
                     StoreBadge(
-                        title: entry.installed ? (entry.updateAvailable ? "可更新" : "已安装") : "未安装",
+                        title: entry.installed ? (entry.updateAvailable ? OasesLocalization.localized("可更新") : OasesLocalization.localized("已安装")) : "未安装",
                         tint: entry.updateAvailable ? .oasesOrange : (entry.installed ? .oasesGreen : .secondary)
                     )
                     if entry.installed && entry.effectiveEnabled {
@@ -479,7 +483,7 @@ private struct PluginStoreEntryRow: View {
                     }
                     if entry.authRequired {
                         StoreBadge(
-                            title: entry.authConfigured ? "来源已授权" : "需要来源授权",
+                            title: entry.authConfigured ? OasesLocalization.localized("来源已授权") : OasesLocalization.localized("需要来源授权"),
                             tint: entry.authConfigured ? .oasesBlue : .oasesOrange
                         )
                     }

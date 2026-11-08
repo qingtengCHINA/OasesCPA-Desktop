@@ -153,48 +153,48 @@ enum RuntimeCPAQuickConfigField: String, CaseIterable, Codable, Hashable, Sendab
 
     var title: String {
         let key = switch self {
-        case .debug: "调试模式"
-        case .usageStatisticsEnabled: "用量统计"
-        case .loggingToFile: "写入日志文件"
-        case .requestLog: "记录请求日志"
-        case .websocketAuth: "WebSocket 鉴权"
-        case .forceModelPrefix: "强制模型前缀"
-        case .quotaSwitchProject: "超额后切换项目"
-        case .quotaSwitchPreviewModel: "超额后切换预览模型"
-        case .requestRetry: "请求重试次数"
-        case .maxRetryCredentials: "每轮最多尝试的凭据数"
-        case .maxRetryInterval: "最大重试间隔"
-        case .disableCooling: "关闭冷却"
-        case .oauthRequestScopedErrors: "OAuth 请求错误规则"
-        case .responseCompression: "压缩响应"
-        case .logsMaxTotalSizeMB: "日志总大小上限"
-        case .errorLogsMaxFiles: "错误日志文件数"
-        case .proxyURL: "网络代理地址"
-        case .routingStrategy: "路由策略"
+        case .debug: OasesLocalization.localized("调试模式")
+        case .usageStatisticsEnabled: OasesLocalization.localized("用量统计")
+        case .loggingToFile: OasesLocalization.localized("写入日志文件")
+        case .requestLog: OasesLocalization.localized("记录请求日志")
+        case .websocketAuth: OasesLocalization.localized("WebSocket 鉴权")
+        case .forceModelPrefix: OasesLocalization.localized("强制模型前缀")
+        case .quotaSwitchProject: OasesLocalization.localized("超额后切换项目")
+        case .quotaSwitchPreviewModel: OasesLocalization.localized("超额后切换预览模型")
+        case .requestRetry: OasesLocalization.localized("请求重试次数")
+        case .maxRetryCredentials: OasesLocalization.localized("每轮最多尝试的凭据数")
+        case .maxRetryInterval: OasesLocalization.localized("最大重试间隔")
+        case .disableCooling: OasesLocalization.localized("关闭冷却")
+        case .oauthRequestScopedErrors: OasesLocalization.localized("OAuth 请求错误规则")
+        case .responseCompression: OasesLocalization.localized("压缩响应")
+        case .logsMaxTotalSizeMB: OasesLocalization.localized("日志总大小上限")
+        case .errorLogsMaxFiles: OasesLocalization.localized("错误日志文件数")
+        case .proxyURL: OasesLocalization.localized("网络代理地址")
+        case .routingStrategy: OasesLocalization.localized("路由策略")
         }
         return OasesLocalization.localized(key)
     }
 
     var explanation: String {
         let key = switch self {
-        case .debug: "遇到问题时临时打开，正常使用无需开启。"
-        case .usageStatisticsEnabled: "用于仪表盘、用量分析和成本统计。"
-        case .loggingToFile: "把运行日志保存到本地，方便排查问题。"
-        case .requestLog: "记录每次请求的详细信息，可能增加日志量。"
-        case .websocketAuth: "保护 WebSocket 管理连接，远程访问时建议开启。"
-        case .forceModelPrefix: "统一给模型名加上 Provider 前缀，兼容特殊客户端。"
-        case .quotaSwitchProject: "一个账号达到额度后，自动尝试下一个项目。"
-        case .quotaSwitchPreviewModel: "额度受限时允许切换到预览模型。"
-        case .requestRetry: "网络短暂失败时自动重试的次数。"
-        case .maxRetryCredentials: "每一轮重试最多换几个不同的凭据；0 表示尝试全部可用凭据。"
-        case .maxRetryInterval: "自动重试之间允许等待的最长秒数。"
-        case .disableCooling: "失败后不让账号或模型进入冷却等待；单个供应商或凭据自己的设置优先。写入配置文件。"
-        case .oauthRequestScopedErrors: "按通道把上游错误归类的规则（引擎中是规则表，不是开关）。这里只显示条数，请在配置文件编辑器中修改。"
-        case .responseCompression: "客户端支持 gzip 或 zstd 时压缩返回内容（含流式）；引擎默认开启。写入配置文件。"
-        case .logsMaxTotalSizeMB: "所有日志允许占用的最大空间（MB）。"
-        case .errorLogsMaxFiles: "错误日志最多保留的文件数量。"
-        case .proxyURL: "访问上游服务时使用的 HTTP/SOCKS 代理地址。"
-        case .routingStrategy: "多个可用账号之间的选择方式。"
+        case .debug: OasesLocalization.localized("遇到问题时临时打开，正常使用无需开启。")
+        case .usageStatisticsEnabled: OasesLocalization.localized("用于仪表盘、用量分析和成本统计。")
+        case .loggingToFile: OasesLocalization.localized("把运行日志保存到本地，方便排查问题。")
+        case .requestLog: OasesLocalization.localized("记录每次请求的详细信息，可能增加日志量。")
+        case .websocketAuth: OasesLocalization.localized("保护 WebSocket 管理连接，远程访问时建议开启。")
+        case .forceModelPrefix: OasesLocalization.localized("统一给模型名加上 Provider 前缀，兼容特殊客户端。")
+        case .quotaSwitchProject: OasesLocalization.localized("一个账号达到额度后，自动尝试下一个项目。")
+        case .quotaSwitchPreviewModel: OasesLocalization.localized("额度受限时允许切换到预览模型。")
+        case .requestRetry: OasesLocalization.localized("网络短暂失败时自动重试的次数。")
+        case .maxRetryCredentials: OasesLocalization.localized("每一轮重试最多换几个不同的凭据；0 表示尝试全部可用凭据。")
+        case .maxRetryInterval: OasesLocalization.localized("自动重试之间允许等待的最长秒数。")
+        case .disableCooling: OasesLocalization.localized("失败后不让账号或模型进入冷却等待；单个供应商或凭据自己的设置优先。写入配置文件。")
+        case .oauthRequestScopedErrors: OasesLocalization.localized("按通道把上游错误归类的规则（引擎中是规则表，不是开关）。这里只显示条数，请在配置文件编辑器中修改。")
+        case .responseCompression: OasesLocalization.localized("客户端支持 gzip 或 zstd 时压缩返回内容（含流式）；引擎默认开启。写入配置文件。")
+        case .logsMaxTotalSizeMB: OasesLocalization.localized("所有日志允许占用的最大空间（MB）。")
+        case .errorLogsMaxFiles: OasesLocalization.localized("错误日志最多保留的文件数量。")
+        case .proxyURL: OasesLocalization.localized("访问上游服务时使用的 HTTP/SOCKS 代理地址。")
+        case .routingStrategy: OasesLocalization.localized("多个可用账号之间的选择方式。")
         }
         return OasesLocalization.localized(key)
     }
@@ -231,20 +231,20 @@ enum RuntimeCPAQuickConfigGroup: String, CaseIterable, Sendable {
 
     var title: String {
         let key = switch self {
-        case .routing: "路由方式"
-        case .reliabilityAndQuota: "稳定性与额度"
-        case .loggingAndDiagnostics: "日志与诊断"
-        case .securityAndAdvanced: "安全与高级设置"
+        case .routing: OasesLocalization.localized("路由方式")
+        case .reliabilityAndQuota: OasesLocalization.localized("稳定性与额度")
+        case .loggingAndDiagnostics: OasesLocalization.localized("日志与诊断")
+        case .securityAndAdvanced: OasesLocalization.localized("安全与高级设置")
         }
         return OasesLocalization.localized(key)
     }
 
     var explanation: String {
         let key = switch self {
-        case .routing: "决定请求如何在多个可用账号之间流转。"
-        case .reliabilityAndQuota: "让短暂失败自动恢复，并在额度受限时继续工作。"
-        case .loggingAndDiagnostics: "控制统计和日志，排查问题时最有用。"
-        case .securityAndAdvanced: "这些选项会影响连接方式和兼容性，请确认后再修改。"
+        case .routing: OasesLocalization.localized("决定请求如何在多个可用账号之间流转。")
+        case .reliabilityAndQuota: OasesLocalization.localized("让短暂失败自动恢复，并在额度受限时继续工作。")
+        case .loggingAndDiagnostics: OasesLocalization.localized("控制统计和日志，排查问题时最有用。")
+        case .securityAndAdvanced: OasesLocalization.localized("这些选项会影响连接方式和兼容性，请确认后再修改。")
         }
         return OasesLocalization.localized(key)
     }

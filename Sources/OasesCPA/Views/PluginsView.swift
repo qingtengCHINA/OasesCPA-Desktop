@@ -66,7 +66,7 @@ struct PluginsView: View {
                 }
             }
             .pickerStyle(.segmented)
-            .frame(width: 220)
+            .fixedSize() // the label keeps its width in every language
             Spacer()
 
             if deploymentStore.stage == .attached {
@@ -196,7 +196,7 @@ struct PluginsView: View {
 
             if filteredPlugins.isEmpty {
                 ContentUnavailableView(
-                    searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "暂无插件" : "没有匹配的插件",
+                    searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? OasesLocalization.localized("暂无插件") : OasesLocalization.localized("没有匹配的插件"),
                     systemImage: "puzzlepiece.extension",
                     description: Text(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                         ? "当前目标未发现已安装或已配置的插件。"
@@ -320,7 +320,7 @@ private struct PluginRuntimeSummaryCard: View {
                 )
                 Spacer()
                 StatusPill(
-                    title: catalog.pluginsEnabled ? "全局已启用" : "全局已关闭",
+                    title: catalog.pluginsEnabled ? OasesLocalization.localized("全局已启用") : OasesLocalization.localized("全局已关闭"),
                     tint: catalog.pluginsEnabled ? .oasesGreen : .oasesOrange,
                     systemImage: catalog.pluginsEnabled ? "checkmark.circle" : "pause.circle"
                 )
@@ -473,9 +473,9 @@ private struct RuntimePluginRow: View {
     private var detailParts: [String] {
         var parts: [String] = []
         if let author = plugin.metadata?.author, !author.isEmpty { parts.append(author) }
-        if !plugin.path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { parts.append("已发现") }
-        if plugin.configured { parts.append("已配置") }
-        if plugin.registered { parts.append("已注册") }
+        if !plugin.path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { parts.append(OasesLocalization.localized("已发现")) }
+        if plugin.configured { parts.append(OasesLocalization.localized("已配置")) }
+        if plugin.registered { parts.append(OasesLocalization.localized("已注册")) }
         if !plugin.configFields.isEmpty { parts.append(OasesLocalization.localizedFormat("%lld 个配置字段", plugin.configFields.count)) }
         if !plugin.menus.isEmpty { parts.append(OasesLocalization.localizedFormat("%lld 个菜单", plugin.menus.count)) }
         return parts

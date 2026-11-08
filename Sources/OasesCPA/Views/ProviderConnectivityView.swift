@@ -147,7 +147,7 @@ struct ProviderConnectivityCard: View {
 
     private var readyStateDetail: String {
         if preview.outboundRequestUpperBound == 0 {
-            return "现有配置缺少可安全使用的认证信息；开始后只会显示未发起原因。"
+            return OasesLocalization.localized("现有配置缺少可安全使用的认证信息；开始后只会显示未发起原因。")
         }
         let skipped = preview.skippedCount > 0 ? OasesLocalization.localizedFormat("，其中 %lld 个只会给出未发起原因", preview.skippedCount) : ""
         return OasesLocalization.localizedFormat("将最多发起 %lld 次只读模型发现请求%@。", preview.outboundRequestUpperBound, skipped)

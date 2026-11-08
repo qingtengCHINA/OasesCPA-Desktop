@@ -170,7 +170,7 @@ struct ModelsView: View {
     private func runCard(_ run: GatewayTestRun) -> some View {
         VStack(alignment: .leading, spacing: Oases.Space.m) {
             CardTitle(
-                title: run.isFinished ? "上次全部测活" : "正在全部测活",
+                title: run.isFinished ? OasesLocalization.localized("上次全部测活") : OasesLocalization.localized("正在全部测活"),
                 subtitle: run.isFinished
                     ? OasesLocalization.localizedFormat("完成于 %@", (run.finishedAt ?? run.startedAt).formatted(date: .abbreviated, time: .shortened))
                     : OasesLocalization.localized("结果会每隔几秒自动刷新；离开这一页后测活仍在网关上继续。"),

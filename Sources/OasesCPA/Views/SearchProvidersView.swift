@@ -121,7 +121,7 @@ struct SearchProvidersView: View {
             VStack(alignment: .leading, spacing: Oases.Space.xxs) {
                 HStack(spacing: Oases.Space.s) {
                     Text(provider.name).font(.callout.weight(.medium))
-                    ToneBadge(text: provider.enabled ? "已启用" : "已停用", tone: provider.enabled ? .success : .neutral)
+                    ToneBadge(text: provider.enabled ? OasesLocalization.localized("已启用") : OasesLocalization.localized("已停用"), tone: provider.enabled ? .success : .neutral)
                     if provider.kind == "summary" { ToneBadge(text: "摘要", tone: .info) }
                 }
                 Text(provider.configured ? OasesLocalization.localizedFormat("Key：%@", provider.keyHint ?? "…") : OasesLocalization.localized("还没有填写 Key"))

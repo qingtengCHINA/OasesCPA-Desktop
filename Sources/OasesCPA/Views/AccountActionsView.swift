@@ -41,7 +41,7 @@ struct AccountActionsView: View {
                         }
                     }
                     .pickerStyle(.menu)
-                    .frame(width: 132)
+                    .fixedSize() // the label keeps its width in every language
 
                     Button {
                         runtimeDataStore.refreshAccountActionCandidates(
@@ -90,7 +90,7 @@ struct AccountActionsView: View {
             AccountActionEvidenceSheet(candidate: candidate)
         }
         .alert(
-            pendingConfirmation?.title ?? "确认操作",
+            pendingConfirmation?.title ?? OasesLocalization.localized("确认操作"),
             isPresented: Binding(
                 get: { pendingConfirmation != nil },
                 set: { if !$0 { pendingConfirmation = nil } }
@@ -110,7 +110,7 @@ struct AccountActionsView: View {
         )) {
             Button("好", role: .cancel) {}
         } message: {
-            Text(actionError ?? "未知错误")
+            Text(actionError ?? OasesLocalization.localized("未知错误"))
         }
     }
 
@@ -193,7 +193,7 @@ struct AccountActionsView: View {
 
     private var pendingTitle: String {
         let count = runtimeDataStore.accountActionPendingCount
-        return count == 0 ? "暂无待办" : OasesLocalization.localizedFormat("待处理 %lld", count)
+        return count == 0 ? OasesLocalization.localized("暂无待办") : OasesLocalization.localizedFormat("待处理 %lld", count)
     }
 
     private var visibleCandidates: [RuntimeAccountActionCandidate] {
@@ -248,17 +248,17 @@ private struct AccountActionConfirmation: Identifiable {
 
     var title: String {
         switch operation {
-        case .ignore: "忽略这项账号待办？"
-        case .resolve: "标记这项账号待办为已处理？"
-        case .enable: "重新启用该认证文件？"
+        case .ignore: OasesLocalization.localized("忽略这项账号待办？")
+        case .resolve: OasesLocalization.localized("标记这项账号待办为已处理？")
+        case .enable: OasesLocalization.localized("重新启用该认证文件？")
         }
     }
 
     var confirmTitle: String {
         switch operation {
-        case .ignore: "确认忽略"
-        case .resolve: "确认已处理"
-        case .enable: "确认重新启用"
+        case .ignore: OasesLocalization.localized("确认忽略")
+        case .resolve: OasesLocalization.localized("确认已处理")
+        case .enable: OasesLocalization.localized("确认重新启用")
         }
     }
 
@@ -309,7 +309,7 @@ private struct AccountActionCandidateCard: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(candidate.reason.isEmpty ? "CPAMP 未提供原因摘要。" : candidate.reason)
+                Text(candidate.reason.isEmpty ? OasesLocalization.localized("CPAMP 未提供原因摘要。") : candidate.reason)
                     .font(.callout)
                 if !candidate.reasonCode.isEmpty {
                     Text(OasesLocalization.localizedFormat("原因代码：%@", candidate.reasonCode))
@@ -331,7 +331,7 @@ private struct AccountActionCandidateCard: View {
             }
 
             HStack(alignment: .top, spacing: 22) {
-                AccountActionMetadata(label: "认证文件", value: candidate.authFileName.isEmpty ? "暂无" : candidate.authFileName)
+                AccountActionMetadata(label: "认证文件", value: candidate.authFileName.isEmpty ? OasesLocalization.localized("暂无") : candidate.authFileName)
                 AccountActionMetadata(label: "首次发现", value: dateText(candidate.firstSeenAtMs))
                 AccountActionMetadata(label: "最近发现", value: dateText(candidate.lastSeenAtMs))
                 AccountActionMetadata(label: "命中", value: candidate.hitCount.formatted())
@@ -409,7 +409,7 @@ private struct AccountActionCandidateCard: View {
         if let timestamp = candidate.autoDisabledAtMs {
             return OasesLocalization.localizedFormat("已禁用 · %@", dateText(timestamp))
         }
-        return candidate.autoDisableEligible ? "可自动禁用" : "未自动禁用"
+        return candidate.autoDisableEligible ? OasesLocalization.localized("可自动禁用") : OasesLocalization.localized("未自动禁用")
     }
 
     private var actionSymbol: String {
@@ -449,7 +449,7 @@ private struct AccountActionCandidateCard: View {
     }
 
     private func dateText(_ timestamp: Int64) -> String {
-        guard timestamp > 0 else { return "暂无" }
+        guard timestamp > 0 else { return OasesLocalization.localized("暂无") }
         return Date(timeIntervalSince1970: TimeInterval(timestamp) / 1_000)
             .formatted(date: .abbreviated, time: .shortened)
     }

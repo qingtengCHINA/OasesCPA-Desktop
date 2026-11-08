@@ -15,7 +15,7 @@ struct UsageAnalyticsView: View {
                     PageHeader(section: .usageAnalytics)
                     Spacer()
                     StatusPill(
-                        title: isRangeLive ? "实时数据" : (runtimeDataStore.isLoadingAnalytics ? "读取中" : "连接后显示"),
+                        title: isRangeLive ? "实时数据" : (runtimeDataStore.isLoadingAnalytics ? OasesLocalization.localized("读取中") : OasesLocalization.localized("连接后显示")),
                         tint: isRangeLive ? .oasesGreen : .oasesOrange,
                         systemImage: isRangeLive ? "waveform.path.ecg" : "link.badge.plus"
                     )
@@ -25,7 +25,7 @@ struct UsageAnalyticsView: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 310)
+                    .fixedSize() // the label keeps its width in every language
                 }
 
                 if let error = runtimeDataStore.analyticsErrorMessage {
@@ -115,7 +115,7 @@ struct UsageAnalyticsView: View {
         return [
             .init(title: "总 Token", value: compactToken(Double(dashboard.today.totalTokens)), caption: OasesLocalization.localizedFormat("%@累计", range.title), systemImage: "number", tint: .oasesBlue),
             .init(title: "预估成本", value: dashboard.today.totalCost.formatted(.currency(code: "USD")), caption: OasesLocalization.localizedFormat("%@ · 当前计价模型", range.title), systemImage: "dollarsign.circle", tint: .oasesOrange),
-            .init(title: "缓存占比", value: cachedShare?.formatted(.percent.precision(.fractionLength(1))) ?? "暂无", caption: "摘要返回的 Token 构成", systemImage: "externaldrive.fill", tint: .oasesMint),
+            .init(title: "缓存占比", value: cachedShare?.formatted(.percent.precision(.fractionLength(1))) ?? OasesLocalization.localized("暂无"), caption: "摘要返回的 Token 构成", systemImage: "externaldrive.fill", tint: .oasesMint),
             .init(title: "平均延迟", value: latency, caption: OasesLocalization.localizedFormat("零 Token %@ 次", dashboard.today.zeroTokenCalls.formatted()), systemImage: "timer", tint: .oasesPurple)
         ]
     }
@@ -260,7 +260,7 @@ struct MonitoringView: View {
                     }
                     .buttonStyle(.bordered)
                     StatusPill(
-                        title: isRangeLive ? "实时数据" : (runtimeDataStore.isLoadingMonitoring ? "读取中" : "连接后显示"),
+                        title: isRangeLive ? "实时数据" : (runtimeDataStore.isLoadingMonitoring ? OasesLocalization.localized("读取中") : OasesLocalization.localized("连接后显示")),
                         tint: isRangeLive ? .oasesGreen : .oasesOrange,
                         systemImage: isRangeLive ? "waveform.path.ecg" : "link.badge.plus"
                     )
@@ -285,7 +285,7 @@ struct MonitoringView: View {
                             Text(item.title).tag(item)
                         }
                     }
-                    .frame(width: 180)
+                    .fixedSize() // the label keeps its width in every language
 
                     Button {
                         store.refresh()
@@ -642,9 +642,9 @@ struct MonitoringView: View {
     }
 
     private var eventSubtitle: String {
-        var parts = [range.title, appliedFailedOnly ? "仅失败" : "全部状态"]
+        var parts = [range.title, appliedFailedOnly ? OasesLocalization.localized("仅失败") : OasesLocalization.localized("全部状态")]
         if !appliedSearch.isEmpty {
-            parts.append("已应用搜索")
+            parts.append(OasesLocalization.localized("已应用搜索"))
         }
         if let total = runtimeDataStore.monitoringEventsTotalCount {
             parts.append(OasesLocalization.localizedFormat("共 %@ 条", total.formatted()))
@@ -654,9 +654,9 @@ struct MonitoringView: View {
 
     private var eventStatusTitle: String {
         if runtimeDataStore.isLoadingMonitoringEvents {
-            return "读取中"
+            return OasesLocalization.localized("读取中")
         }
-        return isEventListLive ? "已接入" : "待接入"
+        return isEventListLive ? OasesLocalization.localized("已接入") : OasesLocalization.localized("待接入")
     }
 
     private var isEventListLive: Bool {
@@ -836,17 +836,17 @@ struct MonitoringEventRow: View {
     }
 
     private var modelTitle: String {
-        event.model.isEmpty ? "未标记模型" : event.displayModel
+        event.model.isEmpty ? OasesLocalization.localized("未标记模型") : event.displayModel
     }
 
     private var requestTarget: String {
         let path = !event.path.isEmpty ? event.path : event.endpoint
-        guard !event.method.isEmpty else { return path.isEmpty ? "未标记路径" : path }
+        guard !event.method.isEmpty else { return path.isEmpty ? OasesLocalization.localized("未标记路径") : path }
         return path.isEmpty ? event.method : "\(event.method) \(path)"
     }
 
     private var eventTime: String {
-        guard event.timestampMs > 0 else { return "时间未知" }
+        guard event.timestampMs > 0 else { return OasesLocalization.localized("时间未知") }
         return Date(timeIntervalSince1970: TimeInterval(event.timestampMs) / 1_000)
             .formatted(date: .abbreviated, time: .standard)
     }
@@ -934,9 +934,9 @@ struct MonitoringHeaderSnapshotsCard: View {
 
     private var statusTitle: String {
         if isLoading {
-            return "读取中"
+            return OasesLocalization.localized("读取中")
         }
-        return hasLoaded ? "已接入" : "待接入"
+        return hasLoaded ? OasesLocalization.localized("已接入") : OasesLocalization.localized("待接入")
     }
 }
 
@@ -1017,15 +1017,15 @@ struct MonitoringAccountHistoryCard: View {
 
     private var statusTitle: String {
         if isCatchingUp {
-            return "补齐中"
+            return OasesLocalization.localized("补齐中")
         }
         if isLoading {
-            return "读取中"
+            return OasesLocalization.localized("读取中")
         }
         if checkpoint?.pending == true {
-            return "待补齐"
+            return OasesLocalization.localized("待补齐")
         }
-        return hasLoaded ? "已接入" : "待接入"
+        return hasLoaded ? OasesLocalization.localized("已接入") : OasesLocalization.localized("待接入")
     }
 
     private var statusTint: Color {
@@ -1079,7 +1079,7 @@ struct MonitoringAccountHistoryCard: View {
         if checkpoint.processed > 0 {
             return OasesLocalization.localizedFormat("仍有监控记录待汇总；本次已处理 %@ 条，当前聚合可能尚不完整。", checkpoint.processed.formatted())
         }
-        return "CPAMP 仍有监控记录待汇总，当前聚合可能不完整。确认“补齐历史汇总”后，最多处理 5,000 条本地记录。"
+        return OasesLocalization.localized("CPAMP 仍有监控记录待汇总，当前聚合可能不完整。确认“补齐历史汇总”后，最多处理 5,000 条本地记录。")
     }
 }
 
@@ -1107,7 +1107,7 @@ struct MonitoringAccountHistoryRow: View {
                         MonitoringEventDetail(
                             title: "成功率",
                             value: item.successRate?
-                                .formatted(.percent.precision(.fractionLength(1))) ?? "未记录"
+                                .formatted(.percent.precision(.fractionLength(1))) ?? OasesLocalization.localized("未记录")
                         )
                         MonitoringEventDetail(title: "首次记录", value: timestamp(item.firstSeenMs))
                         MonitoringEventDetail(title: "最近记录", value: timestamp(item.lastSeenMs))
@@ -1188,27 +1188,27 @@ struct MonitoringAccountHistoryRow: View {
 
     private var primaryStatus: String {
         guard let item = entry.item else {
-            return "数据不完整"
+            return OasesLocalization.localized("数据不完整")
         }
         return item.syncStatus.title
     }
 
     private var secondaryStatus: String {
         guard let item = entry.item, item.matched else {
-            return "暂无"
+            return OasesLocalization.localized("暂无")
         }
         return OasesLocalization.localizedFormat("调用 %@", item.totalRequests.formatted())
     }
 
     private var summarySubtitle: String {
         guard let item = entry.item else {
-            return "请稍后重试"
+            return OasesLocalization.localized("请稍后重试")
         }
         if !item.matched {
             return unmatchedDescription(for: item)
         }
         let successRate = item.successRate?
-            .formatted(.percent.precision(.fractionLength(1))) ?? "成功率未记录"
+            .formatted(.percent.precision(.fractionLength(1))) ?? OasesLocalization.localized("成功率未记录")
         return "Token \(item.totalTokens.formatted()) · \(successRate)"
     }
 
@@ -1222,7 +1222,7 @@ struct MonitoringAccountHistoryRow: View {
 
     private func timestamp(_ milliseconds: Int64?) -> String {
         guard let milliseconds, milliseconds > 0 else {
-            return "未记录"
+            return OasesLocalization.localized("未记录")
         }
         return Date(timeIntervalSince1970: TimeInterval(milliseconds) / 1_000)
             .formatted(date: .abbreviated, time: .standard)
@@ -1345,7 +1345,7 @@ struct MonitoringHeaderSnapshotRow: View {
         if let quota = snapshot.quotaUsedPercentTitle {
             return OasesLocalization.localizedFormat("额度已用 %@", quota)
         }
-        return "已记录响应信号"
+        return OasesLocalization.localized("已记录响应信号")
     }
 
     private var summarySubtitle: String {
@@ -1551,13 +1551,13 @@ struct ProvidersView: View {
 
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack(spacing: 8) {
-                                    Text(provider.name.isEmpty ? "未命名服务" : provider.name)
+                                    Text(provider.name.isEmpty ? OasesLocalization.localized("未命名服务") : provider.name)
                                         .font(.headline)
                                     if provider.disabled {
                                         StatusPill(title: "已停用", tint: .oasesOrange, systemImage: "pause")
                                     }
                                 }
-                                Text(provider.baseURL.isEmpty ? "未填写服务地址" : provider.baseURL)
+                                Text(provider.baseURL.isEmpty ? OasesLocalization.localized("未填写服务地址") : provider.baseURL)
                                     .font(.system(.caption, design: .monospaced))
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
@@ -1602,9 +1602,9 @@ struct ProvidersView: View {
     }
 
     private func summary(for provider: RuntimeOpenAICompatibility) -> String {
-        let keySummary = provider.apiKeyEntries.isEmpty ? "无密钥" : OasesLocalization.localizedFormat("密钥 %lld 个", provider.apiKeyEntries.count)
-        let modelSummary = provider.models.isEmpty ? "跟随上游模型" : OasesLocalization.localizedFormat("模型映射 %lld 个", provider.models.count)
-        let prefixSummary = provider.prefix.isEmpty ? "无前缀" : OasesLocalization.localizedFormat("前缀 %@", provider.prefix)
+        let keySummary = provider.apiKeyEntries.isEmpty ? OasesLocalization.localized("无密钥") : OasesLocalization.localizedFormat("密钥 %lld 个", provider.apiKeyEntries.count)
+        let modelSummary = provider.models.isEmpty ? OasesLocalization.localized("跟随上游模型") : OasesLocalization.localizedFormat("模型映射 %lld 个", provider.models.count)
+        let prefixSummary = provider.prefix.isEmpty ? OasesLocalization.localized("无前缀") : OasesLocalization.localizedFormat("前缀 %@", provider.prefix)
         return "\(keySummary) · \(modelSummary) · \(prefixSummary)"
     }
 
@@ -1623,9 +1623,9 @@ struct ProvidersView: View {
 
     private func statusTitle(_ tone: String) -> String {
         switch tone {
-        case "bad": return "异常"
-        case "warn": return "关注"
-        default: return "正常"
+        case "bad": return OasesLocalization.localized("异常")
+        case "warn": return OasesLocalization.localized("关注")
+        default: return OasesLocalization.localized("正常")
         }
     }
 
@@ -1998,7 +1998,7 @@ struct RuntimeAuthFileRow: View {
                     }
                     if let onToggle {
                         Button(
-                            file.disabled == true ? "启用认证文件" : "停用认证文件",
+                            file.disabled == true ? OasesLocalization.localized("启用认证文件") : OasesLocalization.localized("停用认证文件"),
                             systemImage: file.disabled == true ? "checkmark.circle" : "pause.circle",
                             action: onToggle
                         )
@@ -2029,9 +2029,9 @@ struct RuntimeAuthFileRow: View {
         var parts: [String] = []
         if let size = file.size { parts.append(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)) }
         if let authIndex = file.authIndex, !authIndex.isEmpty { parts.append("auth-index \(authIndex)") }
-        if file.runtimeOnly == true { parts.append("运行时凭证") }
+        if file.runtimeOnly == true { parts.append(OasesLocalization.localized("运行时凭证")) }
         if let message = file.statusMessage, !message.isEmpty { parts.append(message) }
-        return parts.isEmpty ? "CLIProxyAPI 认证文件" : parts.joined(separator: " · ")
+        return parts.isEmpty ? OasesLocalization.localized("CLIProxyAPI 认证文件") : parts.joined(separator: " · ")
     }
 }
 
@@ -2245,7 +2245,7 @@ struct QuotaView: View {
         )) {
             Button("好", role: .cancel) {}
         } message: {
-            Text(actionError ?? "未知错误")
+            Text(actionError ?? OasesLocalization.localized("未知错误"))
         }
     }
 
@@ -2269,7 +2269,7 @@ struct QuotaView: View {
     }
 
     private var connectionTitle: String {
-        deploymentStore.stage == .attached ? "已连接目标" : "未连接目标"
+        deploymentStore.stage == .attached ? OasesLocalization.localized("已连接目标") : OasesLocalization.localized("未连接目标")
     }
 
     private var connectionTint: Color {
@@ -2307,7 +2307,7 @@ struct QuotaStatusStrip: View {
             StatusPill(title: OasesLocalization.localizedFormat("%lld 个冷却中", cooldownCount), tint: .oasesOrange, systemImage: "hourglass")
             StatusPill(title: OasesLocalization.localizedFormat("%lld 个额度证据", evidenceCount), tint: .oasesPurple, systemImage: "chart.bar.xaxis")
             StatusPill(
-                title: stage == .attached ? "已连接目标" : "未连接目标",
+                title: stage == .attached ? OasesLocalization.localized("已连接目标") : OasesLocalization.localized("未连接目标"),
                 tint: stage == .attached ? .oasesGreen : .oasesOrange,
                 systemImage: stage == .attached ? "checkmark.circle" : "link.badge.plus"
             )

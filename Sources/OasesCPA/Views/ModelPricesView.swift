@@ -133,7 +133,7 @@ struct ModelPricesView: View {
                         systemImage: "chart.bar"
                     )
                     StatusPill(
-                        title: runtimeDataStore.isSyncingModelPrices ? "正在自动计价" : "自动计价已开启",
+                        title: runtimeDataStore.isSyncingModelPrices ? OasesLocalization.localized("正在自动计价") : OasesLocalization.localized("自动计价已开启"),
                         tint: runtimeDataStore.isSyncingModelPrices ? .oasesBlue : .oasesGreen,
                         systemImage: runtimeDataStore.isSyncingModelPrices ? "arrow.triangle.2.circlepath" : "checkmark.circle"
                     )
@@ -424,7 +424,7 @@ private struct ModelPriceRow: View {
     }
 
     private var priceSummary: String {
-        guard let payload = row.payload else { return "尚未配置本地成本估算" }
+        guard let payload = row.payload else { return OasesLocalization.localized("尚未配置本地成本估算") }
         return [
             OasesLocalization.localizedFormat("输入 %@", Self.price(payload.prompt)),
             OasesLocalization.localizedFormat("输出 %@", Self.price(payload.completion)),
@@ -435,9 +435,9 @@ private struct ModelPriceRow: View {
 
     private var metadataSummary: String {
         guard let payload = row.payload else {
-            return row.calls > 0 ? "已有调用记录，可同步公开价格或手动补价" : "可添加手动价格"
+            return row.calls > 0 ? OasesLocalization.localized("已有调用记录，可同步公开价格或手动补价") : OasesLocalization.localized("可添加手动价格")
         }
-        var parts = [payload.source.isEmpty ? "未标记来源" : OasesLocalization.localizedFormat("来源 %@", payload.source)]
+        var parts = [payload.source.isEmpty ? OasesLocalization.localized("未标记来源") : OasesLocalization.localizedFormat("来源 %@", payload.source)]
         if !payload.sourceModelID.isEmpty {
             parts.append(OasesLocalization.localizedFormat("上游 %@", payload.sourceModelID))
         }
@@ -562,7 +562,7 @@ private struct ModelPriceEditorView: View {
         }
         .frame(minWidth: 570, idealWidth: 620, minHeight: 540)
         .confirmationDialog(
-            target.payload == nil ? "保存手动价格？" : "覆盖为手动价格？",
+            target.payload == nil ? OasesLocalization.localized("保存手动价格？") : OasesLocalization.localized("覆盖为手动价格？"),
             isPresented: $saveConfirmationPresented,
             titleVisibility: .visible
         ) {
@@ -613,7 +613,7 @@ private struct ModelPriceSyncResultCard: View {
             HStack {
                 CardTitle(
                     title: "最近一次价格同步",
-                    subtitle: result.source ?? "目标 CPAMP 已完成同步请求",
+                    subtitle: result.source ?? OasesLocalization.localized("目标 CPAMP 已完成同步请求"),
                     icon: "arrow.triangle.2.circlepath"
                 )
                 Spacer()

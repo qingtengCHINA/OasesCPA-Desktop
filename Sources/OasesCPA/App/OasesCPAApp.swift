@@ -18,8 +18,18 @@ struct OasesCPAApp: App {
         (OasesAppearance(rawValue: appearanceRaw) ?? .system).colorScheme
     }
 
+    private var preferredLanguage: AppLanguage {
+        AppLanguage(rawValue: languageRaw) ?? .system
+    }
+
     private var preferredLocale: Locale {
-        (AppLanguage(rawValue: languageRaw) ?? .system).locale
+        preferredLanguage.locale
+    }
+
+    /// A window or menu title in the in-app language. Scene titles given as literals are
+    /// resolved by SwiftUI from the macOS language, so they are computed here instead.
+    private func title(_ key: String) -> String {
+        OasesLocalization.localized(key, language: preferredLanguage)
     }
 
     var body: some Scene {
@@ -75,7 +85,8 @@ struct OasesCPAApp: App {
                 .preferredColorScheme(preferredColorScheme)
                 .background(
                     AdaptiveWindowConfigurator(
-                        minimumContentSize: NSSize(width: 520, height: 520)
+                        minimumContentSize: NSSize(width: 520, height: 520),
+                        title: title("Oases CPA 设置")
                     )
                 )
         }
@@ -94,18 +105,19 @@ struct OasesCPAApp: App {
         }
         .menuBarExtraStyle(.menu)
 
-        Window("开源许可与致谢", id: OpenSourceNoticesWindow.id) {
+        Window(Text(title("开源许可与致谢")), id: OpenSourceNoticesWindow.id) {
             OpenSourceNoticesView()
                 .environment(\.locale, preferredLocale)
                 .preferredColorScheme(preferredColorScheme)
                 .background(
                     AdaptiveWindowConfigurator(
-                        minimumContentSize: NSSize(width: 600, height: 480)
+                        minimumContentSize: NSSize(width: 600, height: 480),
+                        title: title("开源许可与致谢")
                     )
                 )
         }
 
-        Window("编辑 AI 服务", id: ProviderEditorWindowScene.id) {
+        Window(Text(title("编辑 AI 服务")), id: ProviderEditorWindowScene.id) {
             ProviderEditorWindow()
                 .environmentObject(store)
                 .environmentObject(deploymentStore)
@@ -114,7 +126,8 @@ struct OasesCPAApp: App {
                 .preferredColorScheme(preferredColorScheme)
                 .background(
                     AdaptiveWindowConfigurator(
-                        minimumContentSize: NSSize(width: 640, height: 480)
+                        minimumContentSize: NSSize(width: 640, height: 480),
+                        title: title("编辑 AI 服务")
                     )
                 )
         }
@@ -150,14 +163,20 @@ struct OasesCommands: Commands {
     @ObservedObject var runtimeDataStore: RuntimeDataStore
     @Binding var completedOnboardingVersion: Int
     @Environment(\.openWindow) private var openWindow
+    /// Menu titles are built from this (literal titles would follow the macOS language).
+    @AppStorage(AppLanguage.defaultsKey) private var languageRaw = AppLanguage.system.rawValue
+
+    private func title(_ key: String) -> String {
+        OasesLocalization.localized(key, language: AppLanguage(rawValue: languageRaw) ?? .system)
+    }
 
     var body: some Commands {
         CommandGroup(after: .appInfo) {
-            Button("开源许可与致谢…") {
+            Button(title("开源许可与致谢…")) {
                 openWindow(id: OpenSourceNoticesWindow.id)
             }
 
-            Button("重新查看欢迎引导…") {
+            Button(title("重新查看欢迎引导…")) {
                 store.selectSection(.dashboard)
                 completedOnboardingVersion = 0
                 openWindow(id: "main")
@@ -165,39 +184,39 @@ struct OasesCommands: Commands {
             }
         }
 
-        CommandMenu("导航") {
-            Button("连接与部署") {
+        CommandMenu(title("导航")) {
+            Button(title("连接与部署")) {
                 store.selectSection(.environments)
             }
             .keyboardShortcut("0", modifiers: .command)
 
-            Button("模型列表") {
+            Button(title("模型列表")) {
                 store.selectSection(.models)
             }
             .keyboardShortcut("4", modifiers: .command)
 
-            Button("仪表盘") {
+            Button(title("仪表盘")) {
                 store.selectSection(.dashboard)
             }
             .keyboardShortcut("1", modifiers: .command)
 
-            Button("请求监控") {
+            Button(title("请求监控")) {
                 store.selectSection(.monitoring)
             }
             .keyboardShortcut("2", modifiers: .command)
 
-            Button("账号待办") {
+            Button(title("账号待办")) {
                 store.selectSection(.accountActions)
             }
 
-            Button("认证文件") {
+            Button(title("认证文件")) {
                 store.selectSection(.authFiles)
             }
             .keyboardShortcut("3", modifiers: .command)
 
             Divider()
 
-            Button("刷新当前数据") {
+            Button(title("刷新当前数据")) {
                 WorkspaceRefresh.refreshCurrentSection(
                     store: store,
                     deploymentStore: deploymentStore,

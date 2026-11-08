@@ -312,7 +312,7 @@ struct ConfigurationView: View {
 
             HStack(spacing: 12) {
                 StatusPill(
-                    title: runtimeDataStore.managerConfiguration?.source.map { OasesLocalization.localizedFormat("来源：%@", $0) } ?? "来源：CPAMP",
+                    title: runtimeDataStore.managerConfiguration?.source.map { OasesLocalization.localizedFormat("来源：%@", $0) } ?? OasesLocalization.localized("来源：CPAMP"),
                     tint: .oasesBlue,
                     systemImage: "server.rack"
                 )
@@ -647,15 +647,15 @@ struct ConfigurationView: View {
 
     private var saveConfirmationTitle: String {
         if effectiveInspectionPolicyDraft.isDestructive {
-            return "保存含自动删除策略的配置？"
+            return OasesLocalization.localized("保存含自动删除策略的配置？")
         }
         if effectiveInspectionPolicyDraft.isMutationCapable {
-            return "保存含自动动作策略的配置？"
+            return OasesLocalization.localized("保存含自动动作策略的配置？")
         }
         if effectiveInspectionPolicyDraft.hasActiveXAIInferenceProbe {
-            return "保存含 xAI 推理探针的配置？"
+            return OasesLocalization.localized("保存含 xAI 推理探针的配置？")
         }
-        return "保存 CPAMP 配置？"
+        return OasesLocalization.localized("保存 CPAMP 配置？")
     }
 
     private var saveConfirmationMessage: String {
@@ -663,12 +663,12 @@ struct ConfigurationView: View {
             "CPAMP 会校验 CPA 管理地址和密钥；如果启用了请求监控，保存可能会重启采集器。"
         ]
         if effectiveInspectionPolicyDraft.isDestructive {
-            details.append("本次保存不会立即运行巡检，但后续定时或手动巡检可能按策略删除目标认证文件。")
+            details.append(OasesLocalization.localized("本次保存不会立即运行巡检，但后续定时或手动巡检可能按策略删除目标认证文件。"))
         } else if effectiveInspectionPolicyDraft.isMutationCapable {
-            details.append("本次保存不会立即运行巡检，但后续定时或手动巡检可能按策略启用、禁用或恢复目标认证文件。")
+            details.append(OasesLocalization.localized("本次保存不会立即运行巡检，但后续定时或手动巡检可能按策略启用、禁用或恢复目标认证文件。"))
         }
         if effectiveInspectionPolicyDraft.hasActiveXAIInferenceProbe {
-            details.append("后续包含 xAI 的巡检会额外发送一次推理请求以验证实际可用性，可能消耗账号额度；保存本身不会发起该请求。")
+            details.append(OasesLocalization.localized("后续包含 xAI 的巡检会额外发送一次推理请求以验证实际可用性，可能消耗账号额度；保存本身不会发起该请求。"))
         }
         return details.joined(separator: "\n\n")
     }

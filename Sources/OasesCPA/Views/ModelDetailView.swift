@@ -177,7 +177,7 @@ struct ModelDetailView: View {
 
     @ViewBuilder
     private var providersSection: some View {
-        OasesSectionHeader(title: "供应商顺序", trailing: store.isReordering ? "正在检查新顺序…" : nil)
+        OasesSectionHeader(title: "供应商顺序", trailing: store.isReordering ? OasesLocalization.localized("正在检查新顺序…") : nil)
         if store.providers.isEmpty {
             OasesEmptyState(systemImage: "server.rack", title: "没有供应商提供这个模型", message: "在“AI 提供商”里添加提供它的供应商后，这里会列出它们。")
         } else {

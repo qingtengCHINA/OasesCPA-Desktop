@@ -216,7 +216,7 @@ extension ManagementAPIClient {
             throw ManagementAPIError.invalidResponse
         }
         guard (200..<300).contains(httpResponse.statusCode) else {
-            let message = String(data: data, encoding: .utf8) ?? "请求失败"
+            let message = String(data: data, encoding: .utf8) ?? OasesLocalization.localized("请求失败")
             if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
                 throw ManagementAPIError.unauthorized
             }

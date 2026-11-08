@@ -221,7 +221,7 @@ struct OAuthView: View {
 
             HStack(spacing: 12) {
                 StatusPill(
-                    title: oauthState.isEmpty ? "无状态" : "状态已建立",
+                    title: oauthState.isEmpty ? OasesLocalization.localized("无状态") : OasesLocalization.localized("状态已建立"),
                     tint: oauthState.isEmpty ? .oasesRed : .oasesMint,
                     systemImage: oauthState.isEmpty ? "exclamationmark.circle" : "key"
                 )
@@ -321,7 +321,7 @@ struct OAuthView: View {
 
             HStack(spacing: 12) {
                 Button(
-                    openRouterOAuth.phase == .preparing ? "正在准备…" : "连接 OpenRouter",
+                    openRouterOAuth.phase == .preparing ? OasesLocalization.localized("正在准备…") : OasesLocalization.localized("连接 OpenRouter"),
                     systemImage: "lock.open"
                 ) {
                     isOpenRouterConfirmationPresented = true
@@ -418,7 +418,7 @@ struct OAuthView: View {
 
     private func startAuthorization() {
         guard deploymentStore.stage == .attached, !deploymentStore.managementKey.isEmpty else {
-            errorMessage = "请先完成本机或 SSH/VPS 部署，并确认 CPA 管理密钥可用。"
+            errorMessage = OasesLocalization.localized("请先完成本机或 SSH/VPS 部署，并确认 CPA 管理密钥可用。")
             return
         }
 
@@ -475,13 +475,13 @@ struct OAuthView: View {
                 switch response.status {
                 case .ok:
                     flowState = .success
-                    callbackMessage = "目标服务已确认凭证写入。"
+                    callbackMessage = OasesLocalization.localized("目标服务已确认凭证写入。")
                     activePollingState = nil
                 case .wait:
                     flowState = .waiting
                 case .error, .unknown:
                     flowState = .failed
-                    errorMessage = response.error ?? "目标服务未能完成 OAuth 授权。"
+                    errorMessage = response.error ?? OasesLocalization.localized("目标服务未能完成 OAuth 授权。")
                     activePollingState = nil
                 }
                 if activePollingState == nil { return }
@@ -505,7 +505,7 @@ struct OAuthView: View {
         guard deploymentStore.stage == .attached,
               !deploymentStore.managementKey.isEmpty,
               !oauthState.isEmpty else {
-            errorMessage = "请先开始一个 OAuth 会话。"
+            errorMessage = OasesLocalization.localized("请先开始一个 OAuth 会话。")
             return
         }
 
@@ -527,14 +527,14 @@ struct OAuthView: View {
                 )
                 isSubmittingCallback = false
                 if response.status == .ok {
-                    callbackMessage = "回调已提交，继续等待目标服务完成换 token。"
+                    callbackMessage = OasesLocalization.localized("回调已提交，继续等待目标服务完成换 token。")
                     flowState = .waiting
                     if activePollingState == nil {
                         activePollingState = oauthState
                     }
                 } else {
                     flowState = .failed
-                    errorMessage = response.error ?? "目标服务拒绝了回调。"
+                    errorMessage = response.error ?? OasesLocalization.localized("目标服务拒绝了回调。")
                 }
             } catch {
                 isSubmittingCallback = false
@@ -545,11 +545,11 @@ struct OAuthView: View {
 
     private func openAuthorizationURL() {
         guard let url = URL(string: authorizationURL) else {
-            errorMessage = "授权地址不是有效的 URL。"
+            errorMessage = OasesLocalization.localized("授权地址不是有效的 URL。")
             return
         }
         if !NSWorkspace.shared.open(url) {
-            errorMessage = "macOS 无法打开授权地址，请复制上方 URL 到浏览器。"
+            errorMessage = OasesLocalization.localized("macOS 无法打开授权地址，请复制上方 URL 到浏览器。")
         }
     }
 
@@ -586,7 +586,7 @@ struct OAuthView: View {
 
     private func beginOpenRouterAuthorization() {
         guard deploymentStore.stage == .attached, !deploymentStore.managementKey.isEmpty else {
-            openRouterOAuth.fail(message: "请先连接一个本机或 SSH/VPS 目标。")
+            openRouterOAuth.fail(message: OasesLocalization.localized("请先连接一个本机或 SSH/VPS 目标。"))
             return
         }
         openRouterOAuth.begin()
@@ -665,8 +665,8 @@ private enum OAuthViewError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .missingAuthorizationURL: "目标服务没有返回授权地址。"
-        case .missingState: "目标服务没有返回 OAuth state，无法安全轮询或提交回调。"
+        case .missingAuthorizationURL: OasesLocalization.localized("目标服务没有返回授权地址。")
+        case .missingState: OasesLocalization.localized("目标服务没有返回 OAuth state，无法安全轮询或提交回调。")
         }
     }
 }

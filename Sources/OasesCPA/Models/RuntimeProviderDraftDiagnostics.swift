@@ -53,7 +53,7 @@ enum RuntimeProviderDraftDiagnosticsError: Error, Equatable, LocalizedError, Sen
         case .invalidResponse:
             return OasesLocalization.localized("服务返回的数据格式无法识别。")
         case let .upstreamStatus(statusCode):
-            return "请求未成功（状态码 " + String(statusCode) + "）。"
+            return OasesLocalization.localizedFormat("请求未成功（状态码 %lld）。", statusCode)
         }
     }
 
@@ -319,7 +319,7 @@ enum RuntimeProviderDraftDiagnosticsParser {
                     statusCode: response.statusCode,
                     modelCount: discoveredModels.count,
                     isSuccess: true,
-                    message: "已发现 " + String(discoveredModels.count) + " 个模型。"
+                    message: OasesLocalization.localizedFormat("已发现 %lld 个模型。", discoveredModels.count)
                 )
             } catch let error as RuntimeProviderDraftDiagnosticsError {
                 return RuntimeProviderDraftDiagnosticsOutcome(
@@ -340,15 +340,14 @@ enum RuntimeProviderDraftDiagnosticsParser {
             }
         case .chatCompletions:
             let success = (200..<300).contains(response.statusCode)
-            let status = String(response.statusCode)
             return RuntimeProviderDraftDiagnosticsOutcome(
                 kind: .chatCompletions,
                 statusCode: response.statusCode,
                 modelCount: nil,
                 isSuccess: success,
                 message: success
-                    ? "连通性测试成功（状态码 " + status + "）。"
-                    : "连通性测试未通过（状态码 " + status + "）。"
+                    ? OasesLocalization.localizedFormat("连通性测试成功（状态码 %lld）。", response.statusCode)
+                    : OasesLocalization.localizedFormat("连通性测试未通过（状态码 %lld）。", response.statusCode)
             )
         }
     }

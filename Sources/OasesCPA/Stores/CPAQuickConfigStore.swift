@@ -84,7 +84,7 @@ final class CPAQuickConfigStore: ObservableObject {
         isLoading = false
 
         if !result.errors.isEmpty {
-            lastErrorMessage = "部分设置暂时无法读取，可继续使用并稍后重试。"
+            lastErrorMessage = OasesLocalization.localized("部分设置暂时无法读取，可继续使用并稍后重试。")
         }
     }
 
@@ -146,9 +146,9 @@ final class CPAQuickConfigStore: ObservableObject {
 
         isSaving = false
         if saveFailed {
-            lastErrorMessage = "部分设置保存失败；失败项目仍保留为未保存状态。"
+            lastErrorMessage = OasesLocalization.localized("部分设置保存失败；失败项目仍保留为未保存状态。")
         } else if !fieldErrors.isEmpty {
-            lastErrorMessage = "部分设置暂时无法使用；可重新读取或继续使用其他设置。"
+            lastErrorMessage = OasesLocalization.localized("部分设置暂时无法使用；可重新读取或继续使用其他设置。")
         }
     }
 }

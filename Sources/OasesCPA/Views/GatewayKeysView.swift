@@ -184,7 +184,7 @@ struct GatewayKeysView: View {
                 HStack(spacing: Oases.Space.s) {
                     Text(row.label.isEmpty ? OasesLocalization.localized("未命名 Key") : row.label)
                         .font(.headline)
-                    ToneBadge(text: row.policy.enabled ? "已启用" : "已停用", tone: row.policy.enabled ? .success : .neutral)
+                    ToneBadge(text: row.policy.enabled ? OasesLocalization.localized("已启用") : OasesLocalization.localized("已停用"), tone: row.policy.enabled ? .success : .neutral)
                     if expired { ToneBadge(text: "已过期", tone: .danger) }
                 }
                 Text(row.maskedKey)

@@ -104,7 +104,7 @@ struct SettingsView: View {
 
                 LabeledContent("当前模式") {
                     StatusPill(
-                        title: deploymentStore.stage == .attached ? "已接入" : store.connectionLabel,
+                        title: deploymentStore.stage == .attached ? OasesLocalization.localized("已接入") : store.connectionLabel,
                         tint: deploymentStore.stage == .attached ? .oasesGreen : .oasesOrange,
                         systemImage: deploymentStore.stage == .attached ? "checkmark.circle" : "shippingbox"
                     )

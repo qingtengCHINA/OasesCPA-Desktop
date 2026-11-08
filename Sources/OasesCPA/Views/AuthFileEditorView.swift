@@ -142,7 +142,7 @@ struct AuthFileEditorView: View {
 
     private func formatJSON() {
         guard let data = canonicalJSONData() else {
-            errorMessage = "当前内容不是有效的 JSON 对象。"
+            errorMessage = OasesLocalization.localized("当前内容不是有效的 JSON 对象。")
             return
         }
         jsonText = formattedJSON(from: data) ?? jsonText
@@ -151,7 +151,7 @@ struct AuthFileEditorView: View {
 
     private func save() {
         guard let data = canonicalJSONData() else {
-            errorMessage = "当前内容不是有效的 JSON 对象。"
+            errorMessage = OasesLocalization.localized("当前内容不是有效的 JSON 对象。")
             return
         }
 

@@ -717,9 +717,9 @@ struct OpenAICompatibilityEditorView: View {
     private var prefixDetail: String {
         // EditorField localizes the text (a key, not a localized string).
         if index == nil && prefixIsAutomatic {
-            return takenPrefixes == nil ? "正在读取已在使用的前缀…" : "自动分配，供按 Key 指定供应商使用；也可以改成自己的前缀"
+            return takenPrefixes == nil ? OasesLocalization.localized("正在读取已在使用的前缀…") : OasesLocalization.localized("自动分配，供按 Key 指定供应商使用；也可以改成自己的前缀")
         }
-        return "用于按 Key 指定供应商；修改后已有的指定可能失效"
+        return OasesLocalization.localized("用于按 Key 指定供应商；修改后已有的指定可能失效")
     }
 
     /// A typed prefix that another provider already carries: the gateway then cannot pin through it.

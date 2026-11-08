@@ -177,7 +177,7 @@ struct InspectionView: View {
                     )
                     InspectionPolicyFact(
                         title: "自动恢复",
-                        value: inspectionPolicy.autoRecoverEnabled ? "已开启" : "未开启"
+                        value: inspectionPolicy.autoRecoverEnabled ? OasesLocalization.localized("已开启") : OasesLocalization.localized("未开启")
                     )
                 }
 
@@ -389,11 +389,11 @@ private enum InspectionResultFilter: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .all: "全部"
-        case .attention: "需关注"
-        case .actions: "待处理建议"
-        case .quota: "配额"
-        case .handled: "已处理"
+        case .all: OasesLocalization.localized("全部")
+        case .attention: OasesLocalization.localized("需关注")
+        case .actions: OasesLocalization.localized("待处理建议")
+        case .quota: OasesLocalization.localized("配额")
+        case .handled: OasesLocalization.localized("已处理")
         }
     }
 }
@@ -411,15 +411,15 @@ private enum InspectionConfirmation: Identifiable {
 
     var title: String {
         switch self {
-        case .start: "开始凭证健康巡检？"
-        case .cancel: "取消正在运行的巡检？"
+        case .start: OasesLocalization.localized("开始凭证健康巡检？")
+        case .cancel: OasesLocalization.localized("取消正在运行的巡检？")
         }
     }
 
     var confirmTitle: String {
         switch self {
-        case .start: "开始巡检"
-        case .cancel: "确认取消"
+        case .start: OasesLocalization.localized("开始巡检")
+        case .cancel: OasesLocalization.localized("确认取消")
         }
     }
 
@@ -433,7 +433,7 @@ private enum InspectionConfirmation: Identifiable {
     var message: String {
         switch self {
         case .start(let policy):
-            let baseline = "CPAMP 会在当前目标上使用已有认证文件向对应 Provider 发起真实健康检查；认证令牌不会回传到 App。"
+            let baseline = OasesLocalization.localized("CPAMP 会在当前目标上使用已有认证文件向对应 Provider 发起真实健康检查；认证令牌不会回传到 App。")
             if policy.isMutationCapable {
                 return OasesLocalization.localizedFormat("%@\n\n%@\n\n请确认这是你希望操作的目标环境后继续。", baseline, policy.mutationWarning)
             }
@@ -477,20 +477,20 @@ private struct InspectionPolicyPresentation: Equatable {
     }
 
     var title: String {
-        guard isLoaded else { return "正在读取策略" }
-        if hasUnknownMode { return "未知自动动作" }
-        if normalizedMode == "delete" { return "自动删除已配置" }
-        if normalizedMode == "disable" { return "自动禁用已配置" }
-        if normalizedMode == "enable" || autoRecoverEnabled { return "自动恢复已配置" }
-        return "仅记录"
+        guard isLoaded else { return OasesLocalization.localized("正在读取策略") }
+        if hasUnknownMode { return OasesLocalization.localized("未知自动动作") }
+        if normalizedMode == "delete" { return OasesLocalization.localized("自动删除已配置") }
+        if normalizedMode == "disable" { return OasesLocalization.localized("自动禁用已配置") }
+        if normalizedMode == "enable" || autoRecoverEnabled { return OasesLocalization.localized("自动恢复已配置") }
+        return OasesLocalization.localized("仅记录")
     }
 
     var subtitle: String {
-        guard isLoaded else { return "读取成功后才允许启动，避免未知的自动动作策略。" }
+        guard isLoaded else { return OasesLocalization.localized("读取成功后才允许启动，避免未知的自动动作策略。") }
         if isMutationCapable {
-            return "这次巡检可能按 CPAMP 当前策略修改认证文件状态。"
+            return OasesLocalization.localized("这次巡检可能按 CPAMP 当前策略修改认证文件状态。")
         }
-        return "只保存健康检查结果、建议和日志。"
+        return OasesLocalization.localized("只保存健康检查结果、建议和日志。")
     }
 
     var isMutationCapable: Bool {
@@ -660,7 +660,7 @@ private struct InspectionRunDetailView: View {
 
             if detail.run.isActive {
                 InfoBanner(
-                    title: detail.run.normalizedStatus == "cancelling" ? "正在请求取消" : "巡检正在运行",
+                    title: detail.run.normalizedStatus == "cancelling" ? OasesLocalization.localized("正在请求取消") : OasesLocalization.localized("巡检正在运行"),
                     message: "本页会每 3 秒刷新一次历史和详情。完成后将自动显示最新结果与日志。",
                     systemImage: "arrow.triangle.2.circlepath",
                     tint: .oasesBlue
@@ -689,7 +689,7 @@ private struct InspectionRunDetailView: View {
             )
             if let onCancel {
                 Button(
-                    detail.run.normalizedStatus == "cancelling" ? "正在取消" : "取消巡检",
+                    detail.run.normalizedStatus == "cancelling" ? OasesLocalization.localized("正在取消") : OasesLocalization.localized("取消巡检"),
                     systemImage: "stop.fill",
                     action: onCancel
                 )
@@ -756,7 +756,7 @@ private struct InspectionRunDetailView: View {
                     }
                 }
                 .pickerStyle(.menu)
-                .frame(width: 126)
+                .fixedSize() // the label keeps its width in every language
             }
 
             if visibleResults.isEmpty {
@@ -839,12 +839,12 @@ private struct InspectionRunDetailView: View {
 
     private var emptyResultsText: String {
         if detail.run.isActive {
-            return "巡检仍在运行，结果会随着 Provider 检查完成而出现。"
+            return OasesLocalization.localized("巡检仍在运行，结果会随着 Provider 检查完成而出现。")
         }
         if !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "没有匹配的结果；可以清除搜索或切换筛选。"
+            return OasesLocalization.localized("没有匹配的结果；可以清除搜索或切换筛选。")
         }
-        return "该运行未返回可展示的账号结果。"
+        return OasesLocalization.localized("该运行未返回可展示的账号结果。")
     }
 
     private var runTint: Color {
@@ -890,7 +890,7 @@ private struct InspectionMetric: View {
                 .foregroundStyle(.secondary)
             Text(value)
                 .font(.system(size: 24, weight: .bold, design: .rounded))
-            Text(caption)
+            Text(OasesLocalization.localized(caption))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
@@ -912,7 +912,7 @@ private struct InspectionResultCard: View {
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 7) {
                         StatusPill(
-                            title: result.provider.isEmpty ? "未知 Provider" : result.provider.uppercased(),
+                            title: result.provider.isEmpty ? OasesLocalization.localized("未知 Provider") : result.provider.uppercased(),
                             tint: .oasesBlue,
                             systemImage: "network"
                         )
@@ -926,7 +926,7 @@ private struct InspectionResultCard: View {
                     Text(result.accountTitle)
                         .font(.headline)
                         .textSelection(.enabled)
-                    Text(result.fileName.isEmpty ? "未返回认证文件名" : result.fileName)
+                    Text(result.fileName.isEmpty ? OasesLocalization.localized("未返回认证文件名") : result.fileName)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
@@ -966,7 +966,7 @@ private struct InspectionResultCard: View {
                 )
                 InspectionResultFact(
                     title: "身份索引",
-                    value: result.authIndex.isEmpty ? "暂无" : result.authIndex
+                    value: result.authIndex.isEmpty ? OasesLocalization.localized("暂无") : result.authIndex
                 )
             }
 
@@ -1054,12 +1054,12 @@ private struct InspectionResultCard: View {
         if let statusCode = result.statusCode {
             return "HTTP \(statusCode)"
         }
-        return result.status.isEmpty ? (result.state.isEmpty ? "未返回" : result.state) : result.status
+        return result.status.isEmpty ? (result.state.isEmpty ? OasesLocalization.localized("未返回") : result.state) : result.status
     }
 
     private var quotaText: String {
         guard let usedPercent = result.usedPercent else {
-            return result.isQuota ? "有配额证据" : "暂无"
+            return result.isQuota ? OasesLocalization.localized("有配额证据") : OasesLocalization.localized("暂无")
         }
         return "\(usedPercent.formatted(.number.precision(.fractionLength(0))))%"
     }
@@ -1139,7 +1139,7 @@ private struct InspectionLogRow: View {
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
-                Text(entry.message.isEmpty ? "未返回日志消息" : entry.message)
+                Text(entry.message.isEmpty ? OasesLocalization.localized("未返回日志消息") : entry.message)
                     .font(.caption)
                     .textSelection(.enabled)
                 if let detail = entry.detailText {
@@ -1182,7 +1182,7 @@ private struct InspectionResultDetailSheet: View {
             HStack(alignment: .top) {
                 CardTitle(
                     title: result.accountTitle,
-                    subtitle: result.fileName.isEmpty ? "巡检结果" : result.fileName,
+                    subtitle: result.fileName.isEmpty ? OasesLocalization.localized("巡检结果") : result.fileName,
                     icon: "person.crop.circle.badge.checkmark"
                 )
                 Spacer()

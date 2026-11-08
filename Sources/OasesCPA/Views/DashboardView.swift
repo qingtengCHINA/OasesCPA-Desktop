@@ -88,9 +88,9 @@ struct DashboardView: View {
     }
 
     private var heroTitle: String {
-        if runtimeDataStore.errorMessage != nil { return "已接入，但实时数据读取失败" }
-        if runtimeDataStore.isLive { return "网关运行中 · 实时数据" }
-        return deploymentStore.stage == .attached ? "已接入，正在读取数据" : "尚未连接目标环境"
+        if runtimeDataStore.errorMessage != nil { return OasesLocalization.localized("已接入，但实时数据读取失败") }
+        if runtimeDataStore.isLive { return OasesLocalization.localized("网关运行中 · 实时数据") }
+        return deploymentStore.stage == .attached ? OasesLocalization.localized("已接入，正在读取数据") : OasesLocalization.localized("尚未连接目标环境")
     }
 
     /// One-line status bar: state, target and Base URL, last refresh, primary action.
@@ -153,7 +153,7 @@ struct DashboardView: View {
         let rolling = dashboard.rolling30m
         let latency = today.averageLatencyMs.map {
             OasesLocalization.localizedFormat("%.1f 秒", $0 / 1_000)
-        } ?? "暂无"
+        } ?? OasesLocalization.localized("暂无")
         return [
             .init(title: "今日请求", value: today.totalCalls.formatted(), caption: OasesLocalization.localizedFormat("失败 %@ 次", today.failureCalls.formatted()), systemImage: "arrow.down.circle", tint: .oasesBlue),
             .init(title: "RPM（30 分钟）", value: rolling.rpm.formatted(.number.precision(.fractionLength(1))), caption: OasesLocalization.localizedFormat("%@ 次请求", rolling.totalCalls.formatted()), systemImage: "chart.line.uptrend.xyaxis", tint: .oasesPurple),
@@ -344,7 +344,7 @@ struct HealthTimelineCard: View {
     }
 
     private var successRate: String {
-        guard let timeline = dashboard?.todayRequestHealthTimeline else { return "暂无" }
+        guard let timeline = dashboard?.todayRequestHealthTimeline else { return OasesLocalization.localized("暂无") }
         return timeline.successRate.formatted(.percent.precision(.fractionLength(1)))
     }
 
@@ -416,7 +416,7 @@ struct TokenBreakdownCard: View {
     }
 
     private var totalTokens: String {
-        guard let total = dashboard?.today.totalTokens else { return "暂无" }
+        guard let total = dashboard?.today.totalTokens else { return OasesLocalization.localized("暂无") }
         return compactToken(Double(total))
     }
 
@@ -434,11 +434,11 @@ struct TokenBreakdownCard: View {
 
     private func tokenTitle(_ key: String) -> String {
         switch key {
-        case "input": return "输入"
-        case "output": return "输出"
-        case "reasoning": return "推理"
-        case "cached", "cache_read": return "缓存读取"
-        case "cache_creation": return "缓存创建"
+        case "input": return OasesLocalization.localized("输入")
+        case "output": return OasesLocalization.localized("输出")
+        case "reasoning": return OasesLocalization.localized("推理")
+        case "cached", "cache_read": return OasesLocalization.localized("缓存读取")
+        case "cache_creation": return OasesLocalization.localized("缓存创建")
         default: return key
         }
     }
@@ -594,9 +594,9 @@ struct ChannelHealthCard: View {
 
     private func statusTitle(_ tone: String) -> String {
         switch tone {
-        case "bad": return "异常"
-        case "warn": return "关注"
-        default: return "正常"
+        case "bad": return OasesLocalization.localized("异常")
+        case "warn": return OasesLocalization.localized("关注")
+        default: return OasesLocalization.localized("正常")
         }
     }
 
@@ -647,8 +647,8 @@ struct RecentFailuresCard: View {
 
     private func eventRow(_ event: RuntimeRecentFailure) -> some View {
         let source = event.authLabel ?? event.account ?? event.channel ?? event.source ?? event.authIndex
-        let status = event.failStatusCode.map { "HTTP \($0)" } ?? "失败"
-        let latency = event.durationMs.map { String(format: "%.1f 秒", $0 / 1_000) } ?? "暂无"
+        let status = event.failStatusCode.map { "HTTP \($0)" } ?? OasesLocalization.localized("失败")
+        let latency = event.durationMs.map { OasesLocalization.localizedFormat("%.1f 秒", $0 / 1_000) } ?? OasesLocalization.localized("暂无")
         let time = Date(timeIntervalSince1970: TimeInterval(event.timestampMs) / 1_000)
             .formatted(date: .omitted, time: .standard)
         return HStack(spacing: 12) {
@@ -691,7 +691,7 @@ struct CollectorStatusCard: View {
             }
             LabeledContent("数据源") { Text(verbatim: "CPAMP \(DeploymentPorts.cpamp)") }
             LabeledContent("最近数据") {
-                Text(dashboard?.lastUpdated.formatted(date: .omitted, time: .shortened) ?? "暂无")
+                Text(dashboard?.lastUpdated.formatted(date: .omitted, time: .shortened) ?? OasesLocalization.localized("暂无"))
             }
             LabeledContent("隐私") {
                 Text("摘要与脱敏标识")

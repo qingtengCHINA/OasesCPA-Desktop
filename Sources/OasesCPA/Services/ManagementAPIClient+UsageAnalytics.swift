@@ -33,7 +33,7 @@ extension ManagementAPIClient {
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             throw ManagementAPIError.server(
                 status: httpResponse.statusCode,
-                message: message.isEmpty ? "请求失败" : message
+                message: message.isEmpty ? OasesLocalization.localized("请求失败") : message
             )
         }
 

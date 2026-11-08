@@ -235,7 +235,7 @@ struct UsageAnalyticsWorkbenchView: View {
             }
         }
         .pickerStyle(.segmented)
-        .frame(width: 230)
+        .fixedSize() // the label keeps its width in every language
     }
 
     private var analyticsSearchField: some View {
@@ -578,7 +578,7 @@ struct UsageAnalyticsWorkbenchView: View {
     }
 
     private func emptyCard(_ title: String) -> some View {
-        Text(title)
+        Text(OasesLocalization.localized(title))
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, minHeight: 180)
             .padding(18)
@@ -604,7 +604,10 @@ struct UsageAnalyticsWorkbenchView: View {
                 }
             }
         } label: {
-            Label(selection.isEmpty ? title : "\(title) · \(selection.count)", systemImage: "line.3.horizontal.decrease.circle")
+            Label(
+                selection.isEmpty ? OasesLocalization.localized(title) : "\(OasesLocalization.localized(title)) · \(selection.count)",
+                systemImage: "line.3.horizontal.decrease.circle"
+            )
         }
         .buttonStyle(.bordered)
         .disabled(values.isEmpty)

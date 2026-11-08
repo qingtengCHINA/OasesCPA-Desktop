@@ -108,8 +108,14 @@ enum SSHConnectionError: LocalizedError, Equatable, Sendable {
         case .hostKeyScanFailed(let message):
             return OasesLocalization.localizedFormat("无法读取 SSH 主机指纹：%@", message)
         case .hostKeyConfirmationRequired(let confirmation):
-            let action = confirmation.reason == .changed ? "变更" : "首次"
-            return "SSH 主机需要\(action)指纹确认：\(confirmation.host):\(confirmation.port)（\(confirmation.fingerprint)）"
+            return OasesLocalization.localizedFormat(
+                confirmation.reason == .changed
+                    ? "SSH 主机需要变更指纹确认：%@:%lld（%@）"
+                    : "SSH 主机需要首次指纹确认：%@:%lld（%@）",
+                confirmation.host,
+                confirmation.port,
+                confirmation.fingerprint
+            )
         case .staleHostKeyConfirmation:
             return OasesLocalization.localized("SSH 主机指纹确认已过期；当前 known_hosts 未被覆盖，请重新核验。")
         case .invalidHostKeyConfirmation:
@@ -1160,7 +1166,7 @@ enum SSHConnectionService {
 
         if timedOut || wasCancelled {
             throw SSHConnectionError.hostKeyScanFailed(
-                timedOut ? "SSH 工具执行超时" : "SSH 工具执行已取消"
+                timedOut ? OasesLocalization.localized("SSH 工具执行超时") : OasesLocalization.localized("SSH 工具执行已取消")
             )
         }
 

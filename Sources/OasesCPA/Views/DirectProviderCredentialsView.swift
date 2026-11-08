@@ -213,7 +213,7 @@ private struct DirectProviderCredentialRow: View {
                     }
                 }
 
-                Text(credential.baseURL.isEmpty ? "使用服务默认 Base URL" : credential.baseURL)
+                Text(credential.baseURL.isEmpty ? OasesLocalization.localized("使用服务默认 Base URL") : credential.baseURL)
                     .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -386,7 +386,7 @@ struct DirectProviderCredentialEditorView: View {
     private var validationMessage: String? {
         if !usesDefaultWeight,
            Int(weightText.trimmingCharacters(in: .whitespacesAndNewlines)) == nil {
-            return "请填写有效的整数流量权重，或使用默认权重。"
+            return OasesLocalization.localized("请填写有效的整数流量权重，或使用默认权重。")
         }
         return draft.validationMessage(for: kind, isNew: isNew)
     }
@@ -394,14 +394,14 @@ struct DirectProviderCredentialEditorView: View {
     private var editorValidationMessage: String? {
         if !usesDefaultPriority,
            Int(priorityText.trimmingCharacters(in: .whitespacesAndNewlines)) == nil {
-            return "请填写有效的整数优先级，或使用默认优先级。"
+            return OasesLocalization.localized("请填写有效的整数优先级，或使用默认优先级。")
         }
         if headerRows.contains(where: { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
-            return "请求 Header 名称不能为空。"
+            return OasesLocalization.localized("请求 Header 名称不能为空。")
         }
         let headerNames = headerRows.map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
         if Set(headerNames).count != headerNames.count {
-            return "请求 Header 名称不能重复。"
+            return OasesLocalization.localized("请求 Header 名称不能重复。")
         }
         return validationMessage
     }

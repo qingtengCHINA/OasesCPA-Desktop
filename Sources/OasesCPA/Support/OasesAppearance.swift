@@ -11,9 +11,9 @@ enum OasesAppearance: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .system: "跟随系统"
-        case .light: "浅色"
-        case .dark: "深色"
+        case .system: OasesLocalization.localized("跟随系统")
+        case .light: OasesLocalization.localized("浅色")
+        case .dark: OasesLocalization.localized("深色")
         }
     }
 

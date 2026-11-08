@@ -118,7 +118,7 @@ private enum OpenSourceNotice: CaseIterable, Identifiable {
         )
         guard let url,
         let text = try? String(contentsOf: url, encoding: .utf8) else {
-            return "许可证文本未能从应用资源中读取。请查看项目中的 THIRD_PARTY_NOTICES.md。"
+            return OasesLocalization.localized("许可证文本未能从应用资源中读取。请查看项目中的 THIRD_PARTY_NOTICES.md。")
         }
         return text
     }

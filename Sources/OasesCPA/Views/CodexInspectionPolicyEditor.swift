@@ -230,12 +230,12 @@ struct CodexInspectionPolicyEditor: View {
 
     private var safetyTitle: String {
         if draft.autoActionMode.isDestructive {
-            return "自动删除会修改目标认证文件"
+            return OasesLocalization.localized("自动删除会修改目标认证文件")
         }
         if draft.isMutationCapable {
-            return "自动动作可能修改目标认证文件"
+            return OasesLocalization.localized("自动动作可能修改目标认证文件")
         }
-        return "仅记录策略"
+        return OasesLocalization.localized("仅记录策略")
     }
 
     private var safetySystemImage: String {

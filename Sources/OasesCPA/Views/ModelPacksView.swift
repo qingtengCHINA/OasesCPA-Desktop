@@ -153,7 +153,7 @@ struct ModelPacksView: View {
                 systemImage: "square.stack.3d.up",
                 title: "还没有模型包",
                 message: "模型包把几个模型合成一个对外模型名，并可以发放带额度和到期时间的 Key。",
-                actionTitle: store.storeAvailable ? "新建模型包" : nil,
+                actionTitle: store.storeAvailable ? OasesLocalization.localized("新建模型包") : nil,
                 action: store.storeAvailable ? { packEditor = PackEditorRoute(pack: nil) } : nil
             )
         } else {

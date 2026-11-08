@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import SwiftUI
 
@@ -211,6 +212,37 @@ final class RuntimeDataStore: ObservableObject {
     private var providerConnectivityGeneration = 0
     private var monitoringEventsCursor: RuntimeMonitoringEventsCursor?
     private var monitoringEventsRequest: RuntimeMonitoringEventsRequest?
+
+    private var languageChangeSubscription: AnyCancellable?
+
+    init() {
+        languageChangeSubscription = NotificationCenter.default.publisher(for: .oasesLanguageDidChange)
+            .sink { [weak self] _ in
+                MainActor.assumeIsolated { self?.relocalizeForLanguageChange() }
+            }
+    }
+
+    /// The error and warning lines this store holds, translated into the newly chosen
+    /// language (`OasesLocalization.relocalized`; raw server text stays as it is).
+    func relocalizeForLanguageChange() {
+        let messages: [ReferenceWritableKeyPath<RuntimeDataStore, String?>] = [
+            \.monitoringEventsPaginationWarning, \.automaticModelPriceSyncError,
+            \.providerConnectivityErrorMessage, \.errorMessage, \.authFilesErrorMessage,
+            \.gatewayModelsErrorMessage, \.oauthModelPoliciesErrorMessage, \.modelPricesErrorMessage,
+            \.modelPriceUsageErrorMessage, \.accountActionsErrorMessage, \.codexInspectionErrorMessage,
+            \.pluginsErrorMessage, \.pluginStoreErrorMessage, \.providerErrorMessage, \.logsErrorMessage,
+            \.systemStatusErrorMessage, \.managerConfigurationErrorMessage, \.cpaConfigErrorMessage,
+            \.quotaErrorMessage, \.analyticsErrorMessage, \.monitoringErrorMessage,
+            \.monitoringEventsErrorMessage, \.monitoringHeaderSnapshotsErrorMessage,
+            \.monitoringAccountHistoryErrorMessage,
+        ]
+        for keyPath in messages where self[keyPath: keyPath] != nil {
+            self[keyPath: keyPath] = OasesLocalization.relocalized(self[keyPath: keyPath])
+        }
+        if !directProviderErrors.isEmpty {
+            directProviderErrors = directProviderErrors.mapValues { OasesLocalization.relocalized($0) }
+        }
+    }
 
     var isLive: Bool { dashboard != nil }
 
@@ -3111,7 +3143,7 @@ final class RuntimeDataStore: ObservableObject {
         let (baseURL, managementKey) = try cpaManagementContext(using: deploymentStore)
         let normalized = contents.hasSuffix("\n") ? contents : contents + "\n"
         guard !normalized.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw ManagementAPIError.server(status: 400, message: "config.yaml 不能为空")
+            throw ManagementAPIError.server(status: 400, message: OasesLocalization.localized("config.yaml 不能为空"))
         }
 
         isSavingCPAConfig = true
