@@ -302,4 +302,121 @@ final class DeploymentScriptFragmentsTests: XCTestCase {
             XCTAssertEqual(try mode(root.appendingPathComponent(name)), 0o755, name)
         }
     }
+
+
+    // MARK: - MODEL_CATALOG_URL carried over by gateway/run.sh
+
+    private func shellQuoted(_ path: String) -> String {
+        "'" + path.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
+    }
+
+    /// Writes `old` (when given) as `<root>/gateway/run.sh`, regenerates it, and returns the
+    /// result: the new file, `bash -n`, and the exported `MODEL_CATALOG_URL` (or `<unset>`).
+    private func regenerateGatewayRun(_ fake: FakeArtifacts, root: URL, old: String?) throws -> (FakeArtifacts.RunResult, String) {
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("gateway"), withIntermediateDirectories: true)
+        if let old { try Data(old.utf8).write(to: root.appendingPathComponent("gateway/run.sh")) }
+        let result = try fake.run(DeploymentScriptFragments.gatewayRunScript() + "\n" + """
+            set -euo pipefail
+            R=\(shellQuoted(root.path))
+            oases_write_gateway_run "$R" v8.0.51 v1.14.10 8317 18320 18316
+            bash -n "$R/gateway/run.sh" && echo syntax-ok
+            ( unset MODEL_CATALOG_URL; eval "$(grep '^export ' "$R/gateway/run.sh")"; printf 'catalog=%s\\n' "${MODEL_CATALOG_URL-<unset>}" )
+            """)
+        let text = (try? String(contentsOf: root.appendingPathComponent("gateway/run.sh"), encoding: .utf8)) ?? ""
+        return (result, text)
+    }
+
+    private func files(named name: String, under directory: URL) -> [String] {
+        let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil)
+        var found: [String] = []
+        while let url = enumerator?.nextObject() as? URL {
+            if url.lastPathComponent == name { found.append(url.path) }
+        }
+        return found
+    }
+
+    /// `gateway/run.sh` is regenerated on every install and upgrade. A `MODEL_CATALOG_URL` the
+    /// user exported in the old file survives only as exactly `off` or a plain `https://` URL,
+    /// re-emitted single-quoted; anything else is dropped with one stderr line that does not
+    /// repeat the value. The old file is only read, never run.
+    func testGatewayRunCarriesOverOnlyASafeModelCatalogSetting() throws {
+        let fake = try FakeArtifacts.make(caseName: "fragment-catalog")
+        let dropped = "MODEL_CATALOG_URL 不是 off 或安全的 https:// 地址"
+        let rows: [(line: String, expected: String?, drops: Bool)] = [
+            (#"export MODEL_CATALOG_URL=off"#, "off", false),
+            (#"export MODEL_CATALOG_URL='off'"#, "off", false),
+            (#"export MODEL_CATALOG_URL="off""#, "off", false),
+            (#"  export MODEL_CATALOG_URL=https://catalog.example/v1/models?x=1&y=(2);z=%41,b*+!~"#,
+             "https://catalog.example/v1/models?x=1&y=(2);z=%41,b*+!~", false),
+            (#"export MODEL_CATALOG_URL='https://user@example.com:8443/m#top'"#, "https://user@example.com:8443/m#top", false),
+            ("export MODEL_CATALOG_URL=https://first.example/\nexport MODEL_CATALOG_URL=off", "off", false),
+            (#"# export MODEL_CATALOG_URL=off"#, nil, false),
+            (#"MODEL_CATALOG_URL=off"#, nil, false),
+            (#"export MODEL_CATALOG_URL=x';touch pwned;'"#, nil, true),
+            (#"export MODEL_CATALOG_URL=$(touch pwned)"#, nil, true),
+            (#"export MODEL_CATALOG_URL="https://catalog.example/$(id)""#, nil, true),
+            ("export MODEL_CATALOG_URL=https://catalog.example/`touch pwned`", nil, true),
+            (#"export MODEL_CATALOG_URL=https://catalog.example/a\b"#, nil, true),
+            (#"export MODEL_CATALOG_URL=https://catalog.example/"x""#, nil, true),
+            (#"export MODEL_CATALOG_URL='https://catalog.example/x"#, nil, true),
+            (#"export MODEL_CATALOG_URL=https://catalog.example/a b"#, nil, true),
+            ("export MODEL_CATALOG_URL=https://catalog.example/\u{e9}", nil, true),
+            (#"export MODEL_CATALOG_URL=http://catalog.example/v1/models"#, nil, true),
+            (#"export MODEL_CATALOG_URL=https://"#, nil, true),
+            (#"export MODEL_CATALOG_URL=OFF"#, nil, true),
+            (#"export MODEL_CATALOG_URL="#, nil, true),
+        ]
+        for (index, row) in rows.enumerated() {
+            let root = fake.caseDirectory.appendingPathComponent("root-\(index)")
+            let old = "#!/bin/bash\nset -euo pipefail\nexport PORT=8317\n\(row.line)\nexec true\n"
+            let (result, text) = try regenerateGatewayRun(fake, root: root, old: old)
+            XCTAssertEqual(result.status, 0, "\(row.line): \(result.stderr)")
+            XCTAssertEqual(result.stdout, "syntax-ok\ncatalog=\(row.expected ?? "<unset>")\n", row.line)
+            let lines = text.split(separator: "\n").filter { $0.contains("MODEL_CATALOG_URL") }
+            if let expected = row.expected {
+                XCTAssertEqual(lines, ["export MODEL_CATALOG_URL='\(expected)'"], row.line)
+            } else {
+                XCTAssertEqual(lines, [], row.line)
+            }
+            XCTAssertEqual(result.stderr.components(separatedBy: dropped).count - 1, row.drops ? 1 : 0, "\(row.line): \(result.stderr)")
+            XCTAssertFalse(result.stderr.contains("pwned"), "the rejected value is not repeated")
+            // The regenerated file starts like every other run script and still execs the gateway.
+            XCTAssertTrue(text.hasPrefix("#!/bin/bash\nset -euo pipefail\nexec 3>&- 4>&-\n"), row.line)
+            XCTAssertTrue(text.hasSuffix("/gateway/current/server.mjs\n"), row.line)
+        }
+        XCTAssertEqual(files(named: "pwned", under: fake.caseDirectory), [], "no part of an old value ran")
+    }
+
+    /// Without a setting in an old file (or without an old file) `gateway/run.sh` is exactly
+    /// what it was before the carry-over existed.
+    func testGatewayRunWithoutACatalogSettingIsUnchanged() throws {
+        let fake = try FakeArtifacts.make(caseName: "fragment-catalog-none")
+        for (name, old) in [("fresh", nil), ("previous", "#!/bin/bash\nset -euo pipefail\nexport PORT=8317\nexec true\n")] as [(String, String?)] {
+            let root = fake.caseDirectory.appendingPathComponent(name)
+            let (result, text) = try regenerateGatewayRun(fake, root: root, old: old)
+            XCTAssertEqual(result.status, 0, result.stderr)
+            XCTAssertEqual(result.stderr, "", name)
+            XCTAssertEqual(result.stdout, "syntax-ok\ncatalog=<unset>\n", name)
+            let r = root.path
+            XCTAssertEqual(text, """
+                #!/bin/bash
+                set -euo pipefail
+                exec 3>&- 4>&-
+                export PORT=8317
+                export BIND_HOST=127.0.0.1
+                export ADMIN_LISTEN_PORT=18320
+                export GO_BACKEND_URL=http://127.0.0.1:18316
+                export CONFIG_PATH=\(r)/cli-proxy-api/config.yaml
+                export KEY_FILE_PATH=\(r)/secrets/cpa-management-key
+                export PACK_ENGINE_KEY_PATH=\(r)/secrets/pack-engine-key
+                export PACK_STORE_KEY_FILE=\(r)/secrets/pack-store-key
+                export OASES_DATA_DIR=\(r)/gateway-data
+                export HOST_STATUS_ENGINE_VERSION=v8.0.51
+                export HOST_STATUS_PANEL_VERSION=v1.14.10
+                cd \(r)/gateway-data
+                exec \(r)/node/current/bin/node \(r)/gateway/current/server.mjs
+
+                """, name)
+        }
+    }
 }

@@ -301,6 +301,95 @@ final class UpgradeScriptTests: XCTestCase {
         XCTAssertEqual(restored["HOST_STATUS_PANEL_VERSION"], try versions(root)["cpamp"])
     }
 
+    // MARK: - MODEL_CATALOG_URL survives the regenerated gateway/run.sh
+
+    private let catalogDropped = "MODEL_CATALOG_URL 不是 off 或安全的 https:// 地址"
+
+    /// An installed deployment whose `gateway/run.sh` got `line` by hand (next to the other
+    /// exports), then upgraded to a newer gateway.
+    private func upgradeWithCatalogLine(_ caseName: String, _ line: String?) throws -> (FakeArtifacts.RunResult, URL, FakeArtifacts) {
+        let (fake, root) = try installed(caseName)
+        if let line {
+            // The fake health check answers at once, so the install may return before the
+            // gateway's bash has read run.sh up to its exec; editing the file earlier would run
+            // the edited line in that bash. Wait until the gateway runs (fake node logs it).
+            let deadline = Date().addingTimeInterval(10)
+            while !((try? String(contentsOf: fake.argvLog, encoding: .utf8)) ?? "").contains("/gateway/current/server.mjs"),
+                  Date() < deadline {
+                Thread.sleep(forTimeInterval: 0.05)
+            }
+            let edited = text(root, "gateway/run.sh").replacingOccurrences(
+                of: "export HOST_STATUS_PANEL_VERSION=", with: line + "\nexport HOST_STATUS_PANEL_VERSION=")
+            try write(edited, root, "gateway/run.sh")
+            XCTAssertTrue(text(root, "gateway/run.sh").contains(line + "\n"))
+        }
+        let upgraded = try upgrade(try fake.withGateway(version: "0.9.1-test"), root)
+        XCTAssertEqual(upgraded.status, 0, upgraded.stderr)
+        XCTAssertEqual(link(root, "gateway/current"), "0.9.1-test", "the gateway really was upgraded")
+        let syntax = Process()
+        syntax.executableURL = URL(fileURLWithPath: "/bin/bash")
+        syntax.arguments = ["-n", root.appendingPathComponent("gateway/run.sh").path]
+        try syntax.run()
+        syntax.waitUntilExit()
+        XCTAssertEqual(syntax.terminationStatus, 0, "gateway/run.sh stays valid bash")
+        return (upgraded, root, fake)
+    }
+
+    private func pwnedFiles(_ fake: FakeArtifacts) -> [String] {
+        let enumerator = FileManager.default.enumerator(at: fake.caseDirectory, includingPropertiesForKeys: nil)
+        var found: [String] = []
+        while let url = enumerator?.nextObject() as? URL {
+            if url.lastPathComponent == "pwned" { found.append(url.path) }
+        }
+        return found
+    }
+
+    func testUpgradeKeepsModelCatalogOff() throws {
+        let (upgraded, root, fake) = try upgradeWithCatalogLine("catalog-off", "export MODEL_CATALOG_URL=off")
+        XCTAssertEqual(try exportedEnvironment(root)["MODEL_CATALOG_URL"], "off")
+        XCTAssertFalse(upgraded.stderr.contains(catalogDropped), upgraded.stderr)
+        XCTAssertNotNil(pid(root, "gateway.pid"), "the upgraded gateway runs with the carried-over setting")
+
+        // The carried-over (single-quoted) form survives the next upgrade as well.
+        let again = try upgrade(try fake.withGateway(version: "0.9.2-test"), root)
+        XCTAssertEqual(again.status, 0, again.stderr)
+        XCTAssertEqual(link(root, "gateway/current"), "0.9.2-test")
+        XCTAssertEqual(try exportedEnvironment(root)["MODEL_CATALOG_URL"], "off")
+        XCTAssertFalse(again.stderr.contains(catalogDropped), again.stderr)
+    }
+
+    func testUpgradeKeepsAValidModelCatalogURL() throws {
+        let url = "https://catalog.example/api/v1/models?mirror=1"
+        let (upgraded, root, _) = try upgradeWithCatalogLine("catalog-url", "export MODEL_CATALOG_URL='\(url)'")
+        XCTAssertEqual(try exportedEnvironment(root)["MODEL_CATALOG_URL"], url)
+        XCTAssertTrue(text(root, "gateway/run.sh").contains("export MODEL_CATALOG_URL='\(url)'\n"))
+        XCTAssertFalse(upgraded.stderr.contains(catalogDropped), upgraded.stderr)
+    }
+
+    func testUpgradeDropsAnUnsafeModelCatalogValueWithoutRunningIt() throws {
+        for (index, line) in [#"export MODEL_CATALOG_URL=x';touch pwned;'"#, #"export MODEL_CATALOG_URL=$(touch pwned)"#].enumerated() {
+            let (upgraded, root, fake) = try upgradeWithCatalogLine("catalog-unsafe-\(index)", line)
+            let run = text(root, "gateway/run.sh")
+            XCTAssertFalse(run.contains("MODEL_CATALOG_URL"), line)
+            // Never evaluate a run.sh that carries the value (it would run outside the scratch).
+            guard !run.contains("pwned") else { XCTFail("the unsafe value reached run.sh: \(line)"); continue }
+            XCTAssertNil(try exportedEnvironment(root)["MODEL_CATALOG_URL"], line)
+            XCTAssertEqual(upgraded.stderr.components(separatedBy: catalogDropped).count - 1, 1, upgraded.stderr)
+            XCTAssertFalse(upgraded.stderr.contains("pwned"), "the value is not repeated")
+            XCTAssertNotNil(pid(root, "gateway.pid"), "the upgraded gateway runs")
+            XCTAssertEqual(pwnedFiles(fake), [], line)
+        }
+    }
+
+    func testUpgradeWithoutModelCatalogSettingWritesTheSameRunScript() throws {
+        let (upgraded, root, _) = try upgradeWithCatalogLine("catalog-none", nil)
+        XCTAssertFalse(text(root, "gateway/run.sh").contains("MODEL_CATALOG_URL"))
+        XCTAssertFalse(upgraded.stderr.contains("MODEL_CATALOG_URL"), upgraded.stderr)
+        XCTAssertEqual(Set(try exportedEnvironment(root).keys), ["PORT", "BIND_HOST", "ADMIN_LISTEN_PORT", "GO_BACKEND_URL", "CONFIG_PATH",
+                                                                 "KEY_FILE_PATH", "PACK_ENGINE_KEY_PATH", "PACK_STORE_KEY_FILE",
+                                                                 "OASES_DATA_DIR", "HOST_STATUS_ENGINE_VERSION", "HOST_STATUS_PANEL_VERSION"])
+    }
+
     /// A backup written by app 0.1.4 has only the two run scripts, the engine config and the
     /// runtime directories: no versions.json, no versions.absent, no gateway-data/.
     func testRollbackOfAppV014BackupIsTreatedAsLegacy() throws {

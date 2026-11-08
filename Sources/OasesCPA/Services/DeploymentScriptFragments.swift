@@ -314,10 +314,42 @@ enum DeploymentScriptFragments {
     /// <engine port>`: `<root>/gateway/run.sh` with the environment of interfaces §3 (all eleven
     /// variables, absolute paths, no `HOST_STATUS_UNITS`). It runs Node and `server.mjs` by
     /// absolute path, so `ps` shows both under the root.
+    ///
+    /// The file is regenerated on every install and upgrade; the one setting carried over from
+    /// the old file is `export MODEL_CATALOG_URL=…` (the last such line), because `off` is the
+    /// only way to stop the gateway's background catalog fetch. The old file is only read,
+    /// never run. The value (one layer of matching quotes removed) must be exactly `off` or an
+    /// `https://` URL of `[A-Za-z0-9._~:/?#@!$&()*+,;=%-]` without `$(`; it is re-emitted
+    /// single-quoted. Anything else is dropped with one stderr line that does not repeat it.
     static func gatewayRunScript() -> String {
         """
         oases_write_gateway_run() {
           local root="$1" part="$1/gateway/run.sh.part.$$"
+          local catalog_found=0 catalog_value="" catalog_line catalog_ok=0
+          # Listed letter by letter: a range such as A-Z depends on the locale.
+          local catalog_chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~:/?#@!$&()*+,;=%-'
+          local catalog_re='^https://['"$catalog_chars"']+$'
+          if [ -f "$root/gateway/run.sh" ]; then
+            while IFS= read -r catalog_line || [ -n "$catalog_line" ]; do
+              catalog_line="${catalog_line#"${catalog_line%%[![:blank:]]*}"}"
+              case "$catalog_line" in
+                'export MODEL_CATALOG_URL='*) catalog_found=1; catalog_value="${catalog_line#export MODEL_CATALOG_URL=}" ;;
+              esac
+            done < "$root/gateway/run.sh"
+          fi
+          if [ "$catalog_found" -eq 1 ]; then
+            case "$catalog_value" in
+              "'"*"'"|'"'*'"') catalog_value="${catalog_value#?}"; catalog_value="${catalog_value%?}" ;;
+            esac
+            case "$catalog_value" in
+              *'$('*) ;;
+              off) catalog_ok=1 ;;
+              *) if [[ "$catalog_value" =~ $catalog_re ]]; then catalog_ok=1; fi ;;
+            esac
+            if [ "$catalog_ok" -ne 1 ]; then
+              printf '%s\\n' '旧的 gateway/run.sh 中 MODEL_CATALOG_URL 不是 off 或安全的 https:// 地址，已丢弃；网关将使用默认的公开模型目录。' >&2
+            fi
+          fi
           {
             printf '#!/bin/bash\\nset -euo pipefail\\nexec 3>&- 4>&-\\n'
             printf 'export PORT=%s\\n' "$4"
@@ -331,6 +363,7 @@ enum DeploymentScriptFragments {
             printf 'export OASES_DATA_DIR=%q\\n' "$root/gateway-data"
             printf 'export HOST_STATUS_ENGINE_VERSION=%q\\n' "$2"
             printf 'export HOST_STATUS_PANEL_VERSION=%q\\n' "$3"
+            if [ "$catalog_ok" -eq 1 ]; then printf "export MODEL_CATALOG_URL='%s'\\n" "$catalog_value"; fi
             printf 'cd %q\\n' "$root/gateway-data"
             printf 'exec %q %q\\n' "$root/node/current/bin/node" "$root/gateway/current/server.mjs"
           } > "$part" || return 1
