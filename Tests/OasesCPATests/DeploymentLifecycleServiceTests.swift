@@ -329,8 +329,10 @@ final class DeploymentLifecycleServiceTests: XCTestCase {
         process.standardOutput = pipe
         try? process.run()
         process.waitUntilExit()
-        return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+        // Only the state letter: ps appends modifiers such as "<" (raised priority) on some machines.
+        let text = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.map { String($0.prefix(1)) }
     }
 
     private struct RemovalSandbox {
