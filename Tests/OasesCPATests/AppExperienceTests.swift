@@ -41,7 +41,7 @@ final class AppExperienceTests: XCTestCase {
     }
 
     func testModelsPageIsInTheGatewayGroupWithEnglishTexts() {
-        XCTAssertEqual(SectionGroup.gateway.sections, [.accessKeys, .models, .aiProviders])
+        XCTAssertEqual(SectionGroup.gateway.sections, [.accessKeys, .models, .modelPacks, .aiProviders])
         XCTAssertEqual(AppSection.models.group, .gateway)
         let expected = [
             "模型列表": "Models",
@@ -58,6 +58,26 @@ final class AppExperienceTests: XCTestCase {
             XCTAssertEqual(OasesLocalization.localized(source, language: .english), translation, source)
         }
         XCTAssertEqual(OasesLocalization.localizedFormat("%lld 个模型", language: .english, 3), "3 models")
+    }
+
+    func testModelPacksPageIsInTheGatewayGroupWithEnglishTexts() {
+        XCTAssertEqual(AppSection.modelPacks.group, .gateway)
+        XCTAssertEqual(AppSection.modelPacks.systemImage, "square.stack.3d.up")
+        XCTAssertEqual(AppSection.modelPacks.title, OasesLocalization.localized("模型包"))
+        let expected = [
+            "模型包": "Model Packs",
+            "把多个模型合成一个模型名，并发放有额度的 Key": "Combine models under one name and issue keys with quotas",
+            "新建模型包": "New Pack",
+            "模型包 Key": "Pack Keys",
+            "清零用量": "Reset Usage",
+            "解绑": "Unbind",
+            "定时恢复额度": "Restore the quota on a schedule",
+            "模型包 Key 暂时无法使用": "Pack Keys Cannot Be Used Right Now"
+        ]
+        for (source, translation) in expected {
+            XCTAssertEqual(OasesLocalization.localized(source, language: .english), translation, source)
+        }
+        XCTAssertEqual(OasesLocalization.localizedFormat("已创建 %lld 把 Key", language: .english, 3), "3 Keys Created")
     }
 
     func testKeysPageHasEnglishTexts() {

@@ -3,11 +3,14 @@ import SwiftUI
 /// Picks models from the gateway's `groupedModels`. Internal `pin-x/…` ids are never offered.
 /// `selection` holds model ids as the gateway stores them in policies (canonical: lower case,
 /// without "cc-", the part after the last "/"); an option counts as selected when its canonical
-/// id is in the selection.
+/// id is in the selection. With `storesCanonicalIDs` false (model pack members, which the engine
+/// must receive exactly as it lists them) ids are compared and stored as they are; a newly
+/// ticked model is appended, so the selection keeps the order in which models were added.
 struct ModelMultiPicker: View {
     let groupedModels: [String: [String]]
     @Binding var selection: [String]
     var disabledGroups: [String] = []
+    var storesCanonicalIDs = true
     @State private var search = ""
 
     /// Public ids by group, sorted; empty groups dropped.
@@ -85,11 +88,13 @@ struct ModelMultiPicker: View {
     }
 
     private func binding(for model: String) -> Binding<Bool> {
-        let id = GatewayPolicyModelID.canonical(model)
+        let canonical = storesCanonicalIDs
+        let id = canonical ? GatewayPolicyModelID.canonical(model) : model
+        let key: (String) -> String = { canonical ? GatewayPolicyModelID.canonical($0) : $0 }
         return Binding(
-            get: { selection.contains { GatewayPolicyModelID.canonical($0) == id } },
+            get: { selection.contains { key($0) == id } },
             set: { isOn in
-                var next = selection.filter { GatewayPolicyModelID.canonical($0) != id }
+                var next = selection.filter { key($0) != id }
                 if isOn { next.append(id) }
                 selection = next
             }

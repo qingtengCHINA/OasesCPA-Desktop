@@ -186,6 +186,8 @@ struct DetailWorkspaceView: View {
             AccessKeysView(deploymentStore: deploymentStore)
         case .models:
             ModelsView(deploymentStore: deploymentStore)
+        case .modelPacks:
+            ModelPacksView(deploymentStore: deploymentStore)
         case .aiProviders:
             ProvidersView()
         case .authFiles:
