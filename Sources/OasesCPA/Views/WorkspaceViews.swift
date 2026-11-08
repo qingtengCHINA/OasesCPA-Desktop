@@ -1211,9 +1211,9 @@ struct MonitoringAccountHistoryRow: View {
     private func unmatchedDescription(
         for item: RuntimeMonitoringAccountHistoryItem
     ) -> String {
-        item.syncStatus == .pending
+        OasesLocalization.localized(item.syncStatus == .pending
             ? "该身份的历史汇总仍待补齐。"
-            : "当前目标中尚无此身份的历史汇总。"
+            : "当前目标中尚无此身份的历史汇总。")
     }
 
     private func timestamp(_ milliseconds: Int64?) -> String {
@@ -1560,9 +1560,9 @@ struct QuotaView: View {
     }
 
     private var quotaInfoMessage: String {
-        deploymentStore.stage == .attached
+        OasesLocalization.localized(deploymentStore.stage == .attached
             ? "App 通过 CLIProxyAPI 的管理 API 代理额度请求，按 auth_index 选择凭证；明文 token 留在目标环境内。cooldown 则直接读取 CPAMP 的 usage service。"
-            : "连接本机或 VPS 后，Oases CPA 会读取目标环境中的认证状态、cooldown 与 Provider 返回的额度窗口。"
+            : "连接本机或 VPS 后，Oases CPA 会读取目标环境中的认证状态、cooldown 与 Provider 返回的额度窗口。")
     }
 
     private var sortedEvidence: [RuntimeQuotaEvidence] {

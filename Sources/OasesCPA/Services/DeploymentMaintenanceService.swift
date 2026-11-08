@@ -1256,6 +1256,22 @@ struct DowngradeRefusal: Equatable, Sendable {
     let installed: String
     let target: String
 
+    init(component: String, installed: String, target: String) {
+        self.component = component
+        self.installed = installed
+        self.target = target
+    }
+
+    /// The refusal in `language` (default: the current one), built when it is shown, so it
+    /// follows a language switch.
+    func message(language: AppLanguage? = nil) -> String {
+        OasesLocalization.localizedFormat(
+            "目标上的 %@ 是 %@，比本应用要安装的 %@ 新；已拒绝降级，没有停止或修改任何内容。请先更新 Oases CPA 应用。",
+            language: language,
+            DeploymentExecutionError.componentName(component, language: language), installed, target
+        )
+    }
+
     init?(standardError: String) {
         guard let line = standardError.split(separator: "\n").first(where: { $0.hasPrefix("OASES_DOWNGRADE_REFUSED ") }) else {
             return nil

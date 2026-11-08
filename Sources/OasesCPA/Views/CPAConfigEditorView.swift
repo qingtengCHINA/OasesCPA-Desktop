@@ -232,9 +232,9 @@ struct CPAConfigEditorView: View {
     /// The engine's answer decides whether a save can detect a concurrent change: only a read
     /// that came with an `ETag` makes the write conditional (CLIProxyAPI v8.0.51 sends none).
     private var writeCheckNote: String {
-        ManagementAPIClient.configYAMLWritesAreChecked(etag: runtimeDataStore.cpaConfigETag)
+        OasesLocalization.localized(ManagementAPIClient.configYAMLWritesAreChecked(etag: runtimeDataStore.cpaConfigETag)
             ? "保存时会核对文件版本；如果期间有人修改过，保存会被拒绝并提示你重新加载。"
-            : "当前引擎不提供文件版本号，保存时无法发现别人在此期间的修改：最后保存的内容生效。"
+            : "当前引擎不提供文件版本号，保存时无法发现别人在此期间的修改：最后保存的内容生效。")
     }
 
     private func reloadAfterConflict() {

@@ -202,6 +202,121 @@ final class LocalizationResourceTests: XCTestCase {
         XCTAssertEqual(missing, [])
     }
 
+    // MARK: - Chinese literals outside SwiftUI initializers
+
+    /// The Swift sources with comments and multi-line string literals (the generated bash
+    /// scripts) blanked out, offsets kept.
+    private func scannedSources() throws -> [(name: String, text: String)] {
+        let sources = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/OasesCPA")
+        let multiline = try NSRegularExpression(pattern: ##"#*"""[\s\S]*?"""#*"##)
+        let lineComment = try NSRegularExpression(pattern: #"(?m)^\s*//.*$"#)
+        let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
+        var files: [(String, String)] = []
+        for case let file as URL in enumerator where file.pathExtension == "swift" {
+            var text = try String(contentsOf: file, encoding: .utf8)
+            for regex in [multiline, lineComment] {
+                let ns = NSMutableString(string: text)
+                for match in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)).reversed() {
+                    let blank = String(ns.substring(with: match.range).map { $0 == "\n" ? "\n" : " " })
+                    ns.replaceCharacters(in: match.range, with: blank)
+                }
+                text = ns as String
+            }
+            files.append((file.lastPathComponent, text))
+        }
+        return files
+    }
+
+    private static let stringLiteral = try! NSRegularExpression(pattern: #"(?<![#\\])"((?:[^"\\\n]|\\.)*)""#)
+    private static let han = try! NSRegularExpression(pattern: #"\p{Han}"#)
+
+    private static func containsHan(_ text: String) -> Bool {
+        han.firstMatch(in: text, range: NSRange(text.startIndex..<text.endIndex, in: text)) != nil
+    }
+
+    private static func key(ofLiteralBody body: String) -> String {
+        body.replacingOccurrences(of: "\\n", with: "\n")
+            .replacingOccurrences(of: "\\\"", with: "\"")
+            .replacingOccurrences(of: "\\\\", with: "\\")
+    }
+
+    /// I3: every Chinese string literal in the app's Swift code is a key of both tables,
+    /// wherever it is written — a ternary handed to `Text`, a chart's `.value(…)` label, an
+    /// error's description, a `String` property. (`testEveryChineseSwiftUILiteralIsTranslated`
+    /// sees only literals written directly inside a SwiftUI initializer.) Exempt: patterns
+    /// searched in script output (`.contains("…")`, `case "…":`); the scripts themselves are
+    /// multi-line literals and are skipped.
+    func testEveryChineseLiteralIsATranslationKey() throws {
+        let chinese = try dictionary("zh-Hans")
+        let english = try dictionary("en")
+        let search = try NSRegularExpression(pattern: #"(?:\.contains\(|\bcase\s+)$"#)
+        var missing: [String] = []
+        var checked = 0
+        for (name, text) in try scannedSources() {
+            let ns = text as NSString
+            for match in Self.stringLiteral.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+                let body = ns.substring(with: match.range(at: 1))
+                guard Self.containsHan(body), !body.contains("\\(") else { continue }
+                let lineStart = ns.lineRange(for: NSRange(location: match.range.location, length: 0)).location
+                let before = ns.substring(with: NSRange(location: lineStart, length: match.range.location - lineStart))
+                if search.firstMatch(in: before, range: NSRange(location: 0, length: (before as NSString).length)) != nil { continue }
+                checked += 1
+                let key = Self.key(ofLiteralBody: body)
+                if chinese[key] == nil || english[key] == nil { missing.append("\(name): \(key)") }
+            }
+        }
+        XCTAssertGreaterThan(checked, 1_000)
+        XCTAssertEqual(missing, [])
+    }
+
+    /// I3: a `String` property or function that returns Chinese text shown in the UI is shown
+    /// verbatim by `Text(String)`, so its literals go through `OasesLocalization` (or a
+    /// `LocalizedStringKey`) where they are written; otherwise the English UI shows Chinese
+    /// ("已加载" on Auth Files). Exempt: `case "…":` patterns, `AppLanguage` (each language's
+    /// own name, chosen explicitly) and the SSH service (its error details are keys looked up
+    /// in `SSHConnectionError.message`, tested in `SSHConnectionServiceSecurityTests`).
+    func testStringTypedDeclarationsLookUpTheirChineseText() throws {
+        let declaration = try NSRegularExpression(
+            pattern: #"(?:\bvar\s+\w+\s*:\s*String\??\s*\{|\bfunc\s+\w+[^{]*->\s*String\??\s*\{)"#
+        )
+        let wrapper = try NSRegularExpression(pattern: #"OasesLocalization\.localized(?:Format)?\(|LocalizedStringKey\("#)
+        let casePattern = try NSRegularExpression(pattern: #"\bcase\s+$"#)
+        let exempt: Set<String> = ["AppLanguage.swift", "SSHConnectionService.swift"]
+        var offenders: [String] = []
+        var declarations = 0
+        for (name, text) in try scannedSources() where !exempt.contains(name) {
+            let characters = Array(text.utf16)
+            let ns = text as NSString
+            for match in declaration.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+                declarations += 1
+                var index = match.range.location + match.range.length
+                var depth = 1
+                while depth > 0, index < characters.count {
+                    if characters[index] == 0x7B { depth += 1 } else if characters[index] == 0x7D { depth -= 1 }
+                    index += 1
+                }
+                let bodyRange = NSRange(location: match.range.location + match.range.length, length: index - (match.range.location + match.range.length))
+                let body = ns.substring(with: bodyRange) as NSString
+                for literal in Self.stringLiteral.matches(in: body as String, range: NSRange(location: 0, length: body.length)) {
+                    let content = body.substring(with: literal.range(at: 1))
+                    guard Self.containsHan(content) else { continue }
+                    let before = body.substring(to: literal.range.location)
+                    if casePattern.firstMatch(in: before, range: NSRange(location: 0, length: (before as NSString).length)) != nil { continue }
+                    // Inside a wrapper call that is still open at the literal.
+                    let wrapped = wrapper.matches(in: before, range: NSRange(location: 0, length: (before as NSString).length)).contains { call in
+                        let tail = (before as NSString).substring(from: call.range.location + call.range.length)
+                        return tail.filter { $0 == "(" }.count >= tail.filter { $0 == ")" }.count
+                    }
+                    if !wrapped { offenders.append("\(name): \(content)") }
+                }
+            }
+        }
+        XCTAssertGreaterThan(declarations, 100)
+        XCTAssertEqual(offenders, [])
+    }
+
     /// The credential health page's fallbacks and captions are looked up (they reached the
     /// English UI as Chinese text).
     func testInspectionPageHasNoRawChineseFallbacks() throws {

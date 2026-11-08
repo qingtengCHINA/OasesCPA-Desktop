@@ -56,22 +56,19 @@ enum DeploymentExecutionError: LocalizedError {
         case .gatewayPackageUnavailable:
             OasesLocalization.localized("应用内的网关包缺失或校验失败，已停止部署。请重新安装应用。")
         case .downgradeRefused(let component, let installed, let target):
-            OasesLocalization.localizedFormat(
-                "目标上的 %@ 是 %@，比本应用要安装的 %@ 新；已拒绝降级，没有停止或修改任何内容。请先更新 Oases CPA 应用。",
-                Self.componentName(component), installed, target
-            )
+            DowngradeRefusal(component: component, installed: installed, target: target).message()
         case .upgradeFailed(let failure):
             failure.message()
         }
     }
 
     /// The user-facing name of a component of `.oases-cpa-versions`.
-    static func componentName(_ component: String) -> String {
+    static func componentName(_ component: String, language: AppLanguage? = nil) -> String {
         switch component {
         case "engine": "CLIProxyAPI"
         case "cpamp": "CPA Manager Plus"
         case "node": "Node"
-        case "gateway": OasesLocalization.localized("Oases 网关")
+        case "gateway": OasesLocalization.localized("Oases 网关", language: language)
         default: component
         }
     }

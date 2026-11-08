@@ -35,6 +35,40 @@ enum ConnectionPageState: Equatable, Sendable {
         case removalFailed
     }
 
+    /// Why the probe's deployment could not be taken over, classified from the store's error
+    /// line: the probe's two known sentences, and everything else (script output, SSH, Keychain
+    /// errors) as `other`. The main copy is one sentence in the chosen language; the raw text
+    /// stays in the log (design 6.7: never raw stderr in the main copy).
+    enum NotAdoptableReason: Equatable, Sendable {
+        case incompleteRuntime
+        case incompleteCredentials
+        case other
+
+        static let incompleteRuntimeKey = "检测到现有部署，但运行时文件不完整；请查看日志后使用修复功能。"
+        static let incompleteCredentialsKey = "检测到现有部署，但管理凭据不完整；请查看日志后使用修复功能。"
+
+        static func classify(_ error: String?) -> NotAdoptableReason {
+            guard let error = error?.trimmingCharacters(in: .whitespacesAndNewlines), !error.isEmpty else { return .other }
+            func matches(_ key: String) -> Bool {
+                [AppLanguage.simplifiedChinese, .english].contains { OasesLocalization.localized(key, language: $0) == error }
+            }
+            if matches(incompleteRuntimeKey) { return .incompleteRuntime }
+            if matches(incompleteCredentialsKey) { return .incompleteCredentials }
+            return .other
+        }
+
+        func sentence(language: AppLanguage? = nil) -> String {
+            switch self {
+            case .incompleteRuntime:
+                OasesLocalization.localized("找到了已有部署，但它的运行时文件不完整。部署文件没有被修改；日志里有详细原因。", language: language)
+            case .incompleteCredentials:
+                OasesLocalization.localized("找到了已有部署，但它的管理凭据不完整。部署文件没有被修改；日志里有详细原因。", language: language)
+            case .other:
+                OasesLocalization.localized("找到了已有部署，但 App 无法接入它。部署文件没有被修改；日志里有详细原因。", language: language)
+            }
+        }
+    }
+
     struct Facts: Equatable, Sendable {
         var stage: DeploymentStage = .idle
         var health: DeploymentHealthState = .unknown
@@ -434,8 +468,8 @@ struct ConnectionCenterView: View {
                 .symbolRenderingMode(.multicolor)
                 .fixedSize(horizontal: false, vertical: true)
             sentence(verbatim: upgrade.outcome())
-        case .refused(let message):
-            sentence(verbatim: message)
+        case .refused(let refusal):
+            sentence(verbatim: refusal.message())
         case .other:
             sentence("上次维护没有完成；日志里有详细原因。")
         }
@@ -474,7 +508,7 @@ struct ConnectionCenterView: View {
                 Button("重新检测") { deploymentStore.probeTarget() }
                     .buttonStyle(.borderedProminent)
             }
-            sentence(verbatim: OasesLocalization.localizedFormat("找到了已有部署，但 App 无法接入它：%@ 部署文件没有被修改。", deploymentStore.deploymentError ?? OasesLocalization.localized("原因见日志。")))
+            sentence(verbatim: ConnectionPageState.NotAdoptableReason.classify(deploymentStore.deploymentError).sentence())
             HStack {
                 Spacer()
                 Button("查看日志") { showsLog = true }

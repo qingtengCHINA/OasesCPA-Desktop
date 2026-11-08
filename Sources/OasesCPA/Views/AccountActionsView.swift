@@ -210,13 +210,13 @@ struct AccountActionsView: View {
     private var emptyTitle: String {
         search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? OasesLocalization.localizedFormat("当前没有%@账号待办", filter.title)
-            : "没有匹配的账号待办"
+            : OasesLocalization.localized("没有匹配的账号待办")
     }
 
     private var emptyMessage: String {
-        search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        OasesLocalization.localized(search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? "CPAMP 会在认证异常有足够证据时创建待办；常规网络错误和单次上游 5xx 不会直接成为待办。"
-            : "可以清除搜索或切换状态筛选，查看其它候选。"
+            : "可以清除搜索或切换状态筛选，查看其它候选。")
     }
 
     private func apply(_ confirmation: AccountActionConfirmation) {

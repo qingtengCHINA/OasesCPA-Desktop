@@ -464,8 +464,9 @@ struct InstallProgressSnapshot: Equatable, Sendable {
 enum MaintenanceFailure: Equatable, Sendable {
     /// The script reported its stage and what it restored.
     case upgrade(UpgradeFailure)
-    /// A localized refusal before anything changed (newer components on the target).
-    case refused(String)
+    /// A refusal before anything changed (newer components on the target); its sentence is
+    /// built when shown (`DowngradeRefusal.message`).
+    case refused(DowngradeRefusal)
     /// Anything else (SSH, the app's own checks after the script); details are in the log.
     case other
 }

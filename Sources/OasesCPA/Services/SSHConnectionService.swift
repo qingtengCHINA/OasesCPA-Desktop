@@ -93,35 +93,64 @@ enum SSHConnectionError: LocalizedError, Equatable, Sendable {
     case staleHostKeyConfirmation
     case invalidHostKeyConfirmation
 
-    var errorDescription: String? {
+    var errorDescription: String? { message() }
+
+    /// The sentence in `language` (default: the current one). The detail a case carries is
+    /// the Chinese source key of one of this file's messages (looked up here, so the text
+    /// follows a language switch) or the raw words of an SSH tool, which stay as they are.
+    /// Technical names (SSH, known_hosts, ssh-keyscan) are kept in every language.
+    func message(language: AppLanguage? = nil) -> String {
         switch self {
-        case .cannotPrepareKnownHosts(let message):
-            return OasesLocalization.localizedFormat("无法准备 SSH 主机指纹文件：%@", message)
+        case .cannotPrepareKnownHosts(let detail):
+            return OasesLocalization.localizedFormat(
+                "无法准备 SSH 主机指纹文件：%@", language: language,
+                OasesLocalization.localized(detail, language: language)
+            )
         case .invalidPort:
-            return OasesLocalization.localized("SSH 端口必须是 1-65535 之间的数字。")
+            return OasesLocalization.localized("SSH 端口必须是 1-65535 之间的数字。", language: language)
         case .invalidHost:
-            return OasesLocalization.localized("SSH 主机名或 IP 地址包含无效字符。")
+            return OasesLocalization.localized("SSH 主机名或 IP 地址包含无效字符。", language: language)
         case .invalidUser:
-            return OasesLocalization.localized("SSH 用户名包含无效字符。")
+            return OasesLocalization.localized("SSH 用户名包含无效字符。", language: language)
         case .invalidPrivateKeyPath:
-            return OasesLocalization.localized("SSH 私钥路径不能为空，也不能包含换行或控制字符。")
-        case .hostKeyScanFailed(let message):
-            return OasesLocalization.localizedFormat("无法读取 SSH 主机指纹：%@", message)
+            return OasesLocalization.localized("SSH 私钥路径不能为空，也不能包含换行或控制字符。", language: language)
+        case .hostKeyScanFailed(let detail):
+            return OasesLocalization.localizedFormat(
+                "无法读取 SSH 主机指纹：%@", language: language,
+                OasesLocalization.localized(detail, language: language)
+            )
         case .hostKeyConfirmationRequired(let confirmation):
             return OasesLocalization.localizedFormat(
                 confirmation.reason == .changed
                     ? "SSH 主机需要变更指纹确认：%@:%lld（%@）"
                     : "SSH 主机需要首次指纹确认：%@:%lld（%@）",
+                language: language,
                 confirmation.host,
                 confirmation.port,
                 confirmation.fingerprint
             )
         case .staleHostKeyConfirmation:
-            return OasesLocalization.localized("SSH 主机指纹确认已过期；当前 known_hosts 未被覆盖，请重新核验。")
+            return OasesLocalization.localized("SSH 主机指纹确认已过期；当前 known_hosts 未被覆盖，请重新核验。", language: language)
         case .invalidHostKeyConfirmation:
-            return OasesLocalization.localized("SSH 主机指纹确认数据无效，已停止连接。")
+            return OasesLocalization.localized("SSH 主机指纹确认数据无效，已停止连接。", language: language)
         }
     }
+
+    /// Every detail key this file passes to `cannotPrepareKnownHosts` / `hostKeyScanFailed`
+    /// (both tables hold them; `SSHConnectionServiceSecurityTests` checks the source against
+    /// this list and every message in English).
+    static let detailKeys: [String] = [
+        "文件权限设置失败", "文件同步失败", "ssh-keyscan 未返回主机 key", "ssh-keyscan 返回了无效的主机 key",
+        "主机 key 指纹校验失败", "known_hosts 文件打开失败", "无法读取 known_hosts", "known_hosts 文件过大",
+        "known_hosts 不是有效的 UTF-8 文件", "known_hosts 路径无效", "known_hosts 根目录打开失败",
+        "known_hosts 父路径无效", "known_hosts 目录创建失败", "known_hosts 父路径不是安全目录",
+        "known_hosts 父目录同步失败", "known_hosts 目录权限或同步失败", "无法检查 known_hosts 文件",
+        "known_hosts 必须是普通文件", "known_hosts 锁权限设置失败", "known_hosts 锁获取失败",
+        "测试锁 marker 创建失败", "known_hosts 在写入前发生变化", "临时文件权限设置失败", "临时文件写入失败",
+        "临时文件同步失败", "临时文件关闭失败", "known_hosts 原子替换失败", "known_hosts 提交后同步失败",
+        "ssh-keygen 未返回 SHA-256 指纹", "测试进程不得使用真实的 known_hosts", "无法找到 Application Support",
+        "SSH 工具执行失败", "SSH 工具输入过大", "SSH 工具输入管道不可用", "SSH 工具执行超时", "SSH 工具执行已取消",
+    ]
 }
 
 enum SSHConnectionService {
@@ -1166,7 +1195,7 @@ enum SSHConnectionService {
 
         if timedOut || wasCancelled {
             throw SSHConnectionError.hostKeyScanFailed(
-                timedOut ? OasesLocalization.localized("SSH 工具执行超时") : OasesLocalization.localized("SSH 工具执行已取消")
+                timedOut ? "SSH 工具执行超时" : "SSH 工具执行已取消"
             )
         }
 

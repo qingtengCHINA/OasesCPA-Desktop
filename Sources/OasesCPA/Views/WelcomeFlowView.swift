@@ -600,8 +600,8 @@ struct WelcomeFlowView: View {
         switch maintenanceFailure {
         case .upgrade(let failure):
             failure.outcome()
-        case .refused(let message):
-            message
+        case .refused(let refusal):
+            refusal.message()
         case .other, nil:
             OasesLocalization.localized("原部署现在的状态需要确认；日志里有详细原因。")
         }

@@ -474,9 +474,9 @@ struct DirectProviderCredentialEditorView: View {
                     if kind.supportsDisableCooling {
                         Toggle("禁用冷却", isOn: $disableCooling)
                     }
-                    Text(kind.supportsPriority
+                    Text(OasesLocalization.localized(kind.supportsPriority
                          ? "权重和优先级会参与多凭证路由；冷却选项用于 xAI 特殊路由。"
-                         : "多条凭证共存时，CLIProxyAPI 会按当前路由策略使用权重。")
+                         : "多条凭证共存时，CLIProxyAPI 会按当前路由策略使用权重。"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

@@ -417,9 +417,9 @@ private enum PluginOAuthViewError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingAuthorizationURL:
-            "目标插件没有返回授权地址。"
+            OasesLocalization.localized("目标插件没有返回授权地址。")
         case .missingState:
-            "目标插件没有返回有效的 OAuth state。"
+            OasesLocalization.localized("目标插件没有返回有效的 OAuth state。")
         }
     }
 }

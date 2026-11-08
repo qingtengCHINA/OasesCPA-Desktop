@@ -951,7 +951,7 @@ private struct InspectionResultCard: View {
                 )
                 InspectionResultFact(
                     title: "计划",
-                    value: result.planType?.isEmpty == false ? result.planType! : "暂无"
+                    value: result.planType?.isEmpty == false ? result.planType! : OasesLocalization.localized("暂无")
                 )
                 InspectionResultFact(
                     title: "身份索引",

@@ -14,6 +14,68 @@ final class SSHConnectionServiceSecurityTests: XCTestCase {
         super.tearDown()
     }
 
+    // MARK: - Error text (I3)
+
+    /// Every `LocalizedError` description of the SSH service resolves to English text without
+    /// Chinese characters when the app is in English (they reached the connection page as
+    /// Chinese), keeps its technical names (SSH, known_hosts, ssh-keyscan) and leaves raw tool
+    /// output as it is.
+    func testEverySSHErrorDescriptionResolvesToEnglish() throws {
+        let source = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/OasesCPA/Services/SSHConnectionService.swift")
+        let text = try String(contentsOf: source, encoding: .utf8)
+        let call = try NSRegularExpression(pattern: #"(?:cannotPrepare|hostKeyScanFailed)\(\s*"((?:[^"\\]|\\.)*)""#)
+        let used = Set(call.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap {
+            Range($0.range(at: 1), in: text).map { String(text[$0]) }
+        })
+        XCTAssertGreaterThan(used.count, 30)
+        XCTAssertEqual(used.subtracting(SSHConnectionError.detailKeys).sorted(), [], "a detail written in the source is missing from detailKeys")
+
+        let han = try NSRegularExpression(pattern: #"\p{Han}"#)
+        func assertEnglish(_ error: SSHConnectionError, file: StaticString = #filePath, line: UInt = #line) {
+            let english = error.message(language: .english)
+            XCTAssertFalse(english.isEmpty, file: file, line: line)
+            XCTAssertNil(han.firstMatch(in: english, range: NSRange(english.startIndex..., in: english)), english, file: file, line: line)
+            XCTAssertFalse(error.message(language: .simplifiedChinese).isEmpty, file: file, line: line)
+        }
+        for detail in SSHConnectionError.detailKeys {
+            assertEnglish(.cannotPrepareKnownHosts(detail))
+            assertEnglish(.hostKeyScanFailed(detail))
+        }
+        let confirmation = SSHHostKeyConfirmation(
+            host: "vps.example.com", port: 2222, algorithm: "ssh-ed25519",
+            fingerprint: "SHA256:EhasawLwWJGbfLKEzbrQKB4rV6gI/AybldVQ5mYd1RI",
+            knownHostsLine: "x", reason: .firstUse, previousFingerprint: nil
+        )
+        let changed = SSHHostKeyConfirmation(
+            host: confirmation.host, port: confirmation.port, algorithm: confirmation.algorithm,
+            fingerprint: confirmation.fingerprint, knownHostsLine: confirmation.knownHostsLine,
+            reason: .changed, previousFingerprint: "SHA256:old"
+        )
+        for error: SSHConnectionError in [
+            .invalidPort, .invalidHost, .invalidUser, .invalidPrivateKeyPath,
+            .hostKeyConfirmationRequired(confirmation), .hostKeyConfirmationRequired(changed),
+            .staleHostKeyConfirmation, .invalidHostKeyConfirmation,
+        ] {
+            assertEnglish(error)
+        }
+        XCTAssertEqual(
+            SSHConnectionError.cannotPrepareKnownHosts("known_hosts 文件打开失败").message(language: .english),
+            "Can't prepare the SSH host fingerprint file: couldn't open the known_hosts file."
+        )
+        XCTAssertEqual(
+            SSHConnectionError.hostKeyScanFailed("Connection refused").message(language: .english),
+            "Can't read the SSH host fingerprint: Connection refused.",
+            "raw tool output stays as it is"
+        )
+        XCTAssertEqual(
+            OasesLocalization.relocalized(SSHConnectionError.cannotPrepareKnownHosts("known_hosts 文件打开失败").message(language: .simplifiedChinese), to: .english),
+            "Can't prepare the SSH host fingerprint file: couldn't open the known_hosts file.",
+            "text a store already holds follows a language switch, nested detail included"
+        )
+    }
+
     func testUnknownHostReturnsStructuredConfirmationWithoutWritingKnownHosts() throws {
         let knownHostsURL = try makeKnownHostsURL()
         let record = makeRecord(

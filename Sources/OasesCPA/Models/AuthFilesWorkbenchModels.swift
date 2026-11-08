@@ -105,7 +105,8 @@ struct AuthFilesWorkbenchFile: Decodable, Identifiable, Hashable, Sendable {
     var displayStatus: String {
         if isDisabled { return OasesLocalization.localized("已禁用") }
         if unavailable == true { return OasesLocalization.localized("不可用") }
-        return status?.isEmpty == false ? status! : "已加载"
+        if let status, !status.isEmpty { return status }
+        return OasesLocalization.localized("已加载")
     }
 
     var searchableText: String {

@@ -73,9 +73,41 @@ final class WelcomeGateTests: XCTestCase {
         XCTAssertEqual(phase(true, .init(stage: .failed, maintenanceFailure: .other)), .upgrading(.failed(stage: nil)))
         XCTAssertEqual(phase(true, .init(stage: .attached, topology: .gateway)), .upgraded)
         XCTAssertEqual(WelcomePhase.resolve(initialStep: .ready, startedInstall: false, startedUpgrade: false, facts: .init()), .ready)
-        let refused = phase(true, .init(stage: .attached, maintenanceFailure: .refused("newer engine")))
+        let refused = phase(true, .init(stage: .attached, maintenanceFailure: .refused(DowngradeRefusal(component: "engine", installed: "8.1.0", target: "8.0.51"))))
         XCTAssertEqual(refused, .upgrading(.failed(stage: nil)))
         XCTAssertEqual(refused.failureExit, .environments, "a refused upgrade has a way out")
+    }
+
+    /// I3: the not-adoptable state shows one classified sentence in the chosen language, never
+    /// the raw error text (script stderr, Chinese) the store holds.
+    func testNotAdoptableShowsAClassifiedSentence() {
+        typealias Reason = ConnectionPageState.NotAdoptableReason
+        for language in [AppLanguage.simplifiedChinese, .english] {
+            XCTAssertEqual(Reason.classify(OasesLocalization.localized(Reason.incompleteRuntimeKey, language: language)), .incompleteRuntime)
+            XCTAssertEqual(Reason.classify(OasesLocalization.localized(Reason.incompleteCredentialsKey, language: language)), .incompleteCredentials)
+        }
+        XCTAssertEqual(Reason.classify("部署在阶段 adopt 失败（退出码 1）。\ncat: secrets/cpa-management.key: No such file"), .other)
+        XCTAssertEqual(Reason.classify(nil), .other)
+        XCTAssertEqual(
+            Reason.other.sentence(language: .english),
+            "An existing deployment was found, but the app can't take it over. The deployment files weren't changed; the log has the details."
+        )
+        for reason: Reason in [.incompleteRuntime, .incompleteCredentials, .other] {
+            XCTAssertNil(reason.sentence(language: .english).range(of: #"\p{Han}"#, options: .regularExpression))
+        }
+    }
+
+    /// A refused upgrade builds its sentence when shown, so it follows a language switch.
+    func testARefusedUpgradeFollowsTheLanguage() {
+        let refusal = DowngradeRefusal(component: "gateway", installed: "0.2.0", target: "0.1.0")
+        XCTAssertEqual(
+            refusal.message(language: .english),
+            OasesLocalization.localizedFormat(
+                "目标上的 %@ 是 %@，比本应用要安装的 %@ 新；已拒绝降级，没有停止或修改任何内容。请先更新 Oases CPA 应用。",
+                language: .english, OasesLocalization.localized("Oases 网关", language: .english), "0.2.0", "0.1.0"
+            )
+        )
+        XCTAssertNil(refusal.message(language: .english).range(of: #"\p{Han}"#, options: .regularExpression))
     }
 
     /// I2: every failed step has a way out of the gate; the other phases lead on with their own

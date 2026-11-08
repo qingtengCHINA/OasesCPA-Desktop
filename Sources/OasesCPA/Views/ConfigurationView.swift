@@ -658,7 +658,7 @@ struct ConfigurationView: View {
 
     private var saveConfirmationMessage: String {
         var details = [
-            "CPAMP 会校验 CPA 管理地址和密钥；如果启用了请求监控，保存可能会重启采集器。"
+            OasesLocalization.localized("CPAMP 会校验 CPA 管理地址和密钥；如果启用了请求监控，保存可能会重启采集器。")
         ]
         if effectiveInspectionPolicyDraft.isDestructive {
             details.append(OasesLocalization.localized("本次保存不会立即运行巡检，但后续定时或手动巡检可能按策略删除目标认证文件。"))

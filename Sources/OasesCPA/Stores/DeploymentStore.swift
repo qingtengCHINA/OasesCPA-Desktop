@@ -686,8 +686,8 @@ final class DeploymentStore: ObservableObject {
                         self.stage = .failed
                         self.planPresented = false
                         let detail = result.hasRecoverableCredentials
-                            ? OasesLocalization.localized("检测到现有部署，但运行时文件不完整；请查看日志后使用修复功能。")
-                            : OasesLocalization.localized("检测到现有部署，但管理凭据不完整；请查看日志后使用修复功能。")
+                            ? OasesLocalization.localized(ConnectionPageState.NotAdoptableReason.incompleteRuntimeKey)
+                            : OasesLocalization.localized(ConnectionPageState.NotAdoptableReason.incompleteCredentialsKey)
                         self.deploymentError = detail
                         self.statusMessage = detail
                         self.isDetectingOnLaunch = false
@@ -1410,7 +1410,7 @@ final class DeploymentStore: ObservableObject {
                 self.healthState = healthBefore
                 self.healthError = healthErrorBefore
                 self.maintenanceError = refusal.localizedDescription
-                self.lastMaintenanceFailure = .refused(refusal.localizedDescription)
+                self.lastMaintenanceFailure = .refused(DowngradeRefusal(component: component, installed: installed, target: target))
                 self.statusMessage = refusal.localizedDescription
                 if monitorWasRunning { self.startHealthMonitor() }
             } catch {

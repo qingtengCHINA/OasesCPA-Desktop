@@ -317,7 +317,14 @@ final class OasesRelocalizationTables: @unchecked Sendable {
             best = (language, entry, arguments)
         }
         guard let best, best.language != target, let format = targetTable[best.entry.key] else { return nil }
-        return OasesFormat.format(format, locale: target.locale, arguments: best.arguments)
+        // An argument that is itself one of the app's strings (a nested detail such as
+        // "无法准备 SSH 主机指纹文件：known_hosts 文件打开失败") follows the switch too; anything
+        // else (a host, a path, raw tool output) stays as it is.
+        let arguments: [CVarArg] = best.arguments.map { argument in
+            guard let text = argument as? String, !text.isEmpty else { return argument }
+            return translate(text, to: target) ?? text
+        }
+        return OasesFormat.format(format, locale: target.locale, arguments: arguments)
     }
 
     private func bestFormatMatch(_ text: String, in language: AppLanguage) -> (FormatEntry, [CVarArg])? {
